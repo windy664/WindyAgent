@@ -15,7 +15,7 @@ class ReActAgent(
 
     override fun run(context: AgentContext): AgentResponse {
         val messages = context.history.toMutableList()
-        messages += LLMMessage.User(context.userMessage)
+        messages += LLMMessage.User(userMessageWithMemory(context))
 
         val response = toolLoop(
             llmProvider,

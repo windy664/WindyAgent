@@ -60,3 +60,11 @@ internal fun AgentContext.syncHistory(messages: List<LLMMessage>) {
     history.clear()
     history.addAll(messages)
 }
+
+/**
+ * 把召回的长期记忆拼进**当次 user 消息**（而非系统提示）——这样系统提示 + 工具定义保持稳定、
+ * 可被 provider 前缀缓存命中（ReAct 多轮/跨请求复用），记忆与新问只落在非缓存尾部。
+ */
+internal fun userMessageWithMemory(context: AgentContext): String =
+    if (context.recalled.isBlank()) context.userMessage
+    else "[关于当前用户的已知记忆，酌情参考]\n${context.recalled}\n\n${context.userMessage}"

@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component
 import org.slf4j.Logger
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
+import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.TrustLevel
 import java.util.concurrent.CompletableFuture
@@ -21,6 +22,7 @@ class AgentCommand(
     private val agent: Agent,
     private val platform: VelocityPlatform,
     private val sessions: SessionManager,
+    private val router: AgentCommandRouter,
     private val logger: Logger
 ) : RawCommand {
 
@@ -40,6 +42,12 @@ class AgentCommand(
 
         CompletableFuture.runAsync {
             runCatching {
+                // 先试元命令（help/clear/history/status/approve…）；命中直接回，未命中才走对话
+                val meta = router.dispatch(input, sessionId, trust)
+                if (meta != null) {
+                    source.sendMessage(Component.text("[WindyAgent] $meta"))
+                    return@runAsync
+                }
                 val context = AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust)
                 val response = agent.run(context)
                 sessions.trimHistory(sessionId)

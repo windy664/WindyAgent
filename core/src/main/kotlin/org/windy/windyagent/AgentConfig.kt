@@ -29,6 +29,8 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun apiBaseUrl() = getString("llm.api-base-url", "")
     fun model() = getString("llm.model", "claude-opus-4-8")
     fun ollamaUrl() = getString("llm.ollama-url", "http://localhost:11434")
+    /** 元任务（路由分类/查询扩展）用的便宜模型；留空=与主模型相同。 */
+    fun fastModel() = getString("llm.fast-model", "")
     fun trigger() = getString("agent.trigger", "!ai")
     fun maxHistory() = (getNode("agent.max-history") as? Number)?.toInt() ?: 20
 
@@ -53,6 +55,12 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun socketHost() = getString("cross-server.socket.host", "0.0.0.0")
     fun socketPort() = (getNode("cross-server.socket.port") as? Number)?.toInt() ?: 25599
     fun socketSecret() = getString("cross-server.socket.secret", "")
+
+    // 长期记忆（跨会话）
+    fun memoryEnabled() = (getNode("memory.enabled") as? Boolean) ?: true
+    fun memoryRecallTopK() = (getNode("memory.recall-top-k") as? Number)?.toInt() ?: 3
+    fun memoryMaxEntries() = (getNode("memory.max-entries") as? Number)?.toInt() ?: 500
+    fun memoryRecallMinScore() = (getNode("memory.recall-min-score") as? Number)?.toInt() ?: 2
 
     // 安全护栏：命令执行策略
     /** enforce（命中即拒）/ warn（放行但审计告警）/ off（不拦）。 */

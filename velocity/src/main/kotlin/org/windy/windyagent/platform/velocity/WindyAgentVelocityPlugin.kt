@@ -17,14 +17,18 @@ import org.windy.windyagent.agent.RemoteBalanceTool
 import org.windy.windyagent.agent.RemoteCommandTool
 import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
+import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.bus.InProcessBus
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.bus.RedisBus
 import org.windy.windyagent.bus.ToolReply
 import org.windy.windyagent.bus.socket.SocketHubBus
 import org.windy.windyagent.buildEmbeddingProvider
+import org.windy.windyagent.buildFastProvider
 import org.windy.windyagent.buildProvider
 import org.windy.windyagent.knowledge.KnowledgeLoader
+import org.windy.windyagent.memory.FileLongTermMemory
+import org.windy.windyagent.memory.RememberTool
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.mcp.McpLoader
 import org.windy.windyagent.rag.LlmQueryExpander
@@ -60,6 +64,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
             logger.error(it.message)
             return
         }
+        // 元任务（路由/扩展）便宜模型，省 token；未配则用主模型
+        val fastLlm = buildFastProvider(cfg)
+        if (fastLlm != null) logger.info("元任务便宜模型：{}", cfg.fastModel())
 
         val extraTools = mutableListOf<AgentTool>()
 
@@ -69,8 +76,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val pending = PendingApprovals()
         logger.info("安全护栏：mode={}", cfg.safetyMode())
 
-        // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（默认开，可关）
-        val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(llm) else null
+        // 长期记忆（跨会话）：有则挂 remember 工具 + 自动召回
+        val memory = if (cfg.memoryEnabled()) FileLongTermMemory(dataDirectory.resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore()) else null
+        memory?.let { extraTools += RememberTool(it); logger.info("长期记忆已启用") }
+
+        // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（用便宜模型，默认开，可关）
+        val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
 
         // 知识库检索（RAG 结构化优先起步）：有知识时挂上 knowledge_search 工具
         val knowledge = KnowledgeLoader.load(dataDirectory)
@@ -107,23 +118,30 @@ class WindyAgentVelocityPlugin @Inject constructor(
         }
 
         val platform = VelocityPlatform(server, audit, extraTools)
-        // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由
-        val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm))
+        // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由；注入长期记忆做自动召回
+        val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
         val sessions = SessionManager(cfg.maxHistory())
 
+        // 载体无关的元命令路由（help/clear/history/status/approve…）
+        val statusSupplier = {
+            "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n" +
+                "跨服：${if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用"}"
+        }
+        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier)
+
         // 玩家游戏内聊天触发：!ai <message>
-        server.eventManager.register(this, VelocityChatListener(agent, platform, sessions, logger, cfg.trigger()))
+        server.eventManager.register(this, VelocityChatListener(agent, platform, sessions, router, logger, cfg.trigger()))
 
         // 命令触发（控制台 + 玩家）：/ai <message>，命令名由 trigger 去掉前缀符号得出
         val commandName = cfg.trigger().trimStart('!', '/', '.', ' ').ifBlank { "ai" }
         val commandManager = server.commandManager
         val meta = commandManager.metaBuilder(commandName).plugin(this).build()
-        commandManager.register(meta, AgentCommand(agent, platform, sessions, logger))
+        commandManager.register(meta, AgentCommand(agent, platform, sessions, router, logger))
 
-        // 高危操作人工审批命令（管理员）
+        // 顶层审批命令（薄适配 → router）
         for (act in listOf("approve", "deny", "pending")) {
             val m = commandManager.metaBuilder("ai-$act").plugin(this).build()
-            commandManager.register(m, AgentApprovalCommand(pending, audit, act))
+            commandManager.register(m, AgentApprovalCommand(router, act))
         }
 
         logger.info(

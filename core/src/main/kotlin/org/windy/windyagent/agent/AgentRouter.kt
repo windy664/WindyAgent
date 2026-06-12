@@ -3,6 +3,7 @@ package org.windy.windyagent.agent
 import org.slf4j.LoggerFactory
 import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.llm.LLMProvider
+import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.safety.RequestContext
 
 /**
@@ -16,15 +17,24 @@ import org.windy.windyagent.safety.RequestContext
 class AgentRouter(
     private val llmProvider: LLMProvider,
     private val react: Agent,
-    private val planExecute: Agent
+    private val planExecute: Agent,
+    private val memory: LongTermMemory? = null,
+    private val recallTopK: Int = 3,
+    /** 元任务（复杂度分类）用的便宜模型；null=用主模型。 */
+    private val fastLlm: LLMProvider? = null
 ) : Agent {
     override val name = "router"
     private val logger = LoggerFactory.getLogger(AgentRouter::class.java)
 
     override fun run(context: AgentContext): AgentResponse {
-        // 把触发信任级别放进请求级上下文，供深层命令工具读取（安全护栏分权）
-        RequestContext.enter(context.trust)
+        // 请求级上下文：信任级别 + 会话 id，供深层工具（安全护栏分权 / remember 作用域）读取
+        RequestContext.enter(context.trust, context.sessionId)
         try {
+            // 自动召回长期记忆，拼进上下文（agent 会加到系统提示）——透明记忆，零额外 LLM
+            memory?.let { m ->
+                val hits = runCatching { m.recall(context.sessionId, context.userMessage, recallTopK) }.getOrNull().orEmpty()
+                if (hits.isNotEmpty()) context.recalled = hits.joinToString("\n") { "- ${it.content}" }
+            }
             val chosen = select(context.userMessage)
             logger.info("Router → {} for session {} (trust={})", chosen.name, context.sessionId, context.trust)
             return chosen.run(context)
@@ -57,7 +67,7 @@ class AgentRouter(
     /** 模棱两可时的兜底：一次性、无工具的复杂度分类。失败保守判为简单。 */
     private fun classifyByLlm(message: String): Boolean {
         val answer = runCatching {
-            llmProvider.chat(CLASSIFY_SYSTEM, listOf(LLMMessage.User("用户请求：$message"))).textContent
+            (fastLlm ?: llmProvider).chat(CLASSIFY_SYSTEM, listOf(LLMMessage.User("用户请求：$message"))).textContent
         }.getOrNull()?.trim()?.lowercase().orEmpty()
         return answer.contains("complex") || answer.contains("复杂")
     }

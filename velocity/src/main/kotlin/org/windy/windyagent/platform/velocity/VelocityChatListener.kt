@@ -5,13 +5,16 @@ import com.velocitypowered.api.event.player.PlayerChatEvent
 import org.slf4j.Logger
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
+import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.platform.SessionManager
+import org.windy.windyagent.safety.TrustLevel
 import java.util.concurrent.CompletableFuture
 
 class VelocityChatListener(
     private val agent: Agent,
     private val platform: VelocityPlatform,
     private val sessions: SessionManager,
+    private val router: AgentCommandRouter,
     private val logger: Logger,
     trigger: String
 ) {
@@ -31,7 +34,13 @@ class VelocityChatListener(
 
         CompletableFuture.runAsync {
             runCatching {
-                val context = AgentContext(playerName, userInput, platform, sessions.getHistory(playerName))
+                // 玩家聊天 = 不可信来源；先试元命令（approve 等需管理员会被拒）
+                val meta = router.dispatch(userInput, playerName, TrustLevel.UNTRUSTED)
+                if (meta != null) {
+                    platform.sendResponse(playerName, meta)
+                    return@runAsync
+                }
+                val context = AgentContext(playerName, userInput, platform, sessions.getHistory(playerName), TrustLevel.UNTRUSTED)
                 val response = agent.run(context)
                 sessions.trimHistory(playerName)
                 platform.sendResponse(playerName, response.message)

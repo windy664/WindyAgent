@@ -27,12 +27,24 @@ llm:
   # Ollama 服务地址（仅 provider: ollama 时生效）
   ollama-url: "http://localhost:11434"
 
+  # 便宜模型（可选）：路由分类/查询扩展等元任务用它省 token；留空=与主模型相同
+  fast-model: ""
+
 agent:
   # 触发前缀
   trigger: "!ai"
 
   # 单次会话最大历史消息数
   max-history: 20
+
+# 长期记忆（跨会话，默认开）：Agent 用 remember 记下玩家稳定偏好/服务器约定，
+#   每次提问自动召回相关记忆拼进上下文。存 <数据目录>/memory/memories.json，重启不丢。
+#   recall-top-k：每次召回条数；max-entries：上限，超出按最旧淘汰。关掉则无长期记忆。
+memory:
+  enabled: true
+  recall-top-k: 3
+  max-entries: 500
+  recall-min-score: 2     # 召回最低相关度，低于此的弱命中不召回（挡垃圾进上下文、省 token）
 
 # 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
 #   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦

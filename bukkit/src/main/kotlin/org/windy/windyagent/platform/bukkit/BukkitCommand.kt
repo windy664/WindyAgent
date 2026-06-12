@@ -8,6 +8,7 @@ import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
+import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.TrustLevel
 
@@ -21,7 +22,8 @@ class BukkitCommand(
     private val plugin: JavaPlugin,
     private val agent: Agent,
     private val platform: BukkitPlatform,
-    private val sessions: SessionManager
+    private val sessions: SessionManager,
+    private val router: AgentCommandRouter
 ) : CommandExecutor {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -37,6 +39,8 @@ class BukkitCommand(
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
             runCatching {
+                val meta = router.dispatch(input, sessionId, trust)
+                if (meta != null) { reply(sender, meta); return@Runnable }
                 val ctx = AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust)
                 val resp = agent.run(ctx)
                 sessions.trimHistory(sessionId)

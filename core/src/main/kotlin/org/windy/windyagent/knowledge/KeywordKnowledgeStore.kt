@@ -11,7 +11,11 @@ class KeywordKnowledgeStore(private val entries: List<KnowledgeEntry>) : Knowled
 
     override fun size(): Int = entries.size
 
-    override fun search(query: String, topK: Int): List<KnowledgeEntry> {
+    override fun search(query: String, topK: Int): List<KnowledgeEntry> =
+        searchScored(query, topK).map { it.first }
+
+    /** 同 [search]，但带分数（供调用方按阈值过滤弱命中，如长期记忆召回门控）。 */
+    fun searchScored(query: String, topK: Int): List<Pair<KnowledgeEntry, Int>> {
         val terms = extractTerms(query)
         if (terms.isEmpty()) return emptyList()
         return entries
@@ -19,7 +23,6 @@ class KeywordKnowledgeStore(private val entries: List<KnowledgeEntry>) : Knowled
             .filter { it.second > 0 }
             .sortedByDescending { it.second }
             .take(topK)
-            .map { it.first }
     }
 
     private fun score(e: KnowledgeEntry, terms: List<String>): Int {

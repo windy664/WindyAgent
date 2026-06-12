@@ -21,6 +21,19 @@ fun buildEmbeddingProvider(cfg: AgentConfig): EmbeddingProvider? {
     return OpenAICompatEmbeddingProvider(cfg.embeddingApiBaseUrl(), cfg.embeddingModel(), cfg.embeddingApiKey())
 }
 
+/**
+ * 元任务（路由分类 / RAG 查询扩展）用的便宜模型：复用主 provider 的 base-url/key，只换模型名。
+ * 未配 `llm.fast-model` 则返回 null（元任务退回主模型）。
+ */
+fun buildFastProvider(cfg: AgentConfig): LLMProvider? {
+    val m = cfg.fastModel().ifBlank { return null }
+    return when (cfg.provider().lowercase()) {
+        "ollama" -> OllamaProvider(cfg.ollamaUrl(), m)
+        "openai" -> OpenAICompatProvider(cfg.apiBaseUrl(), m, cfg.apiKey())
+        else -> ClaudeProvider(cfg.apiKey(), m, cfg.apiBaseUrl().ifBlank { null })
+    }
+}
+
 fun buildProvider(cfg: AgentConfig): LLMProvider = when (cfg.provider().lowercase()) {
     "ollama" -> OllamaProvider(cfg.ollamaUrl(), cfg.model())
     "openai" -> {
