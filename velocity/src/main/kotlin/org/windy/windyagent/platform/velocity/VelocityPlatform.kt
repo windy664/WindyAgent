@@ -8,9 +8,11 @@ import org.windy.windyagent.platform.velocity.tools.BroadcastTool
 import org.windy.windyagent.platform.velocity.tools.GetOnlinePlayersTool
 import org.windy.windyagent.platform.velocity.tools.GetServerInfoTool
 import org.windy.windyagent.platform.velocity.tools.KickPlayerTool
+import org.windy.windyagent.safety.AuditLog
 
 class VelocityPlatform(
     private val server: ProxyServer,
+    private val audit: AuditLog,
     // 跨服等远端能力包装成的工具（如 RemoteCommandTool）；未启用跨服时为空
     extraTools: List<AgentTool> = emptyList()
 ) : Platform {
@@ -19,7 +21,7 @@ class VelocityPlatform(
         BroadcastTool(server),
         GetOnlinePlayersTool(server),
         GetServerInfoTool(server),
-        KickPlayerTool(server)
+        KickPlayerTool(server, audit)
     ) + extraTools
     // 仅声明 Velocity 载体特有的上下文；通用提示见 core 层 SystemPrompt
     override val platformContext = """

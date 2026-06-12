@@ -11,3 +11,19 @@ commands:
   ai:
     description: 向 WindyAgent 提问或下达指令（standalone / hub 模式）
     usage: /ai <消息>
+  ai-approve:
+    description: 批准并执行 WindyAgent 待审的高危操作
+    usage: /ai-approve <审批单号>
+    permission: windyagent.admin
+  ai-deny:
+    description: 驳回 WindyAgent 待审的高危操作
+    usage: /ai-deny <审批单号>
+    permission: windyagent.admin
+  ai-pending:
+    description: 列出 WindyAgent 待审批的高危操作
+    usage: /ai-pending
+    permission: windyagent.admin
+permissions:
+  windyagent.admin:
+    description: 触发高危操作走审批 + 审批/驳回权限
+    default: op

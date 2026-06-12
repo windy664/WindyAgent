@@ -29,6 +29,7 @@ import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.mcp.McpLoader
 import org.windy.windyagent.rag.LlmQueryExpander
 import org.windy.windyagent.safety.AuditLog
+import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.knowledge.KnowledgeSearchTool
 import org.windy.windyagent.platform.SessionManager
 import java.nio.file.Path
@@ -62,9 +63,10 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         val extraTools = mutableListOf<AgentTool>()
 
-        // 安全护栏 + 审计（拦 AI 自动跑高危命令）
+        // 安全护栏 + 审计 + 人工审批闸（拦 AI 自动跑高危命令；可信来源高危走审批）
         val guard = buildCommandGuard(cfg)
         val audit = AuditLog(dataDirectory.resolve("audit.log"))
+        val pending = PendingApprovals()
         logger.info("安全护栏：mode={}", cfg.safetyMode())
 
         // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（默认开，可关）
@@ -90,7 +92,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             runCatching {
                 val b = buildBus(cfg.crossServerTransport(), cfg)
                 b.startReplyListener()
-                extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit)
+                extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit, pending)
                 extraTools += RemoteBalanceTool(b, cfg.remoteTimeoutMs())
                 // 子服能力目录：收齐推来的目录入中心注册表，Agent 用 search_capabilities 本地检索（零往返）。
                 // 配了 embedding 则走语义检索（L3 RAG），否则关键词（L2）。
@@ -104,7 +106,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
         }
 
-        val platform = VelocityPlatform(server, extraTools)
+        val platform = VelocityPlatform(server, audit, extraTools)
         // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm))
         val sessions = SessionManager(cfg.maxHistory())
@@ -117,6 +119,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val commandManager = server.commandManager
         val meta = commandManager.metaBuilder(commandName).plugin(this).build()
         commandManager.register(meta, AgentCommand(agent, platform, sessions, logger))
+
+        // 高危操作人工审批命令（管理员）
+        for (act in listOf("approve", "deny", "pending")) {
+            val m = commandManager.metaBuilder("ai-$act").plugin(this).build()
+            commandManager.register(m, AgentApprovalCommand(pending, audit, act))
+        }
 
         logger.info(
             "WindyAgent started — provider: {} — chat: '{} <message>' — command: '/{} <message>' (console supported)",

@@ -18,6 +18,7 @@ import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.mcp.McpLoader
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.rag.LlmQueryExpander
+import org.windy.windyagent.safety.PendingApprovals
 
 /**
  * 嵌入式 Agent 装配：把 core 的 Agent 大脑接到本 Bukkit 服。
@@ -38,7 +39,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         val guard = buildCommandGuard(cfg)
         val audit = AuditLog(plugin.dataFolder.toPath().resolve("audit.log"))
-        val actions = BukkitActions(plugin, guard, audit)
+        val pending = PendingApprovals()
+        val actions = BukkitActions(plugin, guard, audit, pending)
 
         // 能力目录：本机命令建好放入本地注册表，Agent 经 search_capabilities 本地检索（零往返）。
         // 配了 embedding 则语义检索（L3），否则关键词（L2）。带持久化（重启免重建）。
@@ -49,7 +51,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
         // hub 模式：把派发到其它子服的远端能力挂上，并接收其它子服推来的目录
         if (remoteBus != null) {
-            extraTools += RemoteCommandTool(remoteBus, remoteTimeoutMs, guard, audit)
+            extraTools += RemoteCommandTool(remoteBus, remoteTimeoutMs, guard, audit, pending)
             extraTools += RemoteBalanceTool(remoteBus, remoteTimeoutMs)
             remoteBus.onCatalog { registry.accept(it) }
         }
@@ -66,6 +68,10 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         // /ai 命令（需在 plugin.yml 声明 commands.ai）
         plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, platform, sessions))
             ?: plugin.logger.warning("未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
+
+        // 高危操作人工审批命令
+        val approval = BukkitApprovalCommand(pending, audit)
+        listOf("ai-approve", "ai-deny", "ai-pending").forEach { plugin.getCommand(it)?.setExecutor(approval) }
 
         // 聊天触发 <trigger> <消息>
         plugin.server.pluginManager.registerEvents(

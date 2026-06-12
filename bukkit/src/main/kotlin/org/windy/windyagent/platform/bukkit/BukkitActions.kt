@@ -9,6 +9,7 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.CommandGuard
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.safety.RequestContext
+import org.windy.windyagent.safety.TrustLevel
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
@@ -67,7 +68,7 @@ class BukkitActions(
                 return false to "命令「$command」被安全策略拦截：${d.reason}"
             }
             is CommandGuard.Decision.NeedsApproval -> {
-                val id = pending.submit("本服执行：$command") { dispatchRaw(command).second }
+                val id = pending.submit("本服执行：$command") { executeCommand(command).second }
                 audit.record("local", "run_command", command, "NEEDS_APPROVAL", "${d.reason} #$id")
                 return false to "⏳ 高危操作「$command」需人工审批，已提交审批单 #$id。请管理员执行 /ai-approve $id 批准。"
             }
@@ -98,12 +99,20 @@ class BukkitActions(
         else "本服在线 ${players.size} 人：" + players.joinToString(", ") { it.name }
     }
 
-    fun kick(name: String, reason: String): Pair<Boolean, String> = onMain {
-        val player = Bukkit.getPlayerExact(name)
-        if (player == null) false to "玩家「$name」不在本服"
-        else {
-            player.kickPlayer(reason)
-            true to "已踢出「$name」，理由：$reason"
+    fun kick(name: String, reason: String): Pair<Boolean, String> {
+        // 踢人是破坏性动作：不可信来源（玩家聊天等）禁止，挡注入/滥用
+        if (RequestContext.current() == TrustLevel.UNTRUSTED) {
+            audit.record("UNTRUSTED", "kick", name, "DENY", "不可信来源不可踢人")
+            return false to "踢出「$name」被拒：不可信来源（如玩家聊天）不可执行踢人操作。"
+        }
+        audit.record("trusted", "kick", name, "ALLOW")
+        return onMain {
+            val player = Bukkit.getPlayerExact(name)
+            if (player == null) false to "玩家「$name」不在本服"
+            else {
+                player.kickPlayer(reason)
+                true to "已踢出「$name」，理由：$reason"
+            }
         }
     }
 

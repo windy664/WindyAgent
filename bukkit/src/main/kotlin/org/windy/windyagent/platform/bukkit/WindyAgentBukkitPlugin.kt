@@ -5,6 +5,7 @@ import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.safety.AuditLog
+import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.bus.RedisBus
 import org.windy.windyagent.bus.socket.SocketClientBus
 import org.windy.windyagent.bus.socket.SocketHubBus
@@ -42,7 +43,8 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             return
         }
         val transport = cfg.crossServerTransport()
-        val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")))
+        // provider 经 executeCommand 直接执行中心已 gate 的命令，pending 在此模式不参与
+        val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")), PendingApprovals())
         val handler = BukkitCapabilityHandler(this, actions)
 
         bus = runCatching {
