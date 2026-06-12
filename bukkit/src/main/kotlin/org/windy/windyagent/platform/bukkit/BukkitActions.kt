@@ -1,0 +1,181 @@
+package org.windy.windyagent.platform.bukkit
+
+import org.bukkit.Bukkit
+import org.bukkit.command.Command
+import org.bukkit.command.PluginCommand
+import org.bukkit.plugin.java.JavaPlugin
+import org.windy.windyagent.bus.CapabilityCommand
+import org.windy.windyagent.safety.AuditLog
+import org.windy.windyagent.safety.CommandGuard
+import org.windy.windyagent.safety.PendingApprovals
+import org.windy.windyagent.safety.RequestContext
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+
+/**
+ * 本子服实际操作的统一入口，**封装「跳回主线程执行」这一硬约束**。
+ *
+ * Bukkit API 非线程安全，必须在主线程调用；而调用方既可能是总线订阅线程（能力提供方），
+ * 也可能是 Agent 的异步执行线程（嵌入式）。这里统一用调度器跳主线程并阻塞等结果
+ * （若已在主线程则直接执行），让 [BukkitCapabilityHandler] 与各 Bukkit*Tool 共用同一套逻辑。
+ *
+ * 只调用 1.12 ~ 1.13+ 都稳定的 API（dispatchCommand / broadcastMessage /
+ * getOnlinePlayers / getPlayerExact / kickPlayer），保证单 jar 跨版本可用。
+ */
+class BukkitActions(
+    private val plugin: JavaPlugin,
+    private val guard: CommandGuard,
+    private val audit: AuditLog,
+    private val pending: PendingApprovals
+) {
+
+    @Volatile private var mainExec: java.util.concurrent.Executor? = null
+    @Volatile private var mainExecResolved = false
+
+    /**
+     * 主线程执行器：优先 NMS/NeoForge 的 MinecraftServer（它本身实现 Executor，混合端上可靠），
+     * 回退 Bukkit 调度器。Youer 等 Mohist 系混合端的 Bukkit 调度器不可靠，故不直接依赖它。
+     */
+    private fun mainExecutor(): java.util.concurrent.Executor? {
+        if (!mainExecResolved) synchronized(this) {
+            if (!mainExecResolved) {
+                mainExec = runCatching {
+                    val cs = Bukkit.getServer()
+                    cs.javaClass.getMethod("getServer").invoke(cs) as? java.util.concurrent.Executor
+                }.getOrNull()
+                mainExecResolved = true
+                plugin.logger.info("主线程执行器：" + if (mainExec != null) "MinecraftServer(NMS)" else "Bukkit 调度器(回退)")
+            }
+        }
+        return mainExec
+    }
+
+    private fun <T> onMain(block: () -> T): T {
+        if (Bukkit.isPrimaryThread()) return block()
+        val future = CompletableFuture<T>()
+        val task = Runnable { runCatching { future.complete(block()) }.onFailure { future.completeExceptionally(it) } }
+        val exec = mainExecutor()
+        if (exec != null) exec.execute(task) else Bukkit.getScheduler().runTask(plugin, task)
+        return future.get(10, TimeUnit.SECONDS)
+    }
+
+    /** 返回 (是否成功, 文本结果)。执行前过安全护栏（子服侧防御纵深 + 信任分权 + 审批闸）。 */
+    fun runCommand(command: String): Pair<Boolean, String> {
+        when (val d = guard.check(command, RequestContext.current())) {
+            is CommandGuard.Decision.Deny -> {
+                audit.record("local", "run_command", command, "DENY", d.reason)
+                return false to "命令「$command」被安全策略拦截：${d.reason}"
+            }
+            is CommandGuard.Decision.NeedsApproval -> {
+                val id = pending.submit("本服执行：$command") { dispatchRaw(command).second }
+                audit.record("local", "run_command", command, "NEEDS_APPROVAL", "${d.reason} #$id")
+                return false to "⏳ 高危操作「$command」需人工审批，已提交审批单 #$id。请管理员执行 /ai-approve $id 批准。"
+            }
+            is CommandGuard.Decision.Warn -> audit.record("local", "run_command", command, "WARN", d.reason)
+            CommandGuard.Decision.Allow -> audit.record("local", "run_command", command, "ALLOW")
+        }
+        return executeCommand(command)
+    }
+
+    /**
+     * 不过 guard 的真实执行。两类调用方已自带把关，故此处不再 gate：
+     *  - 本类 [runCommand] 放行/审批通过后；
+     *  - provider 模式的 [BukkitCapabilityHandler]——命令来自**已在中心侧 gate 过**的可信总线。
+     */
+    fun executeCommand(command: String): Pair<Boolean, String> = onMain {
+        val ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command)
+        ok to if (ok) "已在本服执行指令：$command" else "指令执行返回 false：$command"
+    }
+
+    fun broadcast(message: String): String = onMain {
+        Bukkit.broadcastMessage(message)
+        "已在本服广播：$message"
+    }
+
+    fun onlinePlayers(): String = onMain {
+        val players = Bukkit.getOnlinePlayers()
+        if (players.isEmpty()) "本服在线 0 人"
+        else "本服在线 ${players.size} 人：" + players.joinToString(", ") { it.name }
+    }
+
+    fun kick(name: String, reason: String): Pair<Boolean, String> = onMain {
+        val player = Bukkit.getPlayerExact(name)
+        if (player == null) false to "玩家「$name」不在本服"
+        else {
+            player.kickPlayer(reason)
+            true to "已踢出「$name」，理由：$reason"
+        }
+    }
+
+    /** 查询玩家 Vault 余额。返回 (是否查到, 文本)。 */
+    fun balance(name: String): Pair<Boolean, String> = onMain {
+        val econ = VaultHook.economy()
+            ?: return@onMain false to "本服未安装 Vault 或未接入经济插件，无法查询余额"
+        @Suppress("DEPRECATION") // 1.12 按名取 OfflinePlayer；对在线/近期玩家可用
+        val offline = Bukkit.getOfflinePlayer(name)
+        val bal = econ.getBalance(offline)
+        true to "玩家「$name」余额：${econ.format(bal)}"
+    }
+
+    /**
+     * 把本服命令表整理成能力目录条目（供启动时建目录、推回中心）。
+     *
+     * 两处关键清洗：
+     *  - **来源归属**：混合端许多插件命令不是 PluginCommand 实例，靠 cast 会全判成"原版/模组"。
+     *    改从 knownCommands 的**命名空间 key**（如 `cmi:home` / `xconomy:money`）取真实来源，准得多。
+     *  - **按命令名去重**：命名空间/别名包装是不同对象，`distinct()` 去不掉（会出现 /tp /tpa 重复）。
+     */
+    fun capabilityCommands(): List<CapabilityCommand> {
+        val known = runCatching { knownCommands() }.getOrElse { return emptyList() }
+
+        // 命名空间 key → 命令名的来源（优先非 minecraft 的命名空间）
+        val sourceByName = HashMap<String, String>()
+        for (key in known.keys) {
+            val idx = key.indexOf(':')
+            if (idx <= 0) continue
+            val ns = key.substring(0, idx)
+            val cmd = key.substring(idx + 1)
+            val existing = sourceByName[cmd]
+            if (existing == null || (existing == "minecraft" && ns != "minecraft")) sourceByName[cmd] = ns
+        }
+
+        // 按命令名去重
+        val byName = LinkedHashMap<String, Command>()
+        for (cmd in known.values) byName.putIfAbsent(cmd.name, cmd)
+
+        return byName.values.map { cmd ->
+            val ns = sourceByName[cmd.name]
+            val source = when {
+                ns != null && ns != "minecraft" && ns != "bukkit" -> ns
+                (cmd as? PluginCommand)?.plugin?.name != null -> (cmd as PluginCommand).plugin.name
+                else -> "原版/模组"
+            }
+            CapabilityCommand(
+                name = cmd.name,
+                aliases = runCatching { cmd.aliases }.getOrNull() ?: emptyList(),
+                description = cmd.description ?: "",
+                source = source
+            )
+        }
+    }
+
+    /** 跨版本读取已注册命令表：优先公共方法，回退反射字段（沿类层级找）。 */
+    private fun knownCommands(): Map<String, Command> {
+        val server = Bukkit.getServer()
+        val commandMap = runCatching { server.javaClass.getMethod("getCommandMap").invoke(server) }
+            .getOrNull() ?: fieldUp(server, "commandMap") ?: return emptyMap()
+        val known = runCatching { commandMap.javaClass.getMethod("getKnownCommands").invoke(commandMap) }
+            .getOrNull() ?: fieldUp(commandMap, "knownCommands")
+        @Suppress("UNCHECKED_CAST")
+        return (known as? Map<String, Command>) ?: emptyMap()
+    }
+
+    private fun fieldUp(obj: Any, name: String): Any? {
+        var c: Class<*>? = obj.javaClass
+        while (c != null) {
+            c.declaredFields.firstOrNull { it.name == name }?.let { it.isAccessible = true; return it.get(obj) }
+            c = c.superclass
+        }
+        return null
+    }
+}

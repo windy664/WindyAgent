@@ -1,0 +1,39 @@
+// ============================================================
+// core —— 平台无关核心库
+//   agent / llm / prompt / 平台接口(Platform) / AgentTool / 配置加载
+//   不依赖任何具体载体（Velocity / Bukkit）。被各载体模块依赖并 shade。
+//
+//   按 Java 8 字节码编译：所有依赖（anthropic-java 2.34.0 / okhttp 4.12 /
+//   jackson 2.17 / snakeyaml 2.2）均为 Java 8 基线，故 core 可降到 8，
+//   从而让 Java 8 的 bukkit 子服也能直接依赖 core 挂载嵌入式 Agent
+//   （单 Paper 服 / 无代理形态）。velocity 仍 Java 11，Java 8 的 core 照常运行。
+// ============================================================
+
+// 覆盖根 subprojects 的 Java 11 默认 → 8
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    // 跨进程总线抽象 + 实现（Redis / Socket / InProcess）。用 api 暴露：
+    //   - RemoteCommandTool（本模块）把远端总线能力包装成 AgentTool
+    //   - 各载体据 transport 选择 MessageBus 实现
+    // bus 同为 Java 8 基线，与 core 无字节码冲突。
+    api project(':bus')
+
+    // slf4j 门面：Velocity 与 Paper 运行时都自带实现，故只在编译期引入、不打包，
+    // 避免与宿主的 slf4j 产生重复类。用 1.7.x 以兼容 Velocity 3.x 与现代 Paper(2.0)。
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+
+    // jackson 是各载体「工具」解析 inputJson 的共用工具，属 core 对外 API → 用 api 暴露
+    api 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    // 反序列化总线目录（Kotlin data class）需 kotlin module
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0'
+
+    // 以下仅 core 内部使用（LLM provider / 配置加载），载体编译期无需可见 → implementation。
+    // 但它们仍在 core 的 runtimeClasspath 上，会被载体的 shadowJar 一并打进 fat jar。
+    implementation 'com.anthropic:anthropic-java:2.34.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.yaml:snakeyaml:2.2'
+}

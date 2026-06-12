@@ -1,0 +1,22 @@
+// ============================================================
+// bus —— 跨进程 Redis 总线（Velocity 中心 ↔ Bukkit 子服）
+//   消息体 DTO + 基于 Redis pub/sub 的请求/响应传输。
+//   被 velocity 与 bukkit 共用，故必须按 Java 8 字节码编译
+//   （兼容 1.12/1.13+ 老服的 Java 8 运行环境）。
+//   本身是普通库，不打 fat jar，由各载体 shade 进去。
+// ============================================================
+
+// 覆盖根 subprojects 的 Java 11 默认 → 8
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    // Redis 客户端 + 消息 JSON。用 api 暴露给载体，便于其工具直接构造/解析消息。
+    api 'redis.clients:jedis:4.4.6'
+    api 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+
+    // 仅 bus 内部用 Kotlin data class 序列化
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0'
+}

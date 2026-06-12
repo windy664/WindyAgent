@@ -1,0 +1,111 @@
+# WindyAgent 配置文件
+# 修改后重启服务器生效
+
+llm:
+  # 供应商: claude | openai | ollama
+  #   claude  — 使用 Anthropic 官方 SDK（或兼容代理）
+  #   openai  — 任意 OpenAI 兼容协议（mimo、讯飞、智谱等）
+  #   ollama  — 本地 Ollama
+  provider: openai
+
+  # API Key（claude 和 openai 时必填）
+  # 注意：此为随 jar 分发的默认模板，切勿写入真实密钥；
+  # 真实密钥只填在各自数据目录下生成的 windyagent-config.yml（不入库、不分发）。
+  api-key: ""
+
+  # API 接入地址
+  #   openai  示例: https://token-plan-cn.xiaomimimo.com/v1
+  #   claude  留空则使用 Anthropic 官方接口；填写则走对应代理
+  api-base-url: "https://token-plan-cn.xiaomimimo.com/v1"
+
+  # 模型名称
+  #   openai  示例: mimo-v2.5-pro
+  #   claude  示例: claude-opus-4-8
+  #   ollama  示例: llama3.2
+  model: "mimo-v2.5-pro"
+
+  # Ollama 服务地址（仅 provider: ollama 时生效）
+  ollama-url: "http://localhost:11434"
+
+agent:
+  # 触发前缀
+  trigger: "!ai"
+
+  # 单次会话最大历史消息数
+  max-history: 20
+
+# 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
+#   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦
+#   command-denylist 留空则用内置默认表（stop/op/ban/kill/reload 等）；可按需增删。
+#   含 @a/@e/@r 群体选择器的命令无论是否在表内都判高危。每条执行(含被拒)记入数据目录 audit.log。
+safety:
+  mode: enforce
+  command-denylist: []
+
+# 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
+deployment:
+  # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent。
+  # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。
+  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。
+  mode: provider
+  # 本节点在总线上注册的名字（provider 必填；中心按此名字派发，与 Velocity 无关）。
+  server-name: ""
+
+# 跨服总线：中心 ↔ 子服通信。
+#   Velocity：由下方 enabled 开关决定是否当中枢。
+#   Bukkit：由上方 deployment.mode 决定角色（provider 连入 / hub 当中枢 / standalone 不用）。
+# 寻址完全基于子服自报的 server-name，不依赖 Velocity 的玩家信道或服务器注册表。
+cross-server:
+  enabled: false
+
+  # 传输实现：
+  #   redis      — 生产：Redis pub/sub（复用 RedisBungee 的 Redis），跨进程、扛并发
+  #   socket     — 生产：自建 TCP 中枢，本端当 broker、子服主动连入，无需 Redis
+  #   inprocess  — 测试：进程内回显 stub，无需 Redis、无需第二个服务端，
+  #                仅用于在单个 Velocity 实例里验证中心侧链路（不跨进程）
+  transport: redis
+
+  # 子服无响应的超时时间（毫秒）
+  timeout-ms: 5000
+
+  # 仅 transport: redis 时生效
+  redis:
+    host: "127.0.0.1"
+    port: 6379
+    password: ""
+
+  # 仅 transport: socket 时生效
+  #   host 按本节点角色理解：中枢(Velocity / Bukkit hub) = 监听地址（跨机器用 0.0.0.0）；
+  #                          提供方(Bukkit provider) = 要连接的中枢地址。
+  #   secret 为共享密钥（两端须一致；留空表示不校验，仅建议内网使用）。
+  socket:
+    host: "127.0.0.1"
+    port: 25599
+    secret: ""
+
+# RAG 查询扩展（无 embedding 的语义增强，默认开）：
+#   稀疏检索命中不足时，用 chat 模型把中文意图扩成检索关键词（含中英/同义）再检索，
+#   填补「中文 ↔ 英文/规范词」鸿沟。仅 miss 时触发，多数查询零额外 LLM、成本可控。
+rag:
+  query-expansion: true
+  min-hits: 1             # 命中数低于此才触发扩展
+
+# 语义检索（L3 RAG，可选）：把各子服命令目录嵌入向量，search_capabilities 走语义匹配
+#   （中文「传送/经济」也能命中 /tp /money 等英文命令）。关闭则走关键词检索（L2）。
+#   默认复用上面 llm 的 api-base-url / api-key，只需填 embedding 模型名。
+embedding:
+  enabled: false
+  model: ""               # 例：你的 mimo embedding 模型名
+  api-base-url: ""        # 留空=复用 llm.api-base-url
+  api-key: ""             # 留空=复用 llm.api-key
+
+# MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent。
+# 与跨服总线正交——总线调自家子服能力，MCP 接第三方/外部标准化工具。
+# 每项一个 server；headers 可选（如鉴权头）。留空则不接入。
+mcp:
+  servers: []
+  # 示例：
+  # - name: economy
+  #   url: "http://127.0.0.1:8080/mcp"
+  #   headers:
+  #     Authorization: "Bearer your-token"

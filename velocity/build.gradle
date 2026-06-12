@@ -1,0 +1,31 @@
+// ============================================================
+// velocity —— Velocity 代理端载体（Agent 大脑所在，Java 11）
+//   产出 fat jar：windyagent-<version>.jar，丢进 Velocity 的 plugins/
+// ============================================================
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+base {
+    archivesName = mod_id   // → windyagent-<version>.jar
+}
+
+dependencies {
+    // Velocity 运行时自带，不打包
+    compileOnly 'com.velocitypowered:velocity-api:3.1.1'
+
+    // 核心逻辑 + 其传递的 LLM 依赖，都会被下方 shadowJar 打进 fat jar
+    implementation project(':core')
+
+    // 跨服总线（Redis），用于把动作下发到 Bukkit 子服
+    implementation project(':bus')
+}
+
+// Velocity 插件必须是包含全部依赖的 fat jar
+shadowJar {
+    archiveClassifier.set('')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}

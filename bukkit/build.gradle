@@ -1,0 +1,62 @@
+// ============================================================
+// bukkit —— Bukkit/Spigot/Paper 插件（Java 8），按 config.yml 的 mode 三态运行：
+//   provider   能力提供方：连总线、执行中心 Agent 下发的动作（只需 bus）。
+//   standalone 单机嵌入式 Agent：本机直接跑 Agent（需 core，无总线）。
+//   hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（core + bus 中枢侧）。
+//   core 现已降到 Java 8，故 bukkit 可直接依赖 core 挂 Agent，连 1.12 老服也能跑。
+//   编译期用 spigot-api 1.12.2 + 仅调跨版本稳定 API → 一个 jar 兼容 1.12 ~ 1.13+。
+// ============================================================
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+// 覆盖根 subprojects 的 Java 11 默认 → 8（兼容 1.12/1.13+ 老服）
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+base {
+    archivesName = "${mod_id}-bukkit"   // → windyagent-bukkit-<version>.jar
+}
+
+repositories {
+    maven {
+        name = 'spigot'
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+    maven {
+        name = 'sonatype'
+        url = 'https://oss.sonatype.org/content/repositories/snapshots/'
+    }
+    maven {
+        name = 'jitpack'
+        url = 'https://jitpack.io'
+    }
+}
+
+dependencies {
+    // 服务器自带，不打包
+    compileOnly 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
+
+    // Vault 经济 API：运行时由 Vault 插件提供（softdepend），编译期可见即可，不打包
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7'
+
+    // core（Agent/LLM/工具）+ bus（总线），及其传递依赖均被下方 shadowJar 打进 fat jar。
+    // core 已 api 暴露 bus，故依赖 core 即含 bus；provider 模式也只多打不用到的 Agent 类，无害。
+    implementation project(':core')
+
+    // core 内部用 slf4j 记日志，而老 Spigot(1.12) 运行时不带 slf4j 实现 →
+    // 打包 slf4j-api + 转 JUL 的绑定（slf4j-jdk14），让 Agent 日志在任意宿主都能落地。
+    // （现代 Paper 自带 slf4j，插件类加载器用自带这份亦无妨。）
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.slf4j:slf4j-jdk14:1.7.36'
+}
+
+shadowJar {
+    archiveClassifier.set('')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}

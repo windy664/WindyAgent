@@ -1,0 +1,8 @@
+{
+  "id": "windyagent",
+  "name": "WindyAgent",
+  "version": "1.0-SNAPSHOT",
+  "main": "org.windy.windyagent.platform.velocity.WindyAgentVelocityPlugin",
+  "description": "AI Agent for Minecraft server management",
+  "authors": ["windy664"]
+}

@@ -1,0 +1,13 @@
+name: WindyAgent
+version: 1.0-SNAPSHOT
+main: org.windy.windyagent.platform.bukkit.WindyAgentBukkitPlugin
+description: WindyAgent —— 能力提供方 / 单机嵌入式 Agent / 总线中枢（按 config.yml 的 mode）
+author: windy664
+# api-version 1.13：在 1.13+ 以现代模式运行；1.12 及更早会忽略该字段，仍正常加载
+api-version: "1.13"
+# Vault 软依赖：装了就接经济（查余额），没装也照常启动
+softdepend: [Vault]
+commands:
+  ai:
+    description: 向 WindyAgent 提问或下达指令（standalone / hub 模式）
+    usage: /ai <消息>
