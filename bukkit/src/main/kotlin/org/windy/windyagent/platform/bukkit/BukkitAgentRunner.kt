@@ -6,8 +6,12 @@ import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.agent.PlanExecuteAgent
 import org.windy.windyagent.agent.ReActAgent
+import org.windy.windyagent.agent.RemoteAppraiseTool
 import org.windy.windyagent.agent.RemoteBalanceTool
 import org.windy.windyagent.agent.RemoteCommandTool
+import org.windy.windyagent.agent.RemoteProposePackTool
+import org.windy.windyagent.agent.RemoteRefreshItemsTool
+import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.buildEmbeddingProvider
@@ -55,9 +59,17 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val extraTools = mutableListOf<AgentTool>()
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
         // hub 模式：把派发到其它子服的远端能力挂上，并接收其它子服推来的目录
+        // 本机物品估值（standalone/hub：本服有 mods/）
+        ItemService.build(plugin, cfg)?.also { it.warmup() }?.let {
+            extraTools += BukkitRefreshItemsTool(it); extraTools += BukkitAppraiseTool(it); extraTools += BukkitProposePackTool(it)
+        }
         if (remoteBus != null) {
             extraTools += RemoteCommandTool(remoteBus, remoteTimeoutMs, guard, audit, pending)
             extraTools += RemoteBalanceTool(remoteBus, remoteTimeoutMs)
+            // hub：也能对其它子服远端估值
+            extraTools += RemoteAppraiseTool(remoteBus, remoteTimeoutMs)
+            extraTools += RemoteProposePackTool(remoteBus, remoteTimeoutMs)
+            extraTools += RemoteRefreshItemsTool(remoteBus, remoteTimeoutMs)
             remoteBus.onCatalog { registry.accept(it) }
         }
         // 长期记忆（跨会话）

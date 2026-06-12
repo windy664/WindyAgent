@@ -62,6 +62,20 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun memoryMaxEntries() = (getNode("memory.max-entries") as? Number)?.toInt() ?: 500
     fun memoryRecallMinScore() = (getNode("memory.recall-min-score") as? Number)?.toInt() ?: 2
 
+    // 模组物品估值
+    fun itemValuationEnabled() = (getNode("item-valuation.enabled") as? Boolean) ?: true
+    fun itemDefaultBaseValue() = (getNode("item-valuation.default-base-value") as? Number)?.toDouble() ?: 1.0
+    fun itemPackDiscount() = (getNode("item-valuation.pack-discount") as? Number)?.toDouble() ?: 0.8
+    fun itemCurrencyName() = getString("item-valuation.currency-name", "金币")
+    fun itemBaseValues(): Map<String, Double> {
+        val m = getNode("item-valuation.base-values") as? Map<*, *> ?: return emptyMap()
+        return m.entries.mapNotNull { (k, v) ->
+            val key = (k as? String) ?: return@mapNotNull null
+            val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
+            key to d
+        }.toMap()
+    }
+
     // 安全护栏：命令执行策略
     /** enforce（命中即拒）/ warn（放行但审计告警）/ off（不拦）。 */
     fun safetyMode() = getString("safety.mode", "enforce")

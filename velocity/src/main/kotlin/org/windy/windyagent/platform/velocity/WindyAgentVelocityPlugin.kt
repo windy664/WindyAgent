@@ -13,8 +13,11 @@ import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.agent.PlanExecuteAgent
 import org.windy.windyagent.agent.ReActAgent
+import org.windy.windyagent.agent.RemoteAppraiseTool
 import org.windy.windyagent.agent.RemoteBalanceTool
 import org.windy.windyagent.agent.RemoteCommandTool
+import org.windy.windyagent.agent.RemoteProposePackTool
+import org.windy.windyagent.agent.RemoteRefreshItemsTool
 import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
@@ -105,6 +108,10 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.startReplyListener()
                 extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit, pending)
                 extraTools += RemoteBalanceTool(b, cfg.remoteTimeoutMs())
+                // 物品估值 / 礼包提案（数据在子服，远端调用）
+                extraTools += RemoteAppraiseTool(b, cfg.remoteTimeoutMs())
+                extraTools += RemoteProposePackTool(b, cfg.remoteTimeoutMs())
+                extraTools += RemoteRefreshItemsTool(b, cfg.remoteTimeoutMs())
                 // 子服能力目录：收齐推来的目录入中心注册表，Agent 用 search_capabilities 本地检索（零往返）。
                 // 配了 embedding 则走语义检索（L3 RAG），否则关键词（L2）。
                 val registry = CapabilityRegistry(buildEmbeddingProvider(cfg), dataDirectory.resolve("capability"))

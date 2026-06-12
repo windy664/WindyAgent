@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.bus.ToolReply
 import org.windy.windyagent.bus.ToolRequest
+import org.windy.windyagent.platform.bukkit.item.ItemService
 
 /**
  * 能力提供方（provider 模式）：把中心 Agent 经总线下发的动作映射为本服操作。
@@ -13,7 +14,8 @@ import org.windy.windyagent.bus.ToolRequest
  */
 class BukkitCapabilityHandler(
     private val plugin: JavaPlugin,
-    private val actions: BukkitActions
+    private val actions: BukkitActions,
+    private val items: ItemService?
 ) {
 
     private val mapper = ObjectMapper()
@@ -42,6 +44,15 @@ class BukkitCapabilityHandler(
                 ToolReply(req.requestId, true, actions.broadcast(msg))
             }
             "get_online_players" -> ToolReply(req.requestId, true, actions.onlinePlayers())
+            "refresh_items" -> ToolReply(req.requestId, true, items?.refresh() ?: "本服未启用物品估值")
+            "appraise_item" -> {
+                val q = args["item"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 item 参数")
+                ToolReply(req.requestId, true, items?.appraise(q) ?: "本服未启用物品估值")
+            }
+            "propose_pack" -> {
+                val target = args["target_value"]?.asDouble()?.takeIf { it > 0 } ?: return fail(req, "缺少 target_value 参数")
+                ToolReply(req.requestId, true, items?.proposePack(target) ?: "本服未启用物品估值")
+            }
             "get_balance" -> {
                 val name = args["player"]?.asText()?.takeIf { it.isNotBlank() }
                     ?: return fail(req, "缺少 player 参数")

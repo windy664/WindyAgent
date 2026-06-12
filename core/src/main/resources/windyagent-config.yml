@@ -46,6 +46,23 @@ memory:
   max-entries: 500
   recall-min-score: 2     # 召回最低相关度，低于此的弱命中不召回（挡垃圾进上下文、省 token）
 
+# 模组物品估值（解析 mods/ 的静态数据建 SQLite 物品库，沿合成树递归算成本）。
+#   base-values：基础材料在本服货币下的基准价（判断项，按你服经济调）；
+#   default-base-value：未配基材的默认价；pack-discount：礼包按估值合计打的折。
+item-valuation:
+  enabled: true
+  currency-name: "金币"
+  default-base-value: 1
+  pack-discount: 0.8
+  base-values:
+    "minecraft:diamond": 100
+    "minecraft:emerald": 80
+    "minecraft:netherite_ingot": 400
+    "minecraft:gold_ingot": 20
+    "minecraft:iron_ingot": 10
+    "minecraft:redstone": 3
+    "minecraft:coal": 2
+
 # 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
 #   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦
 #   command-denylist 留空则用内置默认表（stop/op/ban/kill/reload 等）；可按需增删。

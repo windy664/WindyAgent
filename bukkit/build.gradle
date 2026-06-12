@@ -51,6 +51,9 @@ dependencies {
     // （现代 Paper 自带 slf4j，插件类加载器用自带这份亦无妨。）
     implementation 'org.slf4j:slf4j-api:1.7.36'
     implementation 'org.slf4j:slf4j-jdk14:1.7.36'
+
+    // 模组物品库：嵌入式 SQLite（解析模组 jar 的物品/配方落库做估值），Java 8 兼容，shade 进 fat jar
+    implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
 }
 
 shadowJar {
