@@ -93,6 +93,23 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
         }.toMap()
     }
 
+    // 玩家行为分析（采集在子服，看板在 VC）
+    fun behaviorEnabled() = (getNode("behavior.enabled") as? Boolean) ?: true
+    fun behaviorFlushIntervalSec() = (getNode("behavior.flush-interval-sec") as? Number)?.toLong() ?: 60L
+    fun behaviorRetentionDays() = (getNode("behavior.retention-days") as? Number)?.toInt() ?: 30
+    /** 流失判定：超过这么多天未上线算流失风险。 */
+    fun behaviorChurnDays() = (getNode("behavior.churn-days") as? Number)?.toInt() ?: 7
+    /** 核心玩家门槛：累计在线分钟数。 */
+    fun behaviorActiveMinutes() = (getNode("behavior.active-minutes") as? Number)?.toInt() ?: 300
+    /** 新玩家窗口：首次上线在这么多天内算新人。 */
+    fun behaviorNewbieDays() = (getNode("behavior.newbie-days") as? Number)?.toInt() ?: 3
+
+    // AI 管理控制台（WebUI，仅 Velocity 读取）
+    fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: false
+    fun webHost() = getString("web.host", "127.0.0.1")
+    fun webPort() = (getNode("web.port") as? Number)?.toInt() ?: 8080
+    fun webToken() = getString("web.token", "")
+
     // 安全护栏：命令执行策略
     /** enforce（命中即拒）/ warn（放行但审计告警）/ off（不拦）。 */
     fun safetyMode() = getString("safety.mode", "enforce")

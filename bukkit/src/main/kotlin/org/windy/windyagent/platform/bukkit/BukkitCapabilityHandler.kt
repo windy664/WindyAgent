@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.bus.ToolReply
 import org.windy.windyagent.bus.ToolRequest
+import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 
 /**
@@ -15,7 +16,8 @@ import org.windy.windyagent.platform.bukkit.item.ItemService
 class BukkitCapabilityHandler(
     private val plugin: JavaPlugin,
     private val actions: BukkitActions,
-    private val items: ItemService?
+    private val items: ItemService?,
+    private val behavior: BehaviorService? = null
 ) {
 
     private val mapper = ObjectMapper()
@@ -66,6 +68,12 @@ class BukkitCapabilityHandler(
                 ToolReply(req.requestId, true, items?.applyLlmSeeds(seeds) ?: "本服未启用物品估值")
             }
             "value_status" -> ToolReply(req.requestId, true, items?.status() ?: "本服未启用物品估值")
+            "behavior_stats" -> ToolReply(req.requestId, true, behavior?.statsJson() ?: "本服未启用行为分析")
+            "behavior_segments" -> ToolReply(req.requestId, true, behavior?.segmentsJson() ?: "本服未启用行为分析")
+            "behavior_player" -> {
+                val name = args["player"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 player 参数")
+                ToolReply(req.requestId, true, behavior?.playerJson(name) ?: "本服未启用行为分析")
+            }
             "value_orphans" -> ToolReply(req.requestId, true, items?.orphans() ?: "本服未启用物品估值")
             "get_balance" -> {
                 val name = args["player"]?.asText()?.takeIf { it.isNotBlank() }

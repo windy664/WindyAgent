@@ -4,6 +4,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.bus.MessageBus
+import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
@@ -23,12 +24,16 @@ import org.windy.windyagent.bus.socket.SocketHubBus
 class WindyAgentBukkitPlugin : JavaPlugin() {
 
     private var bus: MessageBus? = null
+    private var behavior: BehaviorService? = null
 
     override fun onEnable() {
         val cfg = runCatching { AgentConfig.load(dataFolder.toPath()) }.getOrElse {
             logger.severe("加载 windyagent-config.yml 失败，插件未启用：${it.message}")
             return
         }
+        // 行为采集与部署形态无关：事件都在本子服发生，三种模式都跑
+        behavior = runCatching { BehaviorService.build(this, cfg)?.also { it.start() } }
+            .getOrElse { logger.warning("行为采集启动失败：${it.message}"); null }
         when (cfg.mode()) {
             "standalone" -> startStandalone(cfg)
             "hub" -> startHub(cfg)
@@ -47,7 +52,7 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         // provider 经 executeCommand 直接执行中心已 gate 的命令，pending 在此模式不参与
         val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")), PendingApprovals())
         val itemService = ItemService.build(this, cfg)?.also { it.warmup() }
-        val handler = BukkitCapabilityHandler(this, actions, itemService)
+        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior)
 
         bus = runCatching {
             buildClientBus(cfg, transport).also { it.listen(serverName) { req -> handler.handle(req) } }
@@ -95,6 +100,8 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        behavior?.stop()
+        behavior = null
         bus?.close()
         bus = null
         logger.info("WindyAgent 已停止")

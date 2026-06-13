@@ -39,6 +39,7 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.knowledge.KnowledgeSearchTool
 import org.windy.windyagent.platform.SessionManager
+import org.windy.windyagent.platform.velocity.web.DashboardServer
 import java.nio.file.Path
 
 @Plugin(
@@ -53,6 +54,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
     @DataDirectory private val dataDirectory: Path
 ) {
     private var bus: MessageBus? = null
+    private var web: DashboardServer? = null
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -124,6 +126,11 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) { registry.servers() }
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
+                // AI 管理控制台（WebUI）：读行为/估值等都要总线+注册表，故在此装配
+                if (cfg.webEnabled()) {
+                    web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), b, cfg.remoteTimeoutMs()) { registry.servers() }
+                        .also { it.start() }
+                }
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
         }
 
@@ -185,6 +192,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        web?.stop(); web = null
         bus?.close()
         bus = null
         logger.info("WindyAgent stopped.")

@@ -128,6 +128,15 @@ item-valuation:
     # "mysticalagriculture:inferium_essence": 2
     # "mysticalagriculture:prosperity_shard": 4
 
+# 玩家行为分析：子服采集（防卡：监听器只计数、后台单线程批量落库），汇总经总线给 VC 看板。
+behavior:
+  enabled: true
+  flush-interval-sec: 60   # 多久把内存计数批量写库一次
+  retention-days: 30       # 原始事件(死亡/成就)保留天数；画像长存
+  churn-days: 7            # 超过这么多天未上线 = 流失风险
+  active-minutes: 300      # 累计在线 ≥ 这么多分钟 = 核心玩家
+  newbie-days: 3           # 首次上线在这么多天内 = 新玩家
+
 # 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
 #   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦
 #   command-denylist 留空则用内置默认表（stop/op/ban/kill/reload 等）；可按需增删。
@@ -135,6 +144,13 @@ item-valuation:
 safety:
   mode: enforce
   command-denylist: []
+
+# AI 管理控制台（WebUI，仅 Velocity 读取）：浏览器看玩家行为看板（以后加 AI 对话 + 知识库编辑）。
+web:
+  enabled: false         # 设 true 开启；浏览器开 http://<host>:<port>/
+  host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
+  port: 8080
+  token: ""              # ★设成随机串，/api 鉴权用（留空=无鉴权，仅限本机调试）
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
 deployment:
