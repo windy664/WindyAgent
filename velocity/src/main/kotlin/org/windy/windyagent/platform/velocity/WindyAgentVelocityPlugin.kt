@@ -120,8 +120,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.onCatalog { json -> registry.accept(json) }
                 if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
-                // value 命令的远端执行后端：子服名取自能力注册表（已推目录=已连）
-                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs()) { registry.servers() }
+                // value / 运维命令的远端执行后端：子服名取自能力注册表（已推目录=已连）
+                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) { registry.servers() }
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }

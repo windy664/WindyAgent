@@ -101,6 +101,8 @@ object ValueCommand : AgentSubcommand {
 
     private fun usage() = """物品估值用法（VC 上每条都带 <子服>）：
   value build <子服>            — 一键全量解析+传播估值（异步，看子服控制台）
+  value llm <子服>              — LLM 给"无配方的根"(矿/掉落/原料)定种子价→重算级联（省 token，admin）
+  value llm <子服> all          — LLM 给**全部**溯源够不着的物品估价（含机器/祭坛造的成品，分批，token 多）
   value get <子服> <物品>       — 查某物估值（值/置信度/合成路径）
   value set <子服> <物品> <价> [备注] — 人工锚定，关联下游自动重算
   value unset <子服> <物品>     — 取消人工锚定，重算

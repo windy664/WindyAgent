@@ -29,20 +29,23 @@ class ItemDatabase(private val dbPath: Path) {
             it.createStatement().use { st ->
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS items(id TEXT PRIMARY KEY, mod TEXT, category TEXT, tier INT, name_en TEXT, name_zh TEXT, source TEXT)")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS recipes(output TEXT, recipe_id TEXT, output_count INT, ingredient TEXT, count INT)")
+                st.executeUpdate("CREATE TABLE IF NOT EXISTS tags(tag TEXT, member TEXT)")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS overrides(id TEXT PRIMARY KEY, value REAL, note TEXT, set_at INT)")
+                st.executeUpdate("CREATE TABLE IF NOT EXISTS llm_seeds(id TEXT PRIMARY KEY, value REAL, set_at INT)")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS valuations(id TEXT PRIMARY KEY, value REAL, confidence TEXT, basis TEXT)")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_items_mod ON items(mod)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_recipes_out ON recipes(output)")
+                st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag)")
             }
         }
     }
 
     // ---- 解析数据：刷库时重建（不碰 overrides）----
     @Synchronized
-    fun rebuild(items: List<ModItem>, recipes: List<RecipeRow>) {
+    fun rebuild(items: List<ModItem>, recipes: List<RecipeRow>, tags: List<TagEdge>) {
         val c = c()
-        c.createStatement().use { it.executeUpdate("DELETE FROM items"); it.executeUpdate("DELETE FROM recipes") }
+        c.createStatement().use { it.executeUpdate("DELETE FROM items"); it.executeUpdate("DELETE FROM recipes"); it.executeUpdate("DELETE FROM tags") }
         c.autoCommit = false
         try {
             c.prepareStatement("INSERT OR REPLACE INTO items VALUES(?,?,?,?,?,?,?)").use { ps ->
@@ -55,6 +58,10 @@ class ItemDatabase(private val dbPath: Path) {
             }
             c.prepareStatement("INSERT INTO recipes VALUES(?,?,?,?,?)").use { ps ->
                 for (r in recipes) { ps.setString(1, r.output); ps.setString(2, r.recipeId); ps.setInt(3, r.outputCount); ps.setString(4, r.ingredient); ps.setInt(5, r.count); ps.addBatch() }
+                ps.executeBatch()
+            }
+            c.prepareStatement("INSERT INTO tags VALUES(?,?)").use { ps ->
+                for (t in tags) { ps.setString(1, t.tag); ps.setString(2, t.member); ps.addBatch() }
                 ps.executeBatch()
             }
             c.commit()
@@ -84,6 +91,20 @@ class ItemDatabase(private val dbPath: Path) {
         return byOutRecipe.mapValues { (_, rs) -> rs.values.map { it.first to (it.second as Map<String, Int>) } }
     }
 
+    /** 标签 → 成员列表（成员可能是具体 id 或 #子标签）。引擎按"标签值=成员最小值"递归求解。 */
+    @Synchronized
+    fun loadTagMembers(): Map<String, List<String>> {
+        val m = HashMap<String, MutableList<String>>()
+        c().createStatement().use { st ->
+            st.executeQuery("SELECT tag, member FROM tags").use { rs ->
+                while (rs.next()) m.getOrPut(rs.getString(1)) { ArrayList() }.add(rs.getString(2))
+            }
+        }
+        return m
+    }
+
+    @Synchronized fun tagCount() = c().createStatement().use { it.executeQuery("SELECT COUNT(DISTINCT tag) FROM tags").use { r -> if (r.next()) r.getInt(1) else 0 } }
+
     // ---- overrides：人工锚定，持久 ----
     @Synchronized
     fun setOverride(id: String, value: Double, note: String) =
@@ -105,6 +126,29 @@ class ItemDatabase(private val dbPath: Path) {
             val m = HashMap<String, Double>(); while (rs.next()) m[rs.getString(1)] = rs.getDouble(2); m
         }
     }
+
+    // ---- llm_seeds：LLM 给"无配方根"估的种子价，持久（刷库不删，可重跑刷新）。优先级低于人工 override ----
+    // upsert（不清空）：多次 value llm 会累积——第一次价了部分根、第二次价剩下的，互不覆盖丢失。
+    @Synchronized
+    fun setLlmSeeds(seeds: Map<String, Double>) {
+        val c = c()
+        c.autoCommit = false
+        try {
+            c.prepareStatement("INSERT OR REPLACE INTO llm_seeds VALUES(?,?,?)").use { ps ->
+                for ((id, v) in seeds) { ps.setString(1, id); ps.setDouble(2, v); ps.setLong(3, System.currentTimeMillis()); ps.addBatch() }
+                ps.executeBatch()
+            }
+            c.commit()
+        } catch (e: Exception) { c.rollback(); throw e } finally { c.autoCommit = true }
+    }
+
+    /** 清空 LLM 估值（想完全重估时用）。 */
+    @Synchronized fun clearLlmSeeds(): Int = c().createStatement().use { it.executeUpdate("DELETE FROM llm_seeds") }
+
+    @Synchronized
+    fun llmSeeds(): Map<String, Double> = c().createStatement().use { it.executeQuery("SELECT id, value FROM llm_seeds").use { rs ->
+        val m = HashMap<String, Double>(); while (rs.next()) m[rs.getString(1)] = rs.getDouble(2); m
+    } }
 
     // ---- valuations：传播结果 ----
     @Synchronized

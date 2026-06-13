@@ -20,11 +20,10 @@ class AgentCommandRouter(
     private val statusSupplier: () -> String,
     private val valueExecutor: ValueExecutor? = null
 ) {
-    private val commands: List<AgentSubcommand> = listOfNotNull(
-        ClearCommand, HistoryCommand, StatusCommand,
-        PendingCommand, ApproveCommand, DenyCommand, MemoryCommand,
-        if (valueExecutor != null) ValueCommand else null
-    )
+    private val commands: List<AgentSubcommand> = buildList {
+        addAll(listOf(ClearCommand, HistoryCommand, StatusCommand, PendingCommand, ApproveCommand, DenyCommand, MemoryCommand))
+        if (valueExecutor != null) add(ValueCommand)
+    }
     private val byName: Map<String, AgentSubcommand> = buildMap {
         for (c in commands) {
             put(c.name, c)
@@ -49,9 +48,14 @@ class AgentCommandRouter(
     }
 
     private fun helpText(): String {
-        val lines = listOf("help — 显示本帮助") + commands.map { "${it.name} — ${it.description}" }
-        return "WindyAgent 命令（在触发前缀后输入，如 ai help）：\n" + lines.joinToString("\n") +
-            "\n其余内容将作为对话交给 AI。"
+        val lines = listOf("help — 显示本帮助") + commands.map {
+            "${it.name} — ${it.description}" + if (it.requiresTrusted) "  [需管理员]" else ""
+        }
+        return "WindyAgent 确定性命令（在触发前缀后输入，如 ai help）：\n" + lines.joinToString("\n") +
+            "\n\n其余直接用自然语言对它说，它会自己调工具执行，例如：\n" +
+            "  广播 今晚8点开活动 ｜ 把 Steve 踢了，理由刷屏 ｜ 在 earth 给 Alice 查余额\n" +
+            "  在 earth 执行 time set day ｜ earth 上终极精华值多少 ｜ 组个 36 金币的礼包\n" +
+            "（运维操作走自然语言；高危命令会自动转人工审批，见上面 pending/approve）"
     }
 
     companion object {

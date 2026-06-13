@@ -58,15 +58,75 @@ item-valuation:
   craft-overhead: 0.1
   # 全图传播最大迭代轮数（收敛即提前停；数千物品一般个位数轮收敛）
   propagation-max-iter: 50
-  # 种子值（人工锚定 value set 优先级更高，盖过这里）
+  # value llm all：一次最多估多少个悬空物（封顶防 token 失控）
+  llm-max-items: 600
+  # value llm all：分批，每批多少个（一次 LLM 请求的条数；越大越省请求数、单次 token 越多）
+  llm-batch-size: 80
+  # value llm：LLM 把"无配方根"按稀有度归档（它只分类，不报精确数），档→金币值在此定，精确价靠传播派生
+  rarity-tiers:
+    common: 4
+    uncommon: 16
+    rare: 64
+    epic: 256
+    legendary: 1024
+  # 种子值（人工锚定 value set 优先级更高 > 这里 > LLM 估值）。
+  # 原版比例抄 item-alchemy(ProjectE 式 EMC 模组,社区标定的稀有度比例)，锚定 铁锭=10 缩放到金币。
   base-values:
-    "minecraft:diamond": 100
-    "minecraft:emerald": 80
-    "minecraft:netherite_ingot": 400
-    "minecraft:gold_ingot": 20
+    "minecraft:dirt": 0.1
+    "minecraft:cobblestone": 0.1
+    "minecraft:stone": 0.1
+    "minecraft:sand": 0.1
+    "minecraft:stick": 0.2
+    "minecraft:string": 0.5
+    "minecraft:slime_ball": 1
+    "minecraft:charcoal": 1
+    "minecraft:redstone": 2.5
+    "minecraft:obsidian": 2.5
+    "minecraft:leather": 2.5
+    "minecraft:prismarine_shard": 4
+    "minecraft:coal": 5
+    "minecraft:copper_ingot": 5
+    "minecraft:bone": 5.5
+    "minecraft:gunpowder": 7.5
+    "minecraft:amethyst_shard": 8
+    "minecraft:quartz": 10
     "minecraft:iron_ingot": 10
-    "minecraft:redstone": 3
-    "minecraft:coal": 2
+    "minecraft:glowstone_dust": 15
+    "minecraft:lapis_lazuli": 34
+    "minecraft:emerald": 40
+    "minecraft:ender_pearl": 40
+    "minecraft:blaze_rod": 60
+    "minecraft:gold_ingot": 80
+    "minecraft:diamond": 320
+    "minecraft:netherite_ingot": 2240
+    "minecraft:nether_star": 5440
+    # 对应 common 标签（与上面同值，桥接现代配方 #c:... 材料）
+    "#c:ingots/iron": 10
+    "#c:ingots/copper": 5
+    "#c:ingots/gold": 80
+    "#c:ingots/netherite": 2240
+    "#c:gems/diamond": 320
+    "#c:gems/emerald": 40
+    "#c:gems/quartz": 10
+    "#c:gems/lapis": 34
+    "#c:gems/prismarine": 4
+    "#c:gems/amethyst": 8
+    "#c:dusts/redstone": 2.5
+    "#c:dusts/glowstone": 15
+    "#c:nuggets/iron": 1.1
+    "#c:nuggets/gold": 9
+    "#c:glass_blocks/colorless": 1
+    "#c:rods/blaze": 60
+    "#c:ender_pearls": 40
+    "#c:strings": 0.5
+    "#c:leathers": 2.5
+    "#c:gunpowders": 7.5
+    "#c:obsidians": 2.5
+    "#c:cobblestones": 0.1
+    "#c:stones": 0.1
+    # 模组经济"原料根"（挖矿/掉落、无配方）：按你装的模组改。例(神秘农业)：
+    # "mysticalagriculture:inferium_essence": 2
+    # "mysticalagriculture:prosperity_shard": 4
 
 # 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
 #   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦

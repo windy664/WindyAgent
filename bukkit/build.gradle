@@ -56,8 +56,12 @@ dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
 }
 
+// 带分类器 'all'，避免空分类器让 shadow 把本模块的 fat jar 设成对外消费制品
+// （那会导致 :velocity 误拉 bukkit 的 fat jar、重复打包 core/bus 并把 slf4j 烧进去无法排除）。
+// → :velocity 以 project(':bukkit') 消费时拿到的是「瘦 jar + 真实依赖」，可干净排除 slf4j。
+// 本 fat jar 仅作无 slf4j 远古 1.12 单机的回退：windyagent-bukkit-<ver>-all.jar
 shadowJar {
-    archiveClassifier.set('')
+    archiveClassifier.set('all')
 }
 
 tasks.named('build') {

@@ -23,10 +23,11 @@ class ModItemParser(private val modsDir: File) {
         val nameZh = HashMap<String, String>()
         val category = HashMap<String, String>()
         val recipes = ArrayList<RecipeRow>()
+        val tags = ArrayList<TagEdge>()
 
         val jars = modsDir.listFiles { f -> f.isFile && f.name.endsWith(".jar") }?.toList() ?: emptyList()
         for (jar in jars) {
-            runCatching { parseJar(jar, nameEn, nameZh, category, recipes) }
+            runCatching { parseJar(jar, nameEn, nameZh, category, recipes, tags) }
                 .onFailure { log.warn("解析模组 jar 失败 {}: {}", jar.name, it.message) }
         }
 
@@ -42,11 +43,11 @@ class ModItemParser(private val modsDir: File) {
                 source = if (id in hasRecipe) "craftable" else "raw"
             )
         }
-        log.info("模组解析完成 — {} 个 jar，{} 个物品，{} 条配方材料", jars.size, items.size, recipes.size)
-        return ParseResult(items, recipes)
+        log.info("模组解析完成 — {} 个 jar，{} 个物品，{} 条配方材料，{} 条标签成员", jars.size, items.size, recipes.size, tags.size)
+        return ParseResult(items, recipes, tags)
     }
 
-    private fun parseJar(jar: File, nameEn: MutableMap<String, String>, nameZh: MutableMap<String, String>, category: MutableMap<String, String>, recipes: MutableList<RecipeRow>) {
+    private fun parseJar(jar: File, nameEn: MutableMap<String, String>, nameZh: MutableMap<String, String>, category: MutableMap<String, String>, recipes: MutableList<RecipeRow>, tags: MutableList<TagEdge>) {
         ZipFile(jar).use { zip ->
             val es = zip.entries()
             while (es.hasMoreElements()) {
@@ -57,10 +58,28 @@ class ModItemParser(private val modsDir: File) {
                         runCatching { parseLang(mapper.readTree(zip.getInputStream(e)), nameEn, category) }
                     n.startsWith("assets/") && n.endsWith("/lang/zh_cn.json") ->
                         runCatching { parseLang(mapper.readTree(zip.getInputStream(e)), nameZh, category) }
+                    // 标签定义：data/<ns>/tags/item(s)/<路径>.json → 标签 #<ns>:<路径>
+                    n.startsWith("data/") && n.contains("/tags/item") && n.endsWith(".json") ->
+                        runCatching { parseTag(mapper.readTree(zip.getInputStream(e)), n, tags) }
                     n.startsWith("data/") && n.contains("/recipe") && n.endsWith(".json") ->
                         runCatching { parseRecipe(mapper.readTree(zip.getInputStream(e)), n, recipes) }
                 }
             }
+        }
+    }
+
+    /** 解析物品标签定义，产出 (#tag, member) 边。member 可能是具体 id 或 #子标签。 */
+    private fun parseTag(node: JsonNode, path: String, tags: MutableList<TagEdge>) {
+        val m = TAG_PATH.matchEntire(path) ?: return
+        val tag = "#${m.groupValues[1]}:${m.groupValues[2]}"   // 如 #c:ingots/inferium
+        val values = node["values"] ?: return
+        values.forEach { v ->
+            val member = when {
+                v.isTextual -> v.asText()
+                v.isObject -> (v["id"] ?: v["tag"])?.asText()
+                else -> null
+            }?.takeIf { it.isNotBlank() } ?: return@forEach
+            tags += TagEdge(tag, member)
         }
     }
 
@@ -108,5 +127,7 @@ class ModItemParser(private val modsDir: File) {
 
     companion object {
         private val LANG_KEY = Regex("^(item|block)\\.([^.]+)\\.(.+)$")
+        // data/<ns>/tags/item 或 items/<路径>.json
+        private val TAG_PATH = Regex("^data/([^/]+)/tags/items?/(.+)\\.json$")
     }
 }

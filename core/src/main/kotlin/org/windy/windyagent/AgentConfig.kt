@@ -68,6 +68,21 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun itemPackDiscount() = (getNode("item-valuation.pack-discount") as? Number)?.toDouble() ?: 0.8
     fun itemCraftOverhead() = (getNode("item-valuation.craft-overhead") as? Number)?.toDouble() ?: 0.1
     fun itemPropagationMaxIter() = (getNode("item-valuation.propagation-max-iter") as? Number)?.toInt() ?: 50
+    /** value llm all 一次最多估多少个悬空物（封顶防 token 失控）。 */
+    fun itemLlmMaxItems() = (getNode("item-valuation.llm-max-items") as? Number)?.toInt() ?: 600
+    /** value llm all 分批时每批多少个（一次 LLM 请求的条数）。 */
+    fun itemLlmBatchSize() = (getNode("item-valuation.llm-batch-size") as? Number)?.toInt() ?: 80
+    /** LLM 估"无配方根"时用的稀有度档→金币值。LLM 只负责把物品归档（它擅长），精确值靠传播派生。 */
+    fun itemRarityTiers(): Map<String, Double> {
+        val def = linkedMapOf("common" to 4.0, "uncommon" to 16.0, "rare" to 64.0, "epic" to 256.0, "legendary" to 1024.0)
+        val m = getNode("item-valuation.rarity-tiers") as? Map<*, *> ?: return def
+        val out = m.entries.mapNotNull { (k, v) ->
+            val key = (k as? String)?.lowercase() ?: return@mapNotNull null
+            val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
+            key to d
+        }.toMap()
+        return out.ifEmpty { def }
+    }
     fun itemCurrencyName() = getString("item-valuation.currency-name", "金币")
     fun itemBaseValues(): Map<String, Double> {
         val m = getNode("item-valuation.base-values") as? Map<*, *> ?: return emptyMap()

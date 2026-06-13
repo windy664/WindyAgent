@@ -1,13 +1,19 @@
 // ============================================================
-// velocity —— Velocity 代理端载体（Agent 大脑所在，Java 11）
-//   产出 fat jar：windyagent-<version>.jar，丢进 Velocity 的 plugins/
+// velocity —— 现在产出「通用单 jar」：同一个 jar 同时含
+//   Velocity 入口(resources/velocity-plugin.json → WindyAgentVelocityPlugin)
+//   和 Bukkit 入口(来自 :bukkit 的 plugin.yml → WindyAgentBukkitPlugin)。
+//   丢进 Velocity 或 现代 Bukkit(Paper/Mohist/Youer) 的 plugins/ 均能各自识别加载，
+//   另一平台的主类处于休眠态、不会被加载，互不影响。
+//   产出：windyagent-<version>.jar
+//
+//   注：远古无 slf4j 的 1.12 单机请改用 :bukkit 模块自带 slf4j 的 windyagent-bukkit-<version>-all.jar。
 // ============================================================
 plugins {
     id 'com.gradleup.shadow'
 }
 
 base {
-    archivesName = mod_id   // → windyagent-<version>.jar
+    archivesName = mod_id   // → windyagent-<version>.jar（通用 jar）
 }
 
 dependencies {
@@ -19,11 +25,31 @@ dependencies {
 
     // 跨服总线（Redis），用于把动作下发到 Bukkit 子服
     implementation project(':bus')
+
+    // 把 Bukkit 载体并入同一个 fat jar（含其 plugin.yml + 嵌入式 SQLite 等）。
+    // bukkit 的 compileOnly(spigot-api / VaultAPI) 不会传递，故不把服务端类打进来；
+    // 其 Bukkit 主类在 Velocity 上不会被加载（无 plugin.yml 加载器触发），休眠无害。
+    implementation project(':bukkit')
 }
 
-// Velocity 插件必须是包含全部依赖的 fat jar
+// 通用插件必须是包含全部依赖的 fat jar
 shadowJar {
     archiveClassifier.set('')
+
+    // 目标宿主（Velocity / 现代 Paper·Mohist·Youer）都自带 slf4j 实现，
+    // 不再打包 :bukkit 引入的 slf4j-api / 绑定，避免 Velocity 上「多个 SLF4J 绑定」冲突与日志错乱。
+    // （代价：放弃对无 slf4j 的远古 1.12 单机的兼容——该形态请用 :bukkit 模块单独的 fat jar。）
+    dependencies {
+        exclude(dependency('org.slf4j:slf4j-api'))
+        exclude(dependency('org.slf4j:slf4j-jdk14'))
+    }
+
+    // 把 jackson 重定位到私有命名空间：宿主(Velocity 3.x)与同居插件(TabooLib 等)各自也带 jackson，
+    // 同一份 com.fasterxml.jackson 在不同类加载器间会劈叉（外层类从甲、内部类从乙找 → NoClassDefFoundError，
+    // 如 PrivateMaxEntriesMap$WriteThroughEntry）。重定位后我们的 bus FrameCodec / 物品解析只用自带这份，彻底隔离。
+    relocate 'com.fasterxml.jackson', 'org.windy.libs.jackson'
+    // jackson 模块(kotlin/jsr310/jdk8)经 SPI 注册，重定位后服务文件名/内容需同步合并
+    mergeServiceFiles()
 }
 
 tasks.named('build') {

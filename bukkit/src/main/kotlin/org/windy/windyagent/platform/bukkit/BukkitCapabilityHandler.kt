@@ -59,6 +59,12 @@ class BukkitCapabilityHandler(
                 ToolReply(req.requestId, true, items?.set(item, v, args["note"]?.asText() ?: "") ?: "本服未启用物品估值")
             }
             "value_unset" -> ToolReply(req.requestId, true, items?.unset(args["item"]?.asText() ?: "") ?: "本服未启用物品估值")
+            "value_roots" -> items?.let { ToolReply(req.requestId, true, mapper.writeValueAsString(it.roots(args["all"]?.asBoolean() ?: false))) } ?: fail(req, "本服未启用物品估值")
+            "value_seed" -> {
+                val seeds = HashMap<String, Double>()
+                args["seeds"]?.fields()?.forEach { (k, v) -> if (v.isNumber) seeds[k] = v.asDouble() }
+                ToolReply(req.requestId, true, items?.applyLlmSeeds(seeds) ?: "本服未启用物品估值")
+            }
             "value_status" -> ToolReply(req.requestId, true, items?.status() ?: "本服未启用物品估值")
             "value_orphans" -> ToolReply(req.requestId, true, items?.orphans() ?: "本服未启用物品估值")
             "get_balance" -> {

@@ -17,7 +17,7 @@ interface ValueExecutor {
     fun requiresTrusted(sub: String): Boolean = sub in WRITE_SUBS
 
     companion object {
-        val WRITE_SUBS = setOf("build", "set", "unset")
-        val ALL_SUBS = listOf("build", "get", "set", "unset", "orphans", "status", "servers")
+        val WRITE_SUBS = setOf("build", "set", "unset", "llm")
+        val ALL_SUBS = listOf("build", "llm", "get", "set", "unset", "orphans", "status", "servers")
     }
 }

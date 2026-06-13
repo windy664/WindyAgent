@@ -2,8 +2,11 @@
 // WindyAgent — 多模块根构建（聚合器，本身不产出制品）
 //   core      —— 平台无关核心（agent / llm / prompt / 平台接口 / AgentTool）
 //   bus       —— 跨进程 Redis 总线（Velocity ↔ Bukkit 通信）
-//   velocity  —— Velocity 代理端载体（Agent 大脑所在，Java 11）
-//   bukkit    —— Bukkit/Paper 子服能力提供方（被中心 Agent 远程调用）
+//   velocity  —— Velocity 代理端载体（Agent 大脑所在，Java 11）。
+//                ★ 其 shadowJar 现在并入 :bukkit，产出「通用单 jar」windyagent-<ver>.jar，
+//                  同一个 jar 同时被 Velocity 和现代 Bukkit 识别（各读各的入口文件）。
+//   bukkit    —— Bukkit/Paper 子服能力提供方（被中心 Agent 远程调用）。
+//                其独立 fat jar windyagent-bukkit-<ver>-all.jar 仍保留，作无 slf4j 的远古 1.12 单机回退。
 //
 // NeoForge 载体已搁置，代码备份在 disabled-neoforge/，
 // 原单模块 NeoForge 构建配置见 build.gradle.neoforge-backup

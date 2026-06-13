@@ -86,7 +86,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val statusSupplier = {
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n模式：${cfg.mode()}"
         }
-        val valueExecutor = items?.let { LocalValueExecutor(it) }
+        val valueExecutor = items?.let { LocalValueExecutor(it, fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) }
         val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
 
         // 启动后建本机能力目录，放进本地注册表

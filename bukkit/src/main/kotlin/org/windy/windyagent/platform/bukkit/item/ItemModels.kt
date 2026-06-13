@@ -27,4 +27,10 @@ data class RecipeRow(
     val count: Int
 )
 
-data class ParseResult(val items: List<ModItem>, val recipes: List<RecipeRow>)
+/**
+ * 一条标签成员边：`tag`（带 # 前缀，如 #c:ingots/inferium）含成员 `member`
+ * （可能是具体物品 id，也可能是另一个 #子标签——引擎按"标签值=成员最小值"递归求解）。
+ */
+data class TagEdge(val tag: String, val member: String)
+
+data class ParseResult(val items: List<ModItem>, val recipes: List<RecipeRow>, val tags: List<TagEdge>)

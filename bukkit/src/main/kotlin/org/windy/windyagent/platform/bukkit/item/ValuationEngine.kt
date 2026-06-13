@@ -1,6 +1,7 @@
 package org.windy.windyagent.platform.bukkit.item
 
 import org.slf4j.LoggerFactory
+import org.windy.windyagent.valuation.RootInfo
 import kotlin.math.abs
 
 /**
@@ -14,21 +15,46 @@ class ValuationEngine(
     private val overhead: Double,
     private val maxIter: Int,
     private val currency: String,
-    private val packDiscount: Double
+    private val packDiscount: Double,
+    private val maxLlmItems: Int = 600
 ) {
     private val log = LoggerFactory.getLogger(ValuationEngine::class.java)
     private val INF = Double.MAX_VALUE / 4
+    @Volatile private var lastSeeds = 0
+    @Volatile private var lastReport = ""
+    @Volatile private var lastRoots: List<RootInfo> = emptyList()
+    @Volatile private var lastUnresolved: List<RootInfo> = emptyList()
+
+    fun lastSeedCount() = lastSeeds
+    /** 上次传播后"无配方、被依赖却悬空的根"（value llm 默认用，token 省）。 */
+    fun lastRoots() = lastRoots
+    /** 上次传播后**全部**退默认值的物品（含机器/祭坛造的成品；value llm all 用，覆盖全）。 */
+    fun lastUnresolved() = lastUnresolved
+    fun anchors(): Map<String, Double> = baseValues
+    fun currencyName() = currency
 
     /** 全图传播，写回 valuations。build/set 都调它（build 先重建解析表，set 只改 overrides）。 */
     @Synchronized
     fun propagate() {
         val graph = db.loadRecipeGraph()           // output -> [(产出数, 材料map)]
+        val tagMembers = db.loadTagMembers()        // #tag -> [成员id 或 #子标签]
         val items = db.allItemIds().toHashSet()
-        val overrideIds = db.overrides().keys
-        val seeds = HashMap<String, Double>().apply { putAll(baseValues); putAll(db.overrides()) } // override 覆盖 base
-        log.info("[物品估值] 开始传播 — 物品 {}，配方产物 {}，种子 {}", items.size, graph.size, seeds.size)
+        val overrides = db.overrides()
+        val overrideIds = overrides.keys
+        val llmSeeds = db.llmSeeds()
+        val llmSeedIds = llmSeeds.keys
+        // 优先级：人工 override > 配置 base > LLM 估值（后 put 覆盖先 put）
+        val seeds = HashMap<String, Double>().apply { putAll(llmSeeds); putAll(baseValues); putAll(overrides) }
+        lastSeeds = seeds.size
+        log.info("[物品估值] 开始传播 — 物品 {}，配方产物 {}，标签 {}，种子 {}（基准 {} + 人工锚定 {} + LLM {}）", items.size, graph.size, tagMembers.size, seeds.size, baseValues.size, overrides.size, llmSeeds.size)
+        if (seeds.isEmpty()) {
+            log.warn("[物品估值] ⚠ 种子为 0 —— 估值无价值源，所有物品将退默认值（${defaultBase}）。请在配置 item-valuation.base-values 填基材价，或用 value set 人工锚定后重建。")
+        }
 
-        val allIds = HashSet(items).apply { addAll(graph.keys); graph.values.forEach { recs -> recs.forEach { addAll(it.second.keys) } } }
+        val allIds = HashSet(items).apply {
+            addAll(graph.keys); graph.values.forEach { recs -> recs.forEach { addAll(it.second.keys) } }
+            addAll(tagMembers.keys); tagMembers.values.forEach { addAll(it) }
+        }
         val value = HashMap<String, Double>(allIds.size)
         for (id in allIds) value[id] = seeds[id] ?: INF
 
@@ -36,6 +62,14 @@ class ValuationEngine(
         while (round < maxIter) {
             round++
             var changed = 0
+            // 先松弛标签：标签值 = 成员（具体物品/子标签）最小值，不加工序开销
+            for ((tag, members) in tagMembers) {
+                if (tag in seeds) continue
+                var best = value[tag] ?: INF
+                for (mem in members) { val mv = value[mem] ?: INF; if (mv < best) best = mv }
+                if (best < (value[tag] ?: INF)) { value[tag] = best; changed++ }
+            }
+            // 再松弛配方
             for ((out, recs) in graph) {
                 if (out in seeds) continue
                 var best = value[out] ?: INF
@@ -54,30 +88,62 @@ class ValuationEngine(
             if (changed == 0) break
         }
 
-        val conf = computeConfidence(graph, value, seeds)
+        val unresolvedTags = tagMembers.keys.count { (value[it] ?: INF) >= INF }
+        if (unresolvedTags > 0) log.info("[物品估值] 仍有 {} 个标签无解（多为 NeoForge/原版提供、jar 内无定义），可在 base-values 用 #c:... 补种子", unresolvedTags)
+
+        val conf = computeConfidence(graph, tagMembers, value, seeds)
         val vals = items.map { id ->
             val basis = when {
                 id in overrideIds -> "override"
                 id in baseValues -> "base"
+                id in llmSeedIds -> "llm"
                 (value[id] ?: INF) < INF -> "derived"
                 else -> "unknown"
             }
             val v = (value[id] ?: INF).let { if (it >= INF) defaultBase else it }
-            val confidence = if (basis == "unknown" || conf[id] == false) "low" else "high"
+            val confidence = when {
+                basis == "unknown" || conf[id] == false -> "low"
+                basis == "llm" -> "medium"     // LLM 估的是猜测，标中等
+                else -> "high"
+            }
             Valuation(id, v, confidence, basis)
         }
         db.writeValuations(vals)
         db.metaSet("last_build", System.currentTimeMillis().toString())
-        log.info("[物品估值] 传播完成 — {} 物品写入数据库", vals.size)
+
+        // 悬空的根：无配方推导、被≥1 配方依赖。既用于文字引导，也供 value llm 拿去给 LLM 定价。
+        val inDegree = HashMap<String, Int>()
+        for ((_, recs) in graph) for ((_, ings) in recs) for (ing in ings.keys) inDegree[ing] = (inDegree[ing] ?: 0) + 1
+        val unresolved = items.filter { (value[it] ?: INF) >= INF }
+        val resolved = items.size - unresolved.size
+        val sortedUnresolved = unresolved.sortedByDescending { inDegree[it] ?: 0 }
+        val rootList = sortedUnresolved.filter { (inDegree[it] ?: 0) > 0 }
+            .map { RootInfo(it, nameOf(it), inDegree[it] ?: 0) }
+        lastRoots = rootList.take(80)
+        // 全部悬空物（含成品），供 value llm all 分批兜底；上限可配（防 token 失控）
+        lastUnresolved = sortedUnresolved.take(maxLlmItems).map { RootInfo(it, nameOf(it), inDegree[it] ?: 0) }
+        val hints = rootList.take(6)
+        lastReport = "已解析估值 $resolved / 退默认值 ${unresolved.size}" +
+            if (hints.isNotEmpty()) "。这些「根」被大量配方依赖却无合成路径，建议 value llm 自动估价或 value set 人工锚定：\n" +
+                hints.joinToString("\n") { "  ${it.name}（${it.id}）— 被 ${it.deg} 处配方引用" } else "。"
+        log.info("[物品估值] 传播完成 — {} 物品写入数据库；{}", vals.size, lastReport.replace("\n", " "))
     }
 
+    fun lastReport() = lastReport
+
     /** 置信度二次传播：种子=高；未知(INF)=低；派生=其最便宜配方的材料全高才高。 */
-    private fun computeConfidence(graph: Map<String, List<Pair<Int, Map<String, Int>>>>, value: Map<String, Double>, seeds: Map<String, Double>): Map<String, Boolean> {
+    private fun computeConfidence(graph: Map<String, List<Pair<Int, Map<String, Int>>>>, tagMembers: Map<String, List<String>>, value: Map<String, Double>, seeds: Map<String, Double>): Map<String, Boolean> {
         val conf = HashMap<String, Boolean>()
         for (id in value.keys) conf[id] = id in seeds
         var round = 0
         while (round < maxIter) {
             round++; var changed = false
+            // 标签：取到最小值的那个成员若可信，则标签可信
+            for ((tag, members) in tagMembers) {
+                if (tag in seeds || conf[tag] == true) continue
+                val tv = value[tag] ?: INF; if (tv >= INF) continue
+                if (members.any { conf[it] == true && (value[it] ?: INF) <= tv + 1e-9 }) { conf[tag] = true; changed = true }
+            }
             for ((out, recs) in graph) {
                 if (out in seeds || conf[out] == true) continue
                 if ((value[out] ?: INF) >= INF) continue
@@ -99,7 +165,8 @@ class ValuationEngine(
     fun valuationText(id: String): String {
         val item = db.getItem(id) ?: return "物品库里没有「$id」。先 value build 建库。"
         val v = db.getValuation(id) ?: return "${nameOf(id)}（$id）尚无估值，先 value build。"
-        return "${nameOf(id)}（$id）\n估值：${fmt(v.value)} $currency（置信度：${if (v.confidence == "high") "高" else "低，建议人工锚定"}，依据：${basisLabel(v.basis)}）\n${breakdown(id)}"
+        val confLabel = when (v.confidence) { "high" -> "高"; "medium" -> "中（LLM 估，建议核对）"; else -> "低，建议人工锚定" }
+        return "${nameOf(id)}（$id）\n估值：${fmt(v.value)} $currency（置信度：$confLabel，依据：${basisLabel(v.basis)}）\n${breakdown(id)}"
     }
 
     fun proposePack(target: Double): String {
@@ -127,6 +194,6 @@ class ValuationEngine(
 
     private fun nameOf(id: String): String =
         if (id.startsWith("#")) "标签 $id" else db.getItem(id)?.let { it.nameZh.ifBlank { it.nameEn } }?.takeIf { it.isNotBlank() } ?: id
-    private fun basisLabel(b: String) = when (b) { "override" -> "人工锚定"; "base" -> "基准价"; "derived" -> "合成推导"; else -> "未知(默认值)" }
+    private fun basisLabel(b: String) = when (b) { "override" -> "人工锚定"; "base" -> "基准价"; "llm" -> "LLM 估值"; "derived" -> "合成推导"; else -> "未知(默认值)" }
     private fun fmt(d: Double) = if (d >= 100) "%.0f".format(d) else "%.1f".format(d)
 }
