@@ -39,7 +39,7 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.knowledge.KnowledgeSearchTool
 import org.windy.windyagent.platform.SessionManager
-import org.windy.windyagent.platform.velocity.web.DashboardServer
+import org.windy.windyagent.web.DashboardServer
 import java.nio.file.Path
 
 @Plugin(
@@ -128,7 +128,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
                 // AI 管理控制台（WebUI）：读行为/估值等都要总线+注册表，故在此装配
                 if (cfg.webEnabled()) {
-                    web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), b, cfg.remoteTimeoutMs()) { registry.servers() }
+                    web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), b, cfg.remoteTimeoutMs(), dataDirectory) { registry.servers() }
                         .also { it.start() }
                 }
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }

@@ -26,6 +26,9 @@ dependencies {
     // 跨服总线（Redis），用于把动作下发到 Bukkit 子服
     implementation project(':bus')
 
+    // AI 管理控制台后端（平台无关，velocity 进程内挂载）
+    implementation project(':web')
+
     // 把 Bukkit 载体并入同一个 fat jar（含其 plugin.yml + 嵌入式 SQLite 等）。
     // bukkit 的 compileOnly(spigot-api / VaultAPI) 不会传递，故不把服务端类打进来；
     // 其 Bukkit 主类在 Velocity 上不会被加载（无 plugin.yml 加载器触发），休眠无害。
