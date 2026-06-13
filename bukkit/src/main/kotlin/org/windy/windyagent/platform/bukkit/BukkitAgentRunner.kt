@@ -60,7 +60,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
         // hub 模式：把派发到其它子服的远端能力挂上，并接收其它子服推来的目录
         // 本机物品估值（standalone/hub：本服有 mods/）
-        ItemService.build(plugin, cfg)?.also { it.warmup() }?.let {
+        val items = ItemService.build(plugin, cfg)?.also { it.warmup() }
+        items?.let {
             extraTools += BukkitRefreshItemsTool(it); extraTools += BukkitAppraiseTool(it); extraTools += BukkitProposePackTool(it)
         }
         if (remoteBus != null) {
@@ -85,7 +86,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val statusSupplier = {
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n模式：${cfg.mode()}"
         }
-        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier)
+        val valueExecutor = items?.let { LocalValueExecutor(it) }
+        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
 
         // 启动后建本机能力目录，放进本地注册表
         val selfName = cfg.serverName().ifBlank { "local" }

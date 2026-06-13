@@ -66,6 +66,8 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun itemValuationEnabled() = (getNode("item-valuation.enabled") as? Boolean) ?: true
     fun itemDefaultBaseValue() = (getNode("item-valuation.default-base-value") as? Number)?.toDouble() ?: 1.0
     fun itemPackDiscount() = (getNode("item-valuation.pack-discount") as? Number)?.toDouble() ?: 0.8
+    fun itemCraftOverhead() = (getNode("item-valuation.craft-overhead") as? Number)?.toDouble() ?: 0.1
+    fun itemPropagationMaxIter() = (getNode("item-valuation.propagation-max-iter") as? Number)?.toInt() ?: 50
     fun itemCurrencyName() = getString("item-valuation.currency-name", "金币")
     fun itemBaseValues(): Map<String, Double> {
         val m = getNode("item-valuation.base-values") as? Map<*, *> ?: return emptyMap()

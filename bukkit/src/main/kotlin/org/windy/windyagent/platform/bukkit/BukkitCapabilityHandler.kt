@@ -44,15 +44,23 @@ class BukkitCapabilityHandler(
                 ToolReply(req.requestId, true, actions.broadcast(msg))
             }
             "get_online_players" -> ToolReply(req.requestId, true, actions.onlinePlayers())
-            "refresh_items" -> ToolReply(req.requestId, true, items?.refresh() ?: "本服未启用物品估值")
-            "appraise_item" -> {
+            "refresh_items", "value_build" -> ToolReply(req.requestId, true, items?.build() ?: "本服未启用物品估值")
+            "appraise_item", "value_get" -> {
                 val q = args["item"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 item 参数")
-                ToolReply(req.requestId, true, items?.appraise(q) ?: "本服未启用物品估值")
+                ToolReply(req.requestId, true, items?.get(q) ?: "本服未启用物品估值")
             }
             "propose_pack" -> {
                 val target = args["target_value"]?.asDouble()?.takeIf { it > 0 } ?: return fail(req, "缺少 target_value 参数")
-                ToolReply(req.requestId, true, items?.proposePack(target) ?: "本服未启用物品估值")
+                ToolReply(req.requestId, true, items?.propose(target) ?: "本服未启用物品估值")
             }
+            "value_set" -> {
+                val item = args["item"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 item 参数")
+                val v = args["value"]?.asDouble() ?: return fail(req, "缺少 value 参数")
+                ToolReply(req.requestId, true, items?.set(item, v, args["note"]?.asText() ?: "") ?: "本服未启用物品估值")
+            }
+            "value_unset" -> ToolReply(req.requestId, true, items?.unset(args["item"]?.asText() ?: "") ?: "本服未启用物品估值")
+            "value_status" -> ToolReply(req.requestId, true, items?.status() ?: "本服未启用物品估值")
+            "value_orphans" -> ToolReply(req.requestId, true, items?.orphans() ?: "本服未启用物品估值")
             "get_balance" -> {
                 val name = args["player"]?.asText()?.takeIf { it.isNotBlank() }
                     ?: return fail(req, "缺少 player 参数")

@@ -54,6 +54,11 @@ item-valuation:
   currency-name: "金币"
   default-base-value: 1
   pack-discount: 0.8
+  # EMC 式传播：每步合成的加工开销（防 0 成本套利、体现工序价值）
+  craft-overhead: 0.1
+  # 全图传播最大迭代轮数（收敛即提前停；数千物品一般个位数轮收敛）
+  propagation-max-iter: 50
+  # 种子值（人工锚定 value set 优先级更高，盖过这里）
   base-values:
     "minecraft:diamond": 100
     "minecraft:emerald": 80

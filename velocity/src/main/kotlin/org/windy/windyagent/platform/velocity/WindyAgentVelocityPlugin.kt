@@ -72,6 +72,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         if (fastLlm != null) logger.info("元任务便宜模型：{}", cfg.fastModel())
 
         val extraTools = mutableListOf<AgentTool>()
+        var valueExecutor: org.windy.windyagent.command.ValueExecutor? = null
 
         // 安全护栏 + 审计 + 人工审批闸（拦 AI 自动跑高危命令；可信来源高危走审批）
         val guard = buildCommandGuard(cfg)
@@ -119,6 +120,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.onCatalog { json -> registry.accept(json) }
                 if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
+                // value 命令的远端执行后端：子服名取自能力注册表（已推目录=已连）
+                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs()) { registry.servers() }
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
@@ -134,7 +137,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n" +
                 "跨服：${if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用"}"
         }
-        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier)
+        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
 
         // 玩家游戏内聊天触发：!ai <message>
         server.eventManager.register(this, VelocityChatListener(agent, platform, sessions, router, logger, cfg.trigger()))
