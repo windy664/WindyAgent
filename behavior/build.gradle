@@ -1,0 +1,29 @@
+// ============================================================
+// behavior —— 平台无关的玩家行为数据平台（存储 + 聚合 + 规则画像）。
+//   它不是 Agent 的一部分：是一套确定性的数据子系统，Agent 只是消费方之一
+//   （Web 看板、总线 JSON 都来这里取数）。故独立成模块，与具体载体、与 Agent 解耦。
+//
+//   只依赖 jackson（出 JSON）+ 嵌入式 SQLite（落库），不依赖 core/bus/任何载体——
+//   将来要换存储（Postgres / ClickHouse 应对大数据量）只动本模块，外部 API 不变。
+//   采集器（Bukkit 事件监听）留在 bukkit 侧，调本模块的库；本模块自身平台无关。
+//
+//   Java 8 基线，与 core/web 一致，便于被 Java 8 的 bukkit 直接依赖并 shade。
+// ============================================================
+
+// 覆盖根 subprojects 的 Java 11 默认 → 8
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    // 聚合结果出 JSON（看板/总线消费）。仅本模块内部使用、对外只返回 String → implementation。
+    // 载体的 shadowJar 会把它一并打进 fat jar（velocity 那边还会统一重定位，避免与宿主冲突）。
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+
+    // 嵌入式行为库。Java 8 兼容，由载体 shade 进 fat jar。
+    implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
+
+    // slf4j 门面：运行时由宿主（Velocity / Paper）提供，仅编译期引入、不打包。
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+}
