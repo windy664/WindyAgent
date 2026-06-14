@@ -6,6 +6,7 @@
 <title>WindyAgent · MC服务器智能助手</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
 <style>
   :root{
     --pink:#ff8fc8;--violet:#b79bff;--sky:#7fd7ff;--mint:#86efc6;--gold:#ffd98a;--red:#ff7a98;
@@ -223,6 +224,13 @@
           <div class="panel glass"><h3>⌨️ 热门命令 <span class="tag">词频</span></h3><canvas id="cmdBar" height="200"></canvas></div>
           <div class="panel glass"><h3>🏆 在线时长 Top5</h3><canvas id="topChart" height="200"></canvas></div>
         </div>
+        <div class="panel glass" style="margin-top:16px"><h3>☁️ 词云
+            <button class="btn ghost sm wcbtn" id="wcCmd" onclick="switchWords('cmd')">命令</button>
+            <button class="btn ghost sm wcbtn" id="wcChat" onclick="switchWords('chat')">聊天</button>
+            <span class="tag">高频词</span></h3>
+          <div id="wcWrap" style="position:relative;min-height:300px;display:flex;align-items:center;justify-content:center">
+            <canvas id="wordCloud" height="300"></canvas>
+            <p id="wcEmpty" class="ph" style="display:none">暂无词频数据（命令词云始终采集；聊天词云需子服 track-chat 开启）</p></div></div>
         <div class="panel glass" style="margin-top:16px"><h3>🕒 行为时间线 <span class="tag">最近</span></h3><div id="feed"></div></div>
         <div class="panel glass" style="margin-top:16px"><h3>🔮 玩家画像查询</h3>
           <div style="display:flex;gap:9px;margin-bottom:10px"><input id="pname" placeholder="玩家名…" style="width:220px"><button class="btn ghost sm" onclick="searchPlayer()">查询</button></div>
@@ -333,7 +341,23 @@ async function loadBoard(){const s=$('server').value;if(!s)return;
       api('/api/words?server='+s+'&source=cmd&limit=12').catch(()=>[]),api('/api/board?server='+s).catch(()=>null)]);
     renderKpis(st);renderBehPie(st);renderSegBar(seg);renderCmdBar(words);renderTop(st.topPlaytime||[]);
     if(board){renderTrend(board.trend);renderHeat(board.heatmap);renderFeed(board.feed);}
+    switchWords(wcSource);
   }catch(e){$('kpis').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+/* 词云：命令/聊天两源切换；数据来自 /api/words（已按词频降序）。wordcloud2.js 画到 canvas。 */
+let wcSource='cmd';
+function switchWords(src){wcSource=src;
+  ['wcCmd','wcChat'].forEach(id=>{const b=$(id);if(!b)return;const on=id==='wc'+src.charAt(0).toUpperCase()+src.slice(1);b.style.opacity=on?'1':'.45';b.style.fontWeight=on?'800':'600';});
+  loadWords();}
+async function loadWords(){const s=$('server').value;if(!s)return;
+  const w=await api('/api/words?server='+s+'&source='+wcSource+'&limit=120').catch(()=>[]);renderWordCloud(w);}
+function renderWordCloud(w){const cv=$('wordCloud');const list=(w||[]).filter(x=>x.word&&x.count>0).map(x=>[x.word,x.count]);
+  $('wcEmpty').style.display=list.length?'none':'';cv.style.display=list.length?'':'none';
+  if(!list.length||typeof WordCloud==='undefined')return;
+  const wrap=$('wcWrap');const cssW=Math.max(320,wrap.clientWidth-2);cv.width=cssW;cv.height=300;
+  const max=list[0][1]||1;const PALW=['#ff8fc8','#b79bff','#7fd7ff','#9be7c4','#ffd27f'];
+  WordCloud(cv,{list,backgroundColor:'rgba(0,0,0,0)',fontFamily:'"M PLUS Rounded 1c",sans-serif',
+    weightFactor:n=>12+Math.sqrt(n/max)*52,gridSize:Math.round(7*cssW/700),rotateRatio:.32,rotationSteps:2,
+    minSize:11,shuffle:true,drawOutOfBound:false,color:()=>PALW[Math.floor(Math.random()*PALW.length)]});}
 function renderTrend(tr){if(trendChart)trendChart.destroy();if(!tr||!tr.length){$('trendChart').style.display='none';return;}
   $('trendChart').style.display='';trendChart=new Chart($('trendChart'),{type:'line',data:{labels:tr.map(x=>x.day),datasets:[{data:tr.map(x=>x.peak),borderColor:'#b79bff',backgroundColor:'rgba(183,155,255,.16)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#ff8fc8'}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.06)'},border:{display:false}},y:{grid:{color:'rgba(255,255,255,.06)'},border:{display:false},beginAtZero:true}}}});}
 function renderHeat(hm){const el=$('heat');if(!hm||!hm.length){el.innerHTML='<span class="muted">暂无会话数据</span>';return;}

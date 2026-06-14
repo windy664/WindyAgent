@@ -46,6 +46,10 @@ dependencies {
     // core 已 api 暴露 bus，故依赖 core 即含 bus；provider 模式也只多打不用到的 Agent 类，无害。
     implementation project(':core')
 
+    // 玩家行为数据平台（平台无关：存储 + 聚合 + 规则画像）。bukkit 只提供采集器(吃 Bukkit 事件)，
+    // 库/分析逻辑都在 :behavior。它带 sqlite-jdbc + jackson，随 fat jar 一并打包。
+    implementation project(':behavior')
+
     // core 内部用 slf4j 记日志，而老 Spigot(1.12) 运行时不带 slf4j 实现 →
     // 打包 slf4j-api + 转 JUL 的绑定（slf4j-jdk14），让 Agent 日志在任意宿主都能落地。
     // （现代 Paper 自带 slf4j，插件类加载器用自带这份亦无妨。）

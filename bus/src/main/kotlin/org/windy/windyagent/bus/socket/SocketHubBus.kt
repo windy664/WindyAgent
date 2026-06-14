@@ -152,6 +152,9 @@ class SocketHubBus(
         catalogHandler = handler
     }
 
+    /** 当前真实在线 = 此刻持有活动连接的子服（REGISTER 时入、断开即移除）。权威在线来源。 */
+    override fun onlineServers(): Set<String> = connections.keys.toSet()
+
     override fun close() {
         running = false
         runCatching { serverSocket?.close() }

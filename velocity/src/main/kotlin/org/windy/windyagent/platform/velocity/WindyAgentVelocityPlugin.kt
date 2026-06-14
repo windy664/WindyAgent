@@ -125,9 +125,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.onCatalog { json -> registry.accept(json) }
                 if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
-                // value / 运维命令的远端执行后端：子服名取自能力注册表（已推目录=已连）
-                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) { registry.servers() }
-                connectedServers = { registry.servers() }
+                // 在线判定：优先用总线的"真实在线"集（Socket 中枢=活动连接）；传输报不了(如 Redis)才退回
+                // 注册表的"曾见过"集。避免选/派到离线子服白等超时（"假在线"）。
+                val online = { b.onlineServers() ?: registry.servers() }
+                // value / 运维命令的远端执行后端：子服名取当前在线
+                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers(), online)
+                connectedServers = online
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
                 // 代理层捕获聊天做词云（绕开 Bukkit 侧聊天事件 bug），词频经总线回各子服
