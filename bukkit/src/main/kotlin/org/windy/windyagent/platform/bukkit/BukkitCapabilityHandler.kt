@@ -46,6 +46,10 @@ class BukkitCapabilityHandler(
                 ToolReply(req.requestId, true, actions.broadcast(msg))
             }
             "get_online_players" -> ToolReply(req.requestId, true, actions.onlinePlayers())
+            "health_query" -> ToolReply(req.requestId, true, healthSnapshot())
+            // Forge/NeoForge 专属（按子服核心类型门控）：非 forge/neoforge 由 NeoForgeOps 内部直接拒
+            "server_mods" -> ToolReply(req.requestId, true, NeoForgeOps.modList(plugin))
+            "dimension_tps" -> ToolReply(req.requestId, true, NeoForgeOps.dimensionTps(plugin, actions))
             "refresh_items", "value_build" -> ToolReply(req.requestId, true, items?.build() ?: "本服未启用物品估值")
             "appraise_item", "value_get" -> {
                 val q = args["item"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 item 参数")
@@ -101,6 +105,64 @@ class BukkitCapabilityHandler(
             }
             else -> fail(req, "未知动作：${req.action}")
         }
+    }
+
+    /** 本服健康快照（供中心哨兵巡检）：TPS（Paper/Youer 反射取，远古服无则 -1）+ 在线 + JVM 内存。 */
+    private fun healthSnapshot(): String {
+        val rt = Runtime.getRuntime()
+        val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1_048_576
+        val maxMb = rt.maxMemory() / 1_048_576
+        val online = runCatching { plugin.server.onlinePlayers.size }.getOrDefault(-1)
+        // 整体 TPS：先试 Bukkit getTPS()（Paper 系有）；Youer 等无此 API → 退 NMS 平均 tick 时长推算
+        val tps = runCatching {
+            val arr = plugin.server.javaClass.getMethod("getTPS").invoke(plugin.server) as DoubleArray
+            (arr.firstOrNull() ?: -1.0).coerceAtMost(20.0)
+        }.getOrDefault(-1.0).let { if (it >= 0) it else nmsTps() }
+        val p = ServerProfile.detect(plugin)
+        return mapper.createObjectNode()
+            .put("tps", Math.round(tps * 100) / 100.0)
+            .put("online", online)
+            .put("memUsedMb", usedMb)
+            .put("memMaxMb", maxMb)
+            .put("brand", p.brand)
+            .put("mcVersion", p.mcVersion)
+            .put("platform", p.platform)
+            .put("modCount", p.modCount)
+            .toString()
+    }
+
+    /** Bukkit getTPS() 不可用时，从 NMS MinecraftServer 的平均 tick 时长推算整体 TPS；推不出回 -1。 */
+    private fun nmsTps(): Double {
+        val nms = runCatching { val cs = plugin.server; cs.javaClass.getMethod("getServer").invoke(cs) }.getOrNull() ?: return -1.0
+        val msptNanos = nmsMsptNanos(nms) ?: return -1.0
+        val msptMs = msptNanos / 1_000_000.0
+        if (msptMs <= 0) return -1.0
+        return Math.round((1000.0 / msptMs).coerceAtMost(20.0) * 100) / 100.0
+    }
+
+    /** 平均 tick 耗时（纳秒）：方法 getAverageTickTimeNanos()(纳秒) / getAverageTickTime()(毫秒)；回退字段 tickTimesNanos / tickTimes。 */
+    private fun nmsMsptNanos(nms: Any): Double? {
+        runCatching { (nms.javaClass.getMethod("getAverageTickTimeNanos").invoke(nms) as Number).toDouble() }.getOrNull()?.let { if (it > 0) return it }
+        runCatching { (nms.javaClass.getMethod("getAverageTickTime").invoke(nms) as Number).toDouble() }.getOrNull()?.let { if (it > 0) return it * 1_000_000.0 }
+        fieldAvg(nms, "tickTimesNanos")?.let { if (it > 0) return it }
+        fieldAvg(nms, "tickTimes")?.let { if (it > 0) return it * 1_000_000.0 }
+        return null
+    }
+
+    /** 沿类层级找 long[] 字段并取非零平均。 */
+    private fun fieldAvg(obj: Any, name: String): Double? {
+        var c: Class<*>? = obj.javaClass
+        while (c != null) {
+            c.declaredFields.firstOrNull { it.name == name }?.let { f ->
+                return runCatching {
+                    f.isAccessible = true
+                    val a = f.get(obj) as? LongArray ?: return null
+                    a.filter { it > 0 }.let { nz -> if (nz.isEmpty()) null else nz.average() }
+                }.getOrNull()
+            }
+            c = c.superclass
+        }
+        return null
     }
 
     private fun fail(req: ToolRequest, msg: String) = ToolReply(req.requestId, false, msg)

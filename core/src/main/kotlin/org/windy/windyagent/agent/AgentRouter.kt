@@ -5,6 +5,7 @@ import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.llm.LLMProvider
 import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.safety.RequestContext
+import org.windy.windyagent.safety.TrustLevel
 
 /**
  * 在 [ReActAgent]（简单任务）与 [PlanExecuteAgent]（复杂多步任务）之间自动选择。
@@ -32,7 +33,9 @@ class AgentRouter(
         try {
             // 自动召回长期记忆，拼进上下文（agent 会加到系统提示）——透明记忆，零额外 LLM
             memory?.let { m ->
-                val hits = runCatching { m.recall(context.sessionId, context.userMessage, recallTopK) }.getOrNull().orEmpty()
+                // 可信(管理方)请求并召回管理方共享域 admin；玩家请求只看自己 scope + 全服
+                val incAdmin = context.trust == TrustLevel.TRUSTED
+                val hits = runCatching { m.recall(context.sessionId, context.userMessage, recallTopK, incAdmin) }.getOrNull().orEmpty()
                 if (hits.isNotEmpty()) context.recalled = hits.joinToString("\n") { "- ${it.content}" }
             }
             val chosen = select(context.userMessage)

@@ -6,6 +6,8 @@ import com.sun.net.httpserver.HttpServer
 import org.slf4j.LoggerFactory
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.knowledge.KnowledgeManager
+import org.windy.windyagent.ops.ScheduledTask
+import org.windy.windyagent.ops.TaskScheduler
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -32,7 +34,11 @@ class DashboardServer(
     private val connectedServers: () -> Set<String>,
     private val chat: ((String, String) -> String)? = null,
     private val kb: KnowledgeManager? = null,
-    private val draft: ((String) -> String)? = null
+    private val draft: ((String) -> String)? = null,
+    private val alerts: AlertCenter? = null,
+    /** 当前各子服健康快照 JSON（哨兵提供）；null=哨兵未启用，返回空数组。 */
+    private val health: (() -> String)? = null,
+    private val scheduler: TaskScheduler? = null
 ) {
     private val log = LoggerFactory.getLogger(DashboardServer::class.java)
     private val mapper = ObjectMapper()
@@ -95,22 +101,68 @@ class DashboardServer(
                 proxy(ex, q, "behavior_words", """{"source":${jstr(src)},"limit":$lim}""")
             }
             "/api/board" -> proxy(ex, q, "behavior_board", "{}")
+            "/api/alerts" -> json(ex, 200, alerts?.json() ?: "[]")
+            "/api/health" -> json(ex, 200, runCatching { health?.invoke() }.getOrNull() ?: "[]")
+            // Forge/NeoForge 专属（前端仅对该类子服显示入口）：模组清单 / 分维度 TPS（回的是纯文本，包成 {text}）
+            "/api/mods" -> proxyText(ex, q, "server_mods", "{}")
+            "/api/dimtps" -> proxyText(ex, q, "dimension_tps", "{}")
+            "/api/tasks" -> tasksApi(ex, q)
+            "/api/tasks/run" -> { val s = scheduler; val id = q["id"]; if (s == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("result", s.runNow(id)).toString()) }
+            "/api/tasks/toggle" -> { val s = scheduler; val id = q["id"]; if (s == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else { val t = s.toggle(id); json(ex, 200, mapper.createObjectNode().put("ok", t != null).put("enabled", t?.enabled ?: false).toString()) } }
             "/api/chat" -> chatApi(ex)
+            "/api/chat/history" -> json(ex, 200, chatHistory(q["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             "/api/kb" -> kbApi(ex, q)
             "/api/kb/draft" -> draftApi(ex)
             else -> json(ex, 404, """{"error":"unknown api"}""")
         }
     }
 
-    // ---- 聊天（多轮，经载体接到 Agent；会话历史由载体的 SessionManager 维护）----
+    // ---- 聊天（多轮，经载体接到 Agent；AI 上下文由载体 SessionManager 维护(限 max-history 轮)）----
+    // 另把对话存盘到 chatlog/<会话>.jsonl，供 /api/chat/history 跨刷新跨设备回放（与 AI 上下文独立、可更长）。
     private fun chatApi(ex: HttpExchange) {
         val c = chat ?: return json(ex, 400, """{"error":"chat unavailable"}""")
         if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
         val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
         val msg = n["message"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"empty message"}""")
         val sid = n["session"]?.asText()?.takeIf { it.isNotBlank() } ?: "web-console"
+        // 持久化展示用原文（前端发来的 display 去掉了"默认子服"前缀）；缺省退回 message。
+        val disp = n["display"]?.asText()?.takeIf { it.isNotBlank() } ?: msg
+        // "/clear" 类清空指令：清后端会话 + 删存档，不计入历史
+        if (msg.trim().equals("clear", true) || msg.trim() == "/clear") {
+            runCatching { c(sid, msg) }; clearChatLog(sid)
+            return json(ex, 200, mapper.createObjectNode().put("reply", "已开新对话").toString())
+        }
         val reply = runCatching { c(sid, msg) }.getOrElse { "出错：${it.message}" }
+        appendChatLog(sid, "u", disp); appendChatLog(sid, "a", reply)
         json(ex, 200, mapper.createObjectNode().put("reply", reply).toString())
+    }
+
+    // ---- 聊天存档（jsonl，一行一条 {role,text,ts}）----
+    private val chatLogDir: Path get() = dataDir.resolve("chatlog")
+    private fun chatLogFile(session: String): Path =
+        chatLogDir.resolve(session.replace(Regex("[^a-zA-Z0-9_.-]"), "_") + ".jsonl")
+
+    @Synchronized
+    private fun appendChatLog(session: String, role: String, text: String) {
+        runCatching {
+            Files.createDirectories(chatLogDir)
+            val line = mapper.createObjectNode().put("role", role).put("text", text).put("ts", System.currentTimeMillis()).toString() + "\n"
+            Files.write(chatLogFile(session), line.toByteArray(StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND)
+        }.onFailure { log.warn("聊天存档失败：{}", it.message) }
+    }
+
+    @Synchronized
+    private fun clearChatLog(session: String) { runCatching { Files.deleteIfExists(chatLogFile(session)) } }
+
+    /** 读回某会话最近 N 条，拼成 JSON 数组（每行本就是合法 JSON 对象，直接拼）。 */
+    private fun chatHistory(session: String): String {
+        val f = chatLogFile(session)
+        if (!Files.exists(f)) return "[]"
+        return runCatching {
+            val lines = Files.readAllLines(f, StandardCharsets.UTF_8).filter { it.isNotBlank() }
+            "[" + lines.takeLast(200).joinToString(",") + "]"
+        }.getOrDefault("[]")
     }
 
     // ---- 知识库 CRUD ----
@@ -162,10 +214,53 @@ class DashboardServer(
         else json(ex, 200, reply.content)
     }
 
+    // ---- 定时任务 CRUD（手工解析，web 侧无 jackson-kotlin module）----
+    private fun tasksApi(ex: HttpExchange, q: Map<String, String>) {
+        val s = scheduler ?: return json(ex, 400, """{"error":"scheduler unavailable"}""")
+        when (ex.requestMethod) {
+            "GET" -> json(ex, 200, s.toJson())
+            "POST" -> {
+                val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
+                val t = ScheduledTask(
+                    id = n["id"]?.asText() ?: "",
+                    name = n["name"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing name"}"""),
+                    enabled = n["enabled"]?.asBoolean() ?: true,
+                    action = n["action"]?.asText() ?: "broadcast",
+                    target = n["target"]?.asText() ?: "",
+                    payload = n["payload"]?.asText() ?: "",
+                    type = n["type"]?.asText() ?: "interval",
+                    intervalMin = n["intervalMin"]?.asInt() ?: 60,
+                    time = n["time"]?.asText() ?: "12:00",
+                    days = n["days"]?.mapNotNull { it.asInt() } ?: emptyList()
+                )
+                val saved = s.upsert(t)
+                json(ex, 200, mapper.createObjectNode().put("ok", true).put("id", saved.id).toString())
+            }
+            "DELETE" -> {
+                val id = q["id"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing id"}""")
+                json(ex, 200, mapper.createObjectNode().put("ok", s.delete(id)).toString())
+            }
+            else -> json(ex, 405, """{"error":"method not allowed"}""")
+        }
+    }
+
+    /** 同 proxy，但子服回的是纯文本，包成 {"text":...} 供前端读取（避免把文本当 JSON 解析）。 */
+    private fun proxyText(ex: HttpExchange, q: Map<String, String>, action: String, args: String) {
+        val b = bus ?: return json(ex, 503, """{"error":"cross-server bus not enabled"}""")
+        val server = q["server"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
+        if (server !in connectedServers()) return json(ex, 400, """{"error":"server not connected"}""")
+        val reply = runCatching { b.dispatch(server, action, args, timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS) }.getOrNull()
+        if (reply == null) json(ex, 504, """{"error":"timeout"}""")
+        else json(ex, if (reply.success) 200 else 502, mapper.createObjectNode().put("text", reply.content).toString())
+    }
+
     private fun json(ex: HttpExchange, code: Int, body: String) = respond(ex, code, "application/json; charset=utf-8", body.toByteArray(StandardCharsets.UTF_8))
 
     private fun respond(ex: HttpExchange, code: Int, contentType: String, body: ByteArray) {
         ex.responseHeaders.add("Content-Type", contentType)
+        // 禁缓存：API 是实时数据本就不该缓存；HTML 不缓存则换 jar / 热改 dataDir/dashboard.html 刷新即生效，
+        // 不会再出现"浏览器拿旧页、看不到新功能"的坑。控制台是本机轻量页，不缓存无性能负担。
+        ex.responseHeaders.add("Cache-Control", "no-cache, no-store, must-revalidate")
         ex.sendResponseHeaders(code, body.size.toLong())
         ex.responseBody.use { it.write(body) }
     }

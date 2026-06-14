@@ -30,8 +30,28 @@
   ::placeholder{color:#8a83ad}
   ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:8px}
 
+  /* —— 微交互：点击涟漪 / 按压回弹 / 卡片悬浮抬升 / 切页与入场动效 —— */
+  .btn,.nav,.chip,.ticon,.kbitem,.pill,.qa>*{position:relative;overflow:hidden}
+  .btn:active,.chip:active,.ticon:active,.nav:active,.qa>*:active,.tag:active{transform:scale(.95)!important}
+  .kpi,.panel,.card,.wcat{transition:transform .22s cubic-bezier(.2,.85,.3,1),box-shadow .22s,border-color .22s}
+  .kpi:hover,.panel:hover,.card:hover,.wcat:hover{transform:translateY(-4px);border-color:rgba(183,155,255,.55);box-shadow:0 16px 42px rgba(0,0,0,.42),0 0 0 1px rgba(183,155,255,.28)}
+  .nav.on::before{content:'';position:absolute;left:2px;top:50%;width:3px;height:0;border-radius:3px;background:linear-gradient(var(--pink),var(--violet));box-shadow:0 0 8px var(--violet);transform:translateY(-50%);animation:navbar .26s cubic-bezier(.2,.85,.3,1) forwards}
+  @keyframes navbar{to{height:62%}}
+  .rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.5);transform:scale(0);opacity:.7;animation:rip .55s ease-out forwards;pointer-events:none}
+  @keyframes rip{to{transform:scale(2.6);opacity:0}}
+  @keyframes inUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .anim-in{animation:inUp .42s cubic-bezier(.2,.85,.3,1) both}
+  .page.on{animation:pageIn .34s ease}
+  @keyframes pageIn{from{opacity:0}to{opacity:1}}
+  .chip:hover,.nav:hover{transform:translateY(-1px)}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
   /* 顶部通栏 */
-  .topbar{height:54px;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--line);background:rgba(14,10,26,.5);backdrop-filter:blur(10px)}
+  .topbar{position:relative;height:54px;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--line);background:rgba(14,10,26,.5);backdrop-filter:blur(10px)}
+  .ticon{position:relative}
+  .bdot{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px var(--red)}
+  .alertpop{position:absolute;top:52px;left:12px;width:370px;max-height:64vh;overflow:auto;border-radius:14px;padding:8px;z-index:40;animation:inUp .16s ease}
+  .alertpop .ai{padding:9px 11px;border-radius:10px;margin-bottom:6px;background:var(--glass2);border-left:3px solid var(--mut)}
   .topbar .grow{flex:1}
   .ticon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:17px;cursor:pointer;background:var(--glass2);border:1px solid var(--bd)}
   .ticon:hover{border-color:var(--violet)}
@@ -84,11 +104,24 @@
   .chip:hover{background:linear-gradient(120deg,rgba(255,143,200,.25),rgba(183,155,255,.25));border-color:var(--violet)}
   .msg{max-width:80%;padding:11px 15px;border-radius:17px;line-height:1.55;white-space:pre-wrap;word-break:break-word;font-size:14.5px}
   .msg.u{align-self:flex-end;background:linear-gradient(120deg,var(--pink),var(--violet));border-bottom-right-radius:6px}
-  .msg.a{align-self:flex-start;background:var(--glass2);border:1px solid var(--bd);border-bottom-left-radius:6px}
+  .msg.a{align-self:flex-start;background:rgba(20,15,40,.72);backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%);border:1px solid var(--bd);border-bottom-left-radius:6px}
   .msg b{color:#fff;font-weight:800}.msg a{color:var(--gold)}.msg code{background:rgba(0,0,0,.3);padding:1px 6px;border-radius:5px;font-family:Consolas,monospace;font-size:13px}
   .msg pre{background:rgba(0,0,0,.32);padding:9px 11px;border-radius:9px;overflow:auto;margin:6px 0}.msg pre code{background:none;padding:0}
   .composer{display:flex;gap:10px;align-items:flex-end;padding-top:12px;border-top:1px solid var(--line)}
   .composer textarea{flex:1;max-height:130px;min-height:46px}
+  /* 四个控件统一 46 高 */
+  .composer>select{height:46px}
+  .composer>button{height:46px;display:flex;align-items:center;justify-content:center}
+  /* 输入框 + 总控下拉：同一深色底，清晰可读 */
+  .composer textarea,#chatTarget{background:rgba(16,12,32,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.22);color:#fff}
+  #chatTarget{font-weight:700;cursor:pointer}
+  .composer textarea:focus,#chatTarget:focus{border-color:var(--violet);box-shadow:0 0 0 2px rgba(183,155,255,.26)}
+  .cmdpop{position:absolute;left:0;right:0;bottom:calc(100% + 8px);max-height:266px;overflow:auto;border-radius:14px;padding:6px;z-index:20;animation:inUp .16s ease}
+  .cmdpop .ci{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:10px;cursor:pointer}
+  .cmdpop .ci.sel,.cmdpop .ci:hover{background:linear-gradient(120deg,rgba(255,143,200,.24),rgba(183,155,255,.24))}
+  .cmdpop .cn{font-weight:800;color:#fff;font-family:Consolas,monospace;min-width:78px}
+  .cmdpop .cd{color:var(--mut);font-size:12.5px;flex:1}
+  .cmdpop .cadmin{font-size:10.5px;color:var(--gold);border:1px solid var(--bd);border-radius:20px;padding:1px 7px;flex-shrink:0}
 
   /* 看板页 */
   .board{padding:20px}
@@ -105,6 +138,15 @@
   .panel h3{margin:0 0 14px;font-size:14px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
   .panel h3 .tag{font-size:11px;color:var(--mut);font-weight:700;border:1px solid var(--bd);border-radius:20px;padding:2px 9px;cursor:pointer}
   .ph{height:180px;display:grid;place-items:center;color:var(--mut);font-size:13px;text-align:center;background:repeating-linear-gradient(45deg,rgba(255,255,255,.02),rgba(255,255,255,.02) 10px,transparent 10px,transparent 20px);border-radius:12px}
+  /* 运维总览：子服健康卡片 */
+  .hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+  .hcard{border-radius:14px;padding:14px;background:var(--glass2);border:1px solid var(--bd);transition:transform .2s,border-color .2s}
+  .hcard:hover{transform:translateY(-3px);border-color:rgba(183,155,255,.5)}
+  .hcard .hn{font-weight:800;display:flex;align-items:center;gap:8px}
+  .hcard .hs{display:flex;gap:16px;margin-top:11px}
+  .hcard .hs .v{font-weight:800;font-size:19px;font-variant-numeric:tabular-nums}
+  .hcard .hs .k{font-size:11px;color:var(--mut)}
+  .sdot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
   .heat{display:grid;grid-template-columns:24px repeat(24,1fr);gap:2px}
   .heat .hl{color:var(--mut);font-size:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px}
   .heat .hc{aspect-ratio:1;border-radius:2px;min-height:8px}
@@ -138,8 +180,15 @@
   <button class="btn" style="width:100%;margin-top:12px" onclick="enterGate()">进入 ✨</button>
   <p id="gateErr" class="err" style="font-size:13px;margin-top:10px"></p></div></div>
 
+<div id="infoModal" style="position:fixed;inset:0;z-index:60;display:none;place-items:center;background:rgba(8,6,16,.55)" onclick="if(event.target===this)hideInfo()">
+  <div class="box glass" style="border-radius:18px;padding:20px;width:min(560px,92vw);max-height:80vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 id="infoTitle" style="margin:0;font-size:16px"></h3><span class="ticon" onclick="hideInfo()" style="cursor:pointer">✕</span></div>
+    <pre id="infoBody" style="white-space:pre-wrap;font-size:13px;line-height:1.65;margin:0;font-family:inherit"></pre>
+  </div></div>
+
 <div class="topbar">
-  <div class="ticon" title="通知">🔔</div>
+  <div class="ticon" id="bell" title="运维告警" onclick="toggleAlerts()">🔔<span id="bellDot" class="bdot" style="display:none">0</span></div>
+  <div id="alertPop" class="alertpop glass" style="display:none"></div>
   <div class="ticon" title="文档">📄</div>
   <div class="grow"></div>
   <div class="pill">🌐 <select id="server" onchange="onServer()"></select></div>
@@ -150,12 +199,13 @@
 <div class="shell">
   <aside class="sidebar">
     <div class="logo"><div class="lg">🌸</div><div><div class="lt tx">WindyAgent</div><div class="ls tx">MC服务器智能助手</div></div></div>
-    <div class="nav on" data-v="chat"><span class="i">💬</span><span class="tx">聊天</span></div>
+    <div class="nav on" data-v="ops"><span class="i">🛰️</span><span class="tx">运维总览</span></div>
+    <div class="nav" data-v="chat"><span class="i">💬</span><span class="tx">AI 对话</span></div>
     <div class="nav" data-v="board"><span class="i">📊</span><span class="tx">行为看板</span></div>
     <div class="nav" data-v="kb"><span class="i">📚</span><span class="tx">知识库</span></div>
     <div class="nav" data-v="players"><span class="i">🧑</span><span class="tx">玩家管理</span></div>
     <div class="nav" data-v="econ"><span class="i">💰</span><span class="tx">经济分析</span></div>
-    <div class="nav" data-v="event"><span class="i">🎉</span><span class="tx">活动管理</span></div>
+    <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx">定时任务</span></div>
     <div class="nav" data-v="plugin"><span class="i">🧩</span><span class="tx">插件管理</span></div>
     <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx">设置中心</span></div>
     <div class="grow1"></div>
@@ -167,8 +217,19 @@
   </aside>
 
   <main class="content">
+    <!-- 运维总览（首页） -->
+    <div id="page-ops" class="page on">
+      <div class="board">
+        <div class="bhead"><div><h2>🛰️ 运维总览</h2><p>主动运维哨兵实时巡检 · 异常自动告警与处置建议</p></div>
+          <div class="tools"><span class="pill" id="sentinelState"><span class="dot"></span>哨兵</span><button class="btn ghost sm" onclick="loadOps()">刷新</button></div></div>
+        <div class="kpis" id="opsKpis"></div>
+        <div class="panel glass"><h3>🖥️ 子服健康 <span class="tag">实时</span></h3><div id="healthGrid" class="hgrid"></div></div>
+        <div class="panel glass" style="margin-top:16px"><h3>🚨 运维告警 / 处置过程 <span class="tag">哨兵自动</span></h3><div id="opsAlerts"></div></div>
+      </div>
+    </div>
+
     <!-- 聊天页 -->
-    <div id="page-chat" class="page on">
+    <div id="page-chat" class="page">
       <div class="chatmain">
         <div class="msgs" id="msgs">
           <div class="welcome">
@@ -182,9 +243,10 @@
             <div class="chips" id="chips"></div>
           </div>
         </div>
-        <div class="composer">
+        <div class="composer" style="position:relative">
+          <div id="cmdPop" class="cmdpop glass" style="display:none"></div>
           <select id="chatTarget" onchange="targetNote()" title="对谁说：总控=代理全局；选子服=本轮默认操作该服" style="width:auto;min-width:120px;flex-shrink:0"></select>
-          <textarea id="chatIn" rows="1" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+          <textarea id="chatIn" rows="1" placeholder="说点什么…（输入 / 看命令，Enter 发送，Shift+Enter 换行）"></textarea>
           <button class="btn ghost sm" onclick="newChat()">新对话</button>
           <button class="btn" onclick="send()">发送 ✨</button>
         </div>
@@ -201,7 +263,6 @@
           </div></div>
         <div class="card glass"><h4>📜 最近日志 <a onclick="go('board')">查看全部</a></h4>
           <div class="log" id="recentLog"><span class="muted">暂无（需接入服务器事件日志）</span></div></div>
-        <div class="card glass" style="text-align:center;color:var(--mut);font-size:12px">WindyAgent · AI 服务器运维助手 v1<br>玻璃二次元控制台 🌸</div>
       </aside>
     </div>
 
@@ -266,7 +327,14 @@
     <!-- 建设中页 -->
     <div id="page-players" class="page"><div class="build"><div class="big">🧑</div><h2>玩家管理</h2><p>在线列表 / 踢人 / 封禁 / 权限 —— 建设中，暂可在「聊天」里用自然语言操作。</p></div></div>
     <div id="page-econ" class="page"><div class="build"><div class="big">💰</div><h2>经济分析</h2><p>收支 / 通胀 / 商品销量 —— 需接入经济与成交数据，建设中。</p></div></div>
-    <div id="page-event" class="page"><div class="build"><div class="big">🎉</div><h2>活动管理</h2><p>活动排期 / 礼包发放 —— 建设中。</p></div></div>
+    <div id="page-event" class="page">
+      <div class="board">
+        <div class="bhead"><div><h2>⏰ 定时任务</h2><p>定时广播 / 执行命令 —— 到点自动跑（每隔 N 分钟，或每天定时）</p></div>
+          <div class="tools"><button class="btn sm" onclick="openTask()">+ 新建任务</button><button class="btn ghost sm" onclick="loadTasks()">刷新</button></div></div>
+        <div id="taskForm" class="panel glass" style="display:none;margin-bottom:16px"></div>
+        <div id="taskList"></div>
+      </div>
+    </div>
     <div id="page-plugin" class="page"><div class="build"><div class="big">🧩</div><h2>插件管理</h2><p>插件状态 / 配置 —— 建设中。</p></div></div>
     <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2>设置中心</h2><p>令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
   </main>
@@ -296,13 +364,89 @@ async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr
 /* 导航 */
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+v));
-  if(v==='board')loadBoard(); if(v==='kb')loadKb();}
+  animateIn('page-'+v);
+  if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks();}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.v));
+
+/* 切页：面板错峰淡入上滑（重置后重放，每次进页都活一下） */
+function animateIn(pageId){const p=$(pageId);if(!p)return;
+  const els=p.querySelectorAll('.kpi,.panel,.card,.wcat,.build,.kbside,.kbmain');
+  els.forEach((el,i)=>{el.classList.remove('anim-in');void el.offsetWidth;el.style.animationDelay=Math.min(i*45,400)+'ms';el.classList.add('anim-in');});}
+
+/* 点击涟漪：委托到可点控件，从落点扩散 */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('.btn,.nav,.chip,.ticon,.kbitem,.pill,.qa>*');
+  if(!t)return;
+  const r=t.getBoundingClientRect(),d=Math.max(r.width,r.height);
+  const s=document.createElement('span');s.className='rip';
+  s.style.width=s.style.height=d+'px';
+  s.style.left=(e.clientX-r.left-d/2)+'px';s.style.top=(e.clientY-r.top-d/2)+'px';
+  t.appendChild(s);setTimeout(()=>s.remove(),560);
+},true);
 
 /* 服务器 */
 async function loadServers(){const sv=await api('/api/servers');
   $('server').innerHTML=sv.length?sv.map(s=>`<option>${s}</option>`).join(''):'<option value="">（无子服）</option>';
-  $('chatTarget').innerHTML='<option value="">🌐 总控(VC)</option>'+sv.map(s=>`<option value="${s}">🖥️ ${s}</option>`).join('');}
+  $('chatTarget').innerHTML='<option value="">🌐 总控(VC)</option>'+sv.map(s=>`<option value="${s}">🖥️ ${s}</option>`).join('');
+  const savT=localStorage.getItem('wa_target');   // 恢复上次选中的子服，再回灌对应会话记录
+  if(savT&&[...$('chatTarget').options].some(o=>o.value===savT))$('chatTarget').value=savT;
+  renderHist();
+  loadOps();   // 首页=运维总览，登录后即拉
+  pollAlerts();
+  if(!window._alertTimer)window._alertTimer=setInterval(()=>{pollAlerts();if($('page-ops')&&$('page-ops').classList.contains('on'))loadOps();},30000);}
+
+/* 运维告警：轮询 /api/alerts（哨兵推来的），铃铛角标计数 + 下拉列表 */
+let lastAlerts=[];
+function kindLabel(k){return({OFFLINE:'掉线',LAG:'卡顿',MEMORY:'内存吃紧',PLAYER_DROP:'在线骤降',RECOVERED:'已恢复'})[k]||k;}
+function sevColor(s){return s==='critical'?'var(--red)':(s==='warn'?'var(--gold)':'var(--mint)');}
+async function pollAlerts(){try{renderAlerts(await api('/api/alerts'));}catch(e){}}
+function renderAlerts(a){lastAlerts=a||[];const dot=$('bellDot'),n=lastAlerts.length;
+  if(n>0){dot.style.display='';dot.textContent=n>99?'99+':n;}else dot.style.display='none';
+  $('alertPop').innerHTML=n?lastAlerts.map(x=>`<div class="ai" style="border-left-color:${sevColor(x.severity)}">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>${kindLabel(x.kind)} · ${esc(x.server)}</b><span class="muted" style="font-size:11px">${ago(x.ts)}</span></div>
+      <div style="font-size:12.5px;margin-top:2px">${esc(x.detail)}</div>
+      ${x.advice?`<div style="font-size:12px;color:var(--mut);margin-top:5px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:5px">💡 ${esc(x.advice)}</div>`:''}
+    </div>`).join(''):'<div class="muted" style="padding:16px;text-align:center">暂无告警 🎐 服务器一切正常</div>';}
+function toggleAlerts(){const p=$('alertPop');const show=p.style.display==='none';p.style.display=show?'':'none';if(show)pollAlerts();}
+
+/* 运维总览首页：子服健康卡片 + 哨兵告警/处置过程 */
+function stColor(s){return s==='offline'?'var(--red)':(s==='lag'||s==='mem')?'var(--gold)':'var(--mint)';}
+function stLabel(s){return({offline:'掉线',lag:'卡顿',mem:'内存吃紧',ok:'正常'})[s]||'正常';}
+function platLabel(p){return({'neoforge-hybrid':'NeoForge 混合端','forge-hybrid':'Forge 混合端','paper':'Paper','spigot':'Spigot','craftbukkit':'CraftBukkit'})[p]||p||'';}
+function platBadge(x){if(!x.platform)return'';const bits=[platLabel(x.platform)];if(x.mcVersion)bits.push('MC'+x.mcVersion);if(x.modCount>0)bits.push(x.modCount+' 模组');
+  return `<div class="muted" style="font-size:11px;margin-top:7px;display:flex;align-items:center;gap:5px"><span>🧩</span>${esc(bits.join(' · '))}</div>`;}
+async function loadOps(){
+  const [health,alerts,servers]=await Promise.all([api('/api/health').catch(()=>[]),api('/api/alerts').catch(()=>[]),api('/api/servers').catch(()=>[])]);
+  renderHealth(health,servers);renderOpsAlerts(alerts);renderOpsKpis(health,alerts);}
+function renderHealth(h,servers){
+  const list=(h&&h.length)?h:(servers||[]).map(s=>({server:s,status:'ok',connected:true}));
+  $('healthGrid').innerHTML=list.length?list.map(x=>`<div class="hcard">
+      <div class="hn"><span class="sdot" style="background:${stColor(x.status)};box-shadow:0 0 8px ${stColor(x.status)}"></span>${esc(x.server)}<span class="muted" style="font-size:12px;margin-left:auto">${stLabel(x.status)}</span></div>
+      <div class="hs"><div><div class="v">${x.tps!=null?x.tps:'—'}</div><div class="k">TPS</div></div>
+        <div><div class="v">${x.players!=null?x.players:'—'}</div><div class="k">在线</div></div>
+        <div><div class="v">${x.memPct!=null?x.memPct+'%':'—'}</div><div class="k">内存</div></div></div>
+      ${platBadge(x)}
+      ${/forge/.test(x.platform||'')?`<div style="display:flex;gap:7px;margin-top:10px">
+        <button class="btn ghost sm" onclick="srvInfo('${x.server}','mods','🧩 ${x.server} · 模组清单')">🧩 模组</button>
+        <button class="btn ghost sm" onclick="srvInfo('${x.server}','dimtps','⏱️ ${x.server} · 分维度 TPS')">⏱️ 维度TPS</button></div>`:''}
+    </div>`).join(''):'<div class="muted" style="padding:6px">暂无已连接子服</div>';}
+async function srvInfo(server,kind,title){showInfo(title,'加载中…');
+  try{const r=await api('/api/'+kind+'?server='+encodeURIComponent(server));showInfo(title,r.text||'(空)');}
+  catch(e){showInfo(title,'出错：'+e.message);}}
+function showInfo(t,b){$('infoTitle').textContent=t;$('infoBody').textContent=b;$('infoModal').style.display='grid';}
+function hideInfo(){$('infoModal').style.display='none';}
+function renderOpsKpis(h,a){
+  const arr=h||[],on=arr.filter(x=>x.status!=='offline').length;
+  const players=arr.reduce((s,x)=>s+(x.players||0),0);
+  const alarms=(a||[]).filter(x=>x.kind!=='RECOVERED').length;
+  const it=[['🖥️','在线子服',on],['👥','在线玩家',players],['🚨','活跃告警',alarms],['🛰️','哨兵','运行中']];
+  $('opsKpis').innerHTML=it.map(([i,k,v],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join('');}
+function renderOpsAlerts(a){const list=a||[];
+  $('opsAlerts').innerHTML=list.length?list.map(x=>`<div class="ai" style="border-left:3px solid ${sevColor(x.severity)};background:var(--glass2);border-radius:10px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>${kindLabel(x.kind)} · ${esc(x.server)}</b><span class="muted" style="font-size:11px">${ago(x.ts)}</span></div>
+      <div style="font-size:13px;margin-top:3px">${esc(x.detail)}</div>
+      ${x.advice?`<div style="font-size:12.5px;color:var(--mut);margin-top:7px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:7px">💡 ${esc(x.advice)}</div>`:''}
+    </div>`).join(''):'<div class="ph" style="height:120px">暂无告警 — 服务器一切正常 🎐</div>';}
 function onServer(){const s=$('server').value;$('srvName').textContent=s||'-';loadOverview();
   if($('page-board').classList.contains('on'))loadBoard();}
 
@@ -322,16 +466,59 @@ function quick(t){go('chat');$('chatIn').value=t;$('chatIn').focus();}
 let chatStarted=false;
 function bubble(c,t){const m=$('msgs');if(!chatStarted){m.innerHTML='';chatStarted=true;}const d=document.createElement('div');d.className='msg '+c;d.textContent=t;m.appendChild(d);m.scrollTop=m.scrollHeight;return d;}
 function chatSession(){const t=$('chatTarget').value;return t?'web-'+t:'web-console';}
-function targetNote(){const t=$('chatTarget').value;bubble('sys',t?`已切到子服「${t}」——本轮对话默认操作它`:'已切到 总控(VC)——代理全局，需自行指明子服');}
-async function send(){const inp=$('chatIn'),msg=inp.value.trim();if(!msg)return;inp.value='';inp.style.height='auto';
-  const tgt=$('chatTarget').value;
-  const apiMsg=tgt?`（默认子服:${tgt}，涉及子服的操作就用它）${msg}`:msg;
-  bubble('u',msg);const t=bubble('a','思考中…');
-  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({message:apiMsg,session:chatSession()})});t.innerHTML=md(r.reply||'(空)');}
+/* 聊天记录本地持久化（按会话/子服分别存）：刷新/切回不丢。仅前端展示用，AI 上下文仍由后端 SessionManager 管。 */
+const WELCOME=$('msgs').innerHTML;   // 开场白原样存档，空会话时还原
+function chatKey(){return 'wa_chat_'+chatSession();}
+function loadHist(){return JSON.parse(localStorage.getItem(chatKey())||'[]');}
+function pushHist(role,text){const h=loadHist();h.push({role,text});localStorage.setItem(chatKey(),JSON.stringify(h.slice(-120)));}
+async function renderHist(){const m=$('msgs');let h=null;
+  try{h=await api('/api/chat/history?session='+encodeURIComponent(chatSession()));}catch(e){h=null;}   // 后端存盘=跨刷新跨设备
+  if(h){localStorage.setItem(chatKey(),JSON.stringify(h.slice(-120)));}else{h=loadHist();}            // 拉不到(旧 jar/离线)→本地兜底
+  if(!h.length){m.innerHTML=WELCOME;chatStarted=false;return;}
+  m.innerHTML='';chatStarted=true;
+  h.forEach(e=>{const d=document.createElement('div');d.className='msg '+(e.role==='u'?'u':'a');
+    if(e.role==='u')d.textContent=e.text;else d.innerHTML=md(e.text);m.appendChild(d);});
+  m.scrollTop=m.scrollHeight;}
+function targetNote(){localStorage.setItem('wa_target',$('chatTarget').value);renderHist();}   // 切子服=存选择+切到该会话各自的聊天记录
+async function send(){const inp=$('chatIn'),msg=inp.value.trim();if(!msg)return;inp.value='';inp.style.height='auto';$('cmdPop').style.display='none';
+  const tgt=$('chatTarget').value,isCmd=msg.startsWith('/');
+  // 斜杠命令直发路由（不加"默认子服"前缀，否则前缀会顶掉命令词）；自然语言才按子服加前缀
+  const apiMsg=(tgt&&!isCmd)?`（默认子服:${tgt}，涉及子服的操作就用它）${msg}`:msg;
+  bubble('u',msg);pushHist('u',msg);const t=bubble('a','思考中…');
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({message:apiMsg,display:msg,session:chatSession()})});t.innerHTML=md(r.reply||'(空)');pushHist('a',r.reply||'(空)');}
   catch(e){t.textContent='出错：'+e.message;t.classList.add('err');}$('msgs').scrollTop=$('msgs').scrollHeight;}
-function newChat(){api('/api/chat',{method:'POST',body:JSON.stringify({message:'clear',session:chatSession()})}).catch(()=>{});chatStarted=false;location.reload();}
-$('chatIn').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
-$('chatIn').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,130)+'px';});
+function newChat(){api('/api/chat',{method:'POST',body:JSON.stringify({message:'clear',session:chatSession()})}).catch(()=>{});localStorage.removeItem(chatKey());chatStarted=false;location.reload();}
+
+/* 命令提示面板：输入 / 弹出可用命令，↑↓选 / Enter·Tab 补全 / Esc 关。命令裸词或 / 前缀均可。 */
+const CMDS=[
+  {n:'help',d:'显示所有可用命令'},
+  {n:'clear',d:'清空当前会话上下文，重新开始'},
+  {n:'history',d:'查看本会话最近对话'},
+  {n:'status',d:'查看 Agent 运行状态'},
+  {n:'value',d:'物品估值，如 /value get <子服> <物品>'},
+  {n:'memory',d:'查看/管理长期记忆'},
+  {n:'pending',d:'列出待审批的高危操作',admin:true},
+  {n:'approve',d:'批准待审操作：/approve <单号>',admin:true},
+  {n:'deny',d:'驳回待审操作：/deny <单号>',admin:true}
+];
+let cmdSel=-1,cmdList=[];
+function updateCmdPop(){const v=$('chatIn').value,pop=$('cmdPop');
+  if(!v.startsWith('/')||/\s/.test(v)){pop.style.display='none';cmdSel=-1;return;}   // 只在打第一个词、无空格时提示
+  const q=v.slice(1).toLowerCase();cmdList=CMDS.filter(c=>c.n.startsWith(q));
+  if(!cmdList.length){pop.style.display='none';cmdSel=-1;return;}
+  if(cmdSel<0)cmdSel=0; if(cmdSel>=cmdList.length)cmdSel=cmdList.length-1;
+  pop.innerHTML=cmdList.map((c,i)=>`<div class="ci ${i===cmdSel?'sel':''}" onmousedown="event.preventDefault();pickCmd(${i})"><span class="cn">/${c.n}</span><span class="cd">${esc(c.d)}</span>${c.admin?'<span class="cadmin">管理员</span>':''}</div>`).join('');
+  pop.style.display='';}
+function pickCmd(i){const c=cmdList[i];if(!c)return;const inp=$('chatIn');inp.value='/'+c.n+' ';$('cmdPop').style.display='none';cmdSel=-1;inp.focus();inp.dispatchEvent(new Event('input'));}
+$('chatIn').addEventListener('keydown',e=>{const pop=$('cmdPop'),open=pop.style.display!=='none';
+  if(open){
+    if(e.key==='ArrowDown'){e.preventDefault();cmdSel=Math.min(cmdSel+1,cmdList.length-1);updateCmdPop();return;}
+    if(e.key==='ArrowUp'){e.preventDefault();cmdSel=Math.max(cmdSel-1,0);updateCmdPop();return;}
+    if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();pickCmd(cmdSel<0?0:cmdSel);return;}
+    if(e.key==='Escape'){pop.style.display='none';cmdSel=-1;return;}
+  }
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+$('chatIn').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,130)+'px';updateCmdPop();});
 
 /* 看板 */
 let behPie,segBar,cmdBar,topChart,trendChart;
@@ -371,7 +558,7 @@ function renderFeed(feed){const list=feed||[];
   $('feed').innerHTML=list.length?'<div class="feedlist">'+list.map(r=>`<div class="e"><span class="ic">${feedIcon(r.type)}</span><span>${feedText(r)}</span><span class="t">${ago(r.ts)}</span></div>`).join('')+'</div>':'<span class="muted">暂无事件</span>';
   if($('recentLog'))$('recentLog').innerHTML=list.length?list.slice(0,6).map(r=>`<div class="e"><span class="t">${ago(r.ts)}</span><span>${feedText(r)}</span></div>`).join(''):'<span class="muted">暂无</span>';}
 function renderKpis(s){const it=[['🟢','活跃玩家',s.active7d,'近7天'],['✨','今日新增',s.newToday,'今日'],['⏱️','人均时长',s.avgPlaytimeMin+'分',''],['💀','玩家死亡',s.totalDeaths,'累计'],['⛏️','破坏方块',s.totalBlocksBroken,''],['🏆','成就达成',s.totalAdvancements,'']];
-  $('kpis').innerHTML=it.map(([i,k,v,d])=>`<div class="kpi glass"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div>${d?`<div class="d muted">${d}</div>`:''}</div>`).join('');}
+  $('kpis').innerHTML=it.map(([i,k,v,d],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div>${d?`<div class="d muted">${d}</div>`:''}</div>`).join('');}
 function donut(el,labels,data,inst){if(inst)inst.destroy();return new Chart(el,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:PAL,borderColor:'rgba(0,0,0,.25)',borderWidth:2,hoverOffset:6}]},options:{cutout:'60%',plugins:{legend:{position:'right',labels:{usePointStyle:true,padding:11,boxWidth:8,font:{weight:700}}}}}});}
 function renderBehPie(s){behPie=donut($('behPie'),['建造','探索','战斗','合成'],[(s.totalBlocksBroken||0)+(s.totalBlocksPlaced||0),(s.totalAdvancements||0)*5,(s.totalDeaths||0)*3,(s.totalCrafts||0)],behPie);}
 function renderSegBar(seg){const l=Object.keys(seg),d=Object.values(seg);if(segBar)segBar.destroy();
@@ -411,6 +598,8 @@ async function aiDraft(){const text=$('kbDraft').value.trim();if(!text)return;tr
 
 /* 启动 */
 if(TK()){loadServers().then(()=>{$('gate').style.display='none';onServer();}).catch(()=>showGate('请重新输入令牌'));}else showGate();
+animateIn('page-ops');
+// 聊天记录回灌在 loadServers 里做（要先恢复选中的子服、定位到对应会话）；未登录则等进闸后触发。
 </script>
 </body>
 </html>

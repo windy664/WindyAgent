@@ -34,7 +34,8 @@ class AgentCommandRouter(
     /** @return 元命令的回复文案；非元命令返回 null（调用方应交给 Agent 对话）。 */
     fun dispatch(input: String, sessionId: String, trust: TrustLevel): String? {
         val trimmed = input.trim()
-        val token = trimmed.substringBefore(' ').lowercase()
+        // 命令裸词触发；同时容忍可选的 `/` 前缀（Web/IM 习惯：/clear == clear）
+        val token = trimmed.substringBefore(' ').lowercase().removePrefix("/")
         if (token.isEmpty()) return null
         if (token in HELP_TOKENS) return helpText()
 

@@ -88,6 +88,24 @@ class BukkitActions(
         ok to if (ok) "已在本服执行指令：$command" else "指令执行返回 false：$command"
     }
 
+    /**
+     * 跑一条命令并捕获其输出文本（动态代理 CommandSender 抓 sendMessage）。主线程执行。
+     * 用于 NeoForge `/neoforge tps` 这类"输出走 sender"的命令。捕不到则返回空列表，调用方兜底。
+     */
+    fun runCapture(command: String): List<String> = onMain {
+        val sink = java.util.Collections.synchronizedList(ArrayList<String>())
+        runCatching { Bukkit.dispatchCommand(CommandCapture.sender(Bukkit.getServer(), sink), command) }
+            .onFailure { plugin.logger.fine("命令捕获失败（$command）：${it.message}") }
+        ArrayList(sink)
+    }
+
+    /** 把命令丢主线程执行、不等结果（输出走控制台日志，配合 [LogCapture] 抓取）。 */
+    fun dispatchAsync(command: String) {
+        val task = Runnable { runCatching { Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command) } }
+        val exec = mainExecutor()
+        if (exec != null) exec.execute(task) else Bukkit.getScheduler().runTask(plugin, task)
+    }
+
     fun broadcast(message: String): String = onMain {
         Bukkit.broadcastMessage(message)
         "已在本服广播：$message"

@@ -56,8 +56,8 @@ class FileLongTermMemory(
         return e
     }
 
-    override fun recall(scope: String, query: String, topK: Int): List<MemoryEntry> {
-        val scoped = entries.values.filter { it.scope == scope || it.scope == LongTermMemory.GLOBAL }
+    override fun recall(scope: String, query: String, topK: Int, includeAdmin: Boolean): List<MemoryEntry> {
+        val scoped = entries.values.filter { it.scope == scope || it.scope == LongTermMemory.GLOBAL || (includeAdmin && it.scope == LongTermMemory.ADMIN) }
         if (scoped.isEmpty()) return emptyList()
         val store = KeywordKnowledgeStore(scoped.map { KnowledgeEntry(it.id, it.content, it.content, it.tags) })
         // 仅保留分数达阈值的命中，过滤弱相关垃圾
@@ -77,8 +77,8 @@ class FileLongTermMemory(
     private fun normalize(s: String) = s.trim().lowercase().replace(Regex("\\s+"), "")
     private fun isDuplicate(a: String, b: String) = a == b || (a.length >= 4 && b.length >= 4 && (a.contains(b) || b.contains(a)))
 
-    override fun list(scope: String): List<MemoryEntry> =
-        entries.values.filter { it.scope == scope || it.scope == LongTermMemory.GLOBAL }.sortedBy { it.createdAt }
+    override fun list(scope: String, includeAdmin: Boolean): List<MemoryEntry> =
+        entries.values.filter { it.scope == scope || it.scope == LongTermMemory.GLOBAL || (includeAdmin && it.scope == LongTermMemory.ADMIN) }.sortedBy { it.createdAt }
 
     override fun forget(id: String): Boolean {
         val removed = entries.remove(id) != null
