@@ -8,6 +8,7 @@ import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.event.player.PlayerAdvancementDoneEvent
+import org.bukkit.event.player.PlayerChatEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
@@ -29,7 +30,8 @@ class BehaviorTracker(
     private val plugin: JavaPlugin,
     private val db: BehaviorDatabase,
     private val flushIntervalSec: Long,
-    private val retentionDays: Int
+    private val retentionDays: Int,
+    private val trackChat: Boolean = false
 ) : Listener {
 
     private class Acc(@Volatile var name: String) {
@@ -45,11 +47,31 @@ class BehaviorTracker(
     private val eventBuf = ConcurrentLinkedQueue<EventRow>()
     private val exec = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "windyagent-behavior").apply { isDaemon = true } }
     @Volatile private var flushes = 0L
+    private val cmdWords = ConcurrentHashMap<String, AtomicLong>()    // 命令名词频（始终采）
+    private val chatWords = ConcurrentHashMap<String, AtomicLong>()   // 聊天词频（仅 trackChat 时采）
+    // 仅当 trackChat 才注册。用**同步**的 PlayerChatEvent（已废弃但仍在 API）——Youer 把异步的
+    // AsyncPlayerChatEvent 在主线程触发才崩；同步事件在主线程触发是合法的、不撞护栏。能不能采到取决于 Youer 是否触发它。
+    private val chatListener = object : Listener {
+        @Suppress("DEPRECATION")
+        @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+        fun onChat(e: PlayerChatEvent) {
+            if (chatSeen++ == 0L) plugin.logger.info("[聊天词云] 收到首条同步聊天事件（${e.player.name}）——本服可用同步事件采集 ✓")
+            tokenizeChat(e.message)
+        }
+    }
+    @Volatile private var chatSeen = 0L
+
+    private fun bumpWord(m: ConcurrentHashMap<String, AtomicLong>, w: String) { m.computeIfAbsent(w) { AtomicLong() }.incrementAndGet() }
+    private fun tokenizeChat(text: String) = org.windy.windyagent.text.ChatTokenizer.tokens(text).forEach { bumpWord(chatWords, it) }
 
     private fun a(id: UUID, name: String): Acc = acc.computeIfAbsent(id) { Acc(name) }.also { it.name = name }
 
     fun start() {
         plugin.server.pluginManager.registerEvents(this, plugin)
+        if (trackChat) {
+            plugin.server.pluginManager.registerEvents(chatListener, plugin)
+            plugin.logger.info("行为采集：聊天词云已开启（试同步 PlayerChatEvent；若本服只触发异步事件则采不到，看是否出现「收到首条同步聊天」）")
+        }
         exec.scheduleAtFixedRate({ runCatching { flush() }.onFailure { plugin.logger.warning("行为 flush 失败：${it.message}") } },
             flushIntervalSec, flushIntervalSec, TimeUnit.SECONDS)
         plugin.logger.info("行为采集已启动（flush 每 ${flushIntervalSec}s，事件保留 ${retentionDays} 天）")
@@ -80,7 +102,11 @@ class BehaviorTracker(
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
-    fun onCommand(e: PlayerCommandPreprocessEvent) { a(e.player.uniqueId, e.player.name).commands.incrementAndGet() }
+    fun onCommand(e: PlayerCommandPreprocessEvent) {
+        a(e.player.uniqueId, e.player.name).commands.incrementAndGet()
+        val cmd = e.message.removePrefix("/").trim().substringBefore(' ').lowercase()
+        if (cmd.isNotEmpty()) bumpWord(cmdWords, cmd)   // 命令词云：只记命令名，不记参数
+    }
 
     // 注：不监听 AsyncPlayerChatEvent —— 它在 1.19+ 已废弃，且混合端(Youer/Mohist)会在主线程触发它、
     // 撞 Bukkit "异步事件不能主线程触发" 护栏刷错。聊天计数价值低，直接不采。要的话改用 Paper 的 AsyncChatEvent。
@@ -125,6 +151,8 @@ class BehaviorTracker(
         }
         db.bumpProfiles(now, deltas)
         db.writeSessions(drain(sessionBuf)); db.writeEvents(drain(eventBuf))
+        db.bumpWords("cmd", drainWords(cmdWords)); db.bumpWords("chat", drainWords(chatWords))
+        db.recordOnline(now, onlineSince.size)   // 在线数快照（用于趋势图）
         if (deltas.isNotEmpty()) plugin.logger.info("[行为采集] flush：${deltas.size} 名玩家画像更新")
         if (++flushes % 60L == 0L) db.pruneEvents(now - retentionDays * 86_400_000L)
     }
@@ -132,4 +160,9 @@ class BehaviorTracker(
     private fun <T> drain(q: ConcurrentLinkedQueue<T>): List<T> {
         val out = ArrayList<T>(); while (true) { out.add(q.poll() ?: break) }; return out
     }
+
+    private fun drainWords(m: ConcurrentHashMap<String, AtomicLong>): Map<String, Int> {
+        val out = HashMap<String, Int>(); for ((w, a) in m) { val d = a.getAndSet(0).toInt(); if (d > 0) out[w] = d }; return out
+    }
 }
+

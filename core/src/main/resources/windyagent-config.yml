@@ -136,6 +136,9 @@ behavior:
   churn-days: 7            # 超过这么多天未上线 = 流失风险
   active-minutes: 300      # 累计在线 ≥ 这么多分钟 = 核心玩家
   newbie-days: 3           # 首次上线在这么多天内 = 新玩家
+  # 聊天词云：混合端(Youer/Mohist)的 AsyncPlayerChatEvent 在主线程触发会刷错，保持 false；仅 Paper 系子服可设 true。
+  # 命令词云不受此开关影响，始终采集。
+  track-chat: false
 
 # 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
 #   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦

@@ -103,6 +103,8 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun behaviorActiveMinutes() = (getNode("behavior.active-minutes") as? Number)?.toInt() ?: 300
     /** 新玩家窗口：首次上线在这么多天内算新人。 */
     fun behaviorNewbieDays() = (getNode("behavior.newbie-days") as? Number)?.toInt() ?: 3
+    /** 是否采集聊天内容做词云：仅在能正常触发 AsyncPlayerChatEvent 的服开（Youer 等混合端有 bug，默认关）。命令词云不受此开关影响。 */
+    fun behaviorTrackChat() = (getNode("behavior.track-chat") as? Boolean) ?: false
 
     // AI 管理控制台（WebUI，仅 Velocity 读取）
     fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: false

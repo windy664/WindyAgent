@@ -70,6 +70,17 @@ class BukkitCapabilityHandler(
             "value_status" -> ToolReply(req.requestId, true, items?.status() ?: "本服未启用物品估值")
             "behavior_stats" -> ToolReply(req.requestId, true, behavior?.statsJson() ?: "本服未启用行为分析")
             "behavior_segments" -> ToolReply(req.requestId, true, behavior?.segmentsJson() ?: "本服未启用行为分析")
+            "behavior_words" -> {
+                val src = args["source"]?.asText()?.takeIf { it.isNotBlank() } ?: "cmd"
+                ToolReply(req.requestId, true, behavior?.wordsJson(src, args["limit"]?.asInt() ?: 80) ?: "本服未启用行为分析")
+            }
+            "behavior_board" -> ToolReply(req.requestId, true, behavior?.boardJson() ?: "本服未启用行为分析")
+            "behavior_chatwords" -> {
+                val words = HashMap<String, Int>()
+                args["words"]?.fields()?.forEach { (k, v) -> if (v.isNumber) words[k] = v.asInt() }
+                behavior?.recordChatWords(words)
+                ToolReply(req.requestId, true, "ok")
+            }
             "behavior_player" -> {
                 val name = args["player"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 player 参数")
                 ToolReply(req.requestId, true, behavior?.playerJson(name) ?: "本服未启用行为分析")

@@ -29,7 +29,10 @@ import org.windy.windyagent.bus.socket.SocketHubBus
 import org.windy.windyagent.buildEmbeddingProvider
 import org.windy.windyagent.buildFastProvider
 import org.windy.windyagent.buildProvider
-import org.windy.windyagent.knowledge.KnowledgeLoader
+import org.windy.windyagent.knowledge.KnowledgeManager
+import org.windy.windyagent.agent.AgentContext
+import org.windy.windyagent.llm.LLMMessage
+import org.windy.windyagent.safety.TrustLevel
 import org.windy.windyagent.memory.FileLongTermMemory
 import org.windy.windyagent.memory.RememberTool
 import org.windy.windyagent.buildCommandGuard
@@ -55,6 +58,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 ) {
     private var bus: MessageBus? = null
     private var web: DashboardServer? = null
+    private var chatWords: ChatWordCollector? = null
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -75,6 +79,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         val extraTools = mutableListOf<AgentTool>()
         var valueExecutor: org.windy.windyagent.command.ValueExecutor? = null
+        var connectedServers: () -> Set<String> = { emptySet() }   // 跨服启用后指向能力注册表
 
         // 安全护栏 + 审计 + 人工审批闸（拦 AI 自动跑高危命令；可信来源高危走审批）
         val guard = buildCommandGuard(cfg)
@@ -89,12 +94,10 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（用便宜模型，默认开，可关）
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
 
-        // 知识库检索（RAG 结构化优先起步）：有知识时挂上 knowledge_search 工具
-        val knowledge = KnowledgeLoader.load(dataDirectory)
-        if (knowledge.size() > 0) {
-            extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
-            logger.info("知识库已加载 — {} 条", knowledge.size())
-        }
+        // 知识库（可读写 + 热重载，供 WebUI 编辑）：挂上 knowledge_search 工具
+        val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"))
+        extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
+        logger.info("知识库已加载 — {} 条", knowledge.size())
 
         // MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent（与跨服总线正交）
         val mcpTools = McpLoader.load(cfg.mcpServers())
@@ -124,13 +127,11 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
                 // value / 运维命令的远端执行后端：子服名取自能力注册表（已推目录=已连）
                 valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) { registry.servers() }
+                connectedServers = { registry.servers() }
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
-                // AI 管理控制台（WebUI）：读行为/估值等都要总线+注册表，故在此装配
-                if (cfg.webEnabled()) {
-                    web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), b, cfg.remoteTimeoutMs(), dataDirectory) { registry.servers() }
-                        .also { it.start() }
-                }
+                // 代理层捕获聊天做词云（绕开 Bukkit 侧聊天事件 bug），词频经总线回各子服
+                chatWords = ChatWordCollector(b, cfg.remoteTimeoutMs()).also { server.eventManager.register(this, it); it.start() }
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
         }
 
@@ -145,6 +146,22 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "跨服：${if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用"}"
         }
         val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
+
+        // AI 管理控制台（WebUI）：聊天接 router/agent（多轮靠 SessionManager），知识库接 KnowledgeManager，
+        // 行为看板经总线。放最后装配（依赖 agent/会话）；webEnabled 即开，与跨服是否启用无关。
+        if (cfg.webEnabled()) {
+            val chat: (String, String) -> String = { sid, msg ->
+                router.dispatch(msg, sid, TrustLevel.TRUSTED) ?: run {
+                    val resp = agent.run(AgentContext(sid, msg, platform, sessions.getHistory(sid), TrustLevel.TRUSTED))
+                    sessions.trimHistory(sid); resp.message ?: "(无回复)"
+                }
+            }
+            val draftSys = "你帮服主把一段话整理成一条服务器知识库条目。只输出 JSON：" +
+                "{\"title\":简短标题,\"content\":正文,\"tags\":[2-4个关键词]}。不要解释、不要代码块标记。"
+            val draft: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
+                connectedServers, chat, knowledge, draft).also { it.start() }
+        }
 
         // 玩家游戏内聊天触发：!ai <message>
         server.eventManager.register(this, VelocityChatListener(agent, platform, sessions, router, logger, cfg.trigger()))
@@ -192,6 +209,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        chatWords?.stop(); chatWords = null
         web?.stop(); web = null
         bus?.close()
         bus = null

@@ -33,6 +33,8 @@ class BehaviorDatabase(private val dbPath: Path) {
                     blocks_placed INT DEFAULT 0, blocks_broken INT DEFAULT 0, craft_count INT DEFAULT 0, adv_count INT DEFAULT 0)""")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS sessions(uuid TEXT, name TEXT, join_ts INT, quit_ts INT, duration_sec INT)")
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS events(uuid TEXT, name TEXT, type TEXT, ts INT, detail TEXT)")
+                st.executeUpdate("CREATE TABLE IF NOT EXISTS word_freq(source TEXT, word TEXT, count INT, PRIMARY KEY(source,word))")
+                st.executeUpdate("CREATE TABLE IF NOT EXISTS online_snap(ts INT, cnt INT)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_profile_last ON profile(last_seen)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_sessions_join ON sessions(join_ts)")
             }
@@ -92,9 +94,86 @@ class BehaviorDatabase(private val dbPath: Path) {
         } catch (e: Exception) { c.rollback() } finally { c.autoCommit = true }
     }
 
-    /** 清理超过保留期的原始 events（画像/会话不清）。 */
+    /** 词频累加（source: cmd/chat）。upsert += 。 */
     @Synchronized
-    fun pruneEvents(before: Long): Int = c().prepareStatement("DELETE FROM events WHERE ts < ?").use { it.setLong(1, before); it.executeUpdate() }
+    fun bumpWords(source: String, words: Map<String, Int>) {
+        if (words.isEmpty()) return
+        val c = c(); c.autoCommit = false
+        try {
+            c.prepareStatement("INSERT INTO word_freq(source,word,count) VALUES(?,?,?) ON CONFLICT(source,word) DO UPDATE SET count=count+excluded.count").use { ps ->
+                for ((w, n) in words) { ps.setString(1, source); ps.setString(2, w); ps.setInt(3, n); ps.addBatch() }
+                ps.executeBatch()
+            }
+            c.commit()
+        } catch (e: Exception) { c.rollback() } finally { c.autoCommit = true }
+    }
+
+    /** 某来源 Top-N 高频词（词云用）。 */
+    @Synchronized
+    fun topWords(source: String, limit: Int): List<Pair<String, Int>> =
+        c().prepareStatement("SELECT word,count FROM word_freq WHERE source=? ORDER BY count DESC LIMIT ?").use { ps ->
+            ps.setString(1, source); ps.setInt(2, limit)
+            ps.executeQuery().use { rs -> val out = ArrayList<Pair<String, Int>>(); while (rs.next()) out.add(rs.getString(1) to rs.getInt(2)); out }
+        }
+
+    // ---- 看板：在线趋势 / 时段热力 / 行为时间线 ----
+    @Synchronized
+    fun recordOnline(ts: Long, cnt: Int) = c().prepareStatement("INSERT INTO online_snap VALUES(?,?)").use { it.setLong(1, ts); it.setInt(2, cnt); it.executeUpdate(); Unit }
+
+    /** 近 days 天每日在线峰值，返回 (MM-dd, peak)。 */
+    @Synchronized
+    fun trendDaily(now: Long, days: Int): List<Pair<String, Int>> {
+        val peak = LinkedHashMap<String, Int>()
+        c().prepareStatement("SELECT ts,cnt FROM online_snap WHERE ts>? ORDER BY ts").use { ps ->
+            ps.setLong(1, now - days * 86_400_000L)
+            ps.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val d = java.time.Instant.ofEpochMilli(rs.getLong(1)).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString().substring(5)
+                    peak[d] = maxOf(peak[d] ?: 0, rs.getInt(2))
+                }
+            }
+        }
+        return peak.entries.map { it.key to it.value }
+    }
+
+    /** 7×24 时段热力（行=周一..周日，列=0..23 时），数据来自会话登入时刻。 */
+    @Synchronized
+    fun heatmap(): Array<IntArray> {
+        val m = Array(7) { IntArray(24) }
+        c().createStatement().use { st ->
+            st.executeQuery("SELECT join_ts FROM sessions").use { rs ->
+                while (rs.next()) {
+                    val z = java.time.Instant.ofEpochMilli(rs.getLong(1)).atZone(java.time.ZoneId.systemDefault())
+                    m[z.dayOfWeek.value - 1][z.hour]++
+                }
+            }
+        }
+        return m
+    }
+
+    /** 近期事件时间线：合并 死亡/成就 + 登入/登出，按时间倒序。 */
+    @Synchronized
+    fun feed(limit: Int): List<FeedRow> {
+        val sql = "SELECT ts,name,type,detail FROM (" +
+            "SELECT ts,name,type,detail FROM events " +
+            "UNION ALL SELECT join_ts ts,name,'join' type,'' detail FROM sessions " +
+            "UNION ALL SELECT quit_ts ts,name,'quit' type,'' detail FROM sessions) ORDER BY ts DESC LIMIT ?"
+        return c().prepareStatement(sql).use { ps ->
+            ps.setInt(1, limit)
+            ps.executeQuery().use { rs ->
+                val out = ArrayList<FeedRow>()
+                while (rs.next()) out.add(FeedRow(rs.getLong("ts"), rs.getString("name") ?: "?", rs.getString("type") ?: "", rs.getString("detail") ?: ""))
+                out
+            }
+        }
+    }
+
+    /** 清理超过保留期的原始 events + 在线快照（画像/会话/词频不清）。 */
+    @Synchronized
+    fun pruneEvents(before: Long): Int {
+        c().prepareStatement("DELETE FROM online_snap WHERE ts < ?").use { it.setLong(1, before); it.executeUpdate() }
+        return c().prepareStatement("DELETE FROM events WHERE ts < ?").use { it.setLong(1, before); it.executeUpdate() }
+    }
 
     // ---- T0 查询 ----
     @Synchronized
@@ -133,6 +212,22 @@ class BehaviorDatabase(private val dbPath: Path) {
         }
     }
 
+    /** 某玩家各会话登入时刻的 24 小时直方图（用本机时区）——用于"活跃时段"画像。 */
+    @Synchronized
+    fun playerHourHistogram(uuid: String): IntArray {
+        val h = IntArray(24)
+        c().prepareStatement("SELECT join_ts FROM sessions WHERE uuid=?").use { ps ->
+            ps.setString(1, uuid)
+            ps.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val hr = java.time.Instant.ofEpochMilli(rs.getLong(1)).atZone(java.time.ZoneId.systemDefault()).hour
+                    if (hr in 0..23) h[hr]++
+                }
+            }
+        }
+        return h
+    }
+
     @Synchronized
     fun player(name: String): Profile? = c().prepareStatement("SELECT * FROM profile WHERE name=? COLLATE NOCASE ORDER BY last_seen DESC LIMIT 1").use { ps ->
         ps.setString(1, name)
@@ -151,6 +246,7 @@ data class ProfileDelta(
     var commands: Int = 0, var chats: Int = 0, var blocksPlaced: Int = 0, var blocksBroken: Int = 0, var crafts: Int = 0, var advancements: Int = 0
 )
 data class SessionRow(val uuid: String, val name: String, val joinTs: Long, val quitTs: Long, val durationSec: Long)
+data class FeedRow(val ts: Long, val name: String, val type: String, val detail: String)
 data class EventRow(val uuid: String, val name: String, val type: String, val ts: Long, val detail: String)
 data class Stats(
     val totalPlayers: Long, val active1d: Long, val active7d: Long, val newToday: Long, val avgPlaytimeSec: Long,
