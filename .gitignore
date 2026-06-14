@@ -19,3 +19,7 @@ hs_err_pid*
 
 # Common working directory
 run
+
+# 已搁置的 NeoForge 载体：本地留作备份，不进版本库
+disabled-neoforge/
+build.gradle.neoforge-backup
