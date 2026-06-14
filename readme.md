@@ -141,7 +141,15 @@ behavior: { enabled: true }     # 玩家行为采集
 
 ## 技术栈
 
-`Kotlin` · `Gradle 多模块 / shadowJar` · `OpenAI 兼容 / Claude / Ollama` · `嵌入式 SQLite` · `Jackson` · `自建 Socket 总线 / Redis` · `Velocity & Bukkit/Spigot/Paper/混合端 API`
+| 分类 | 选型 |
+| --- | --- |
+| 语言 | Kotlin |
+| 构建 | Gradle 多模块，shadowJar 产出通用 jar |
+| LLM | OpenAI 兼容接口 / Anthropic Claude / Ollama（可替换） |
+| 存储 | 嵌入式 SQLite（xerial） |
+| 序列化 | Jackson |
+| 跨进程通信 | 自建 Socket 总线 / Redis |
+| 运行平台 | Velocity · Bukkit / Spigot / Paper · 混合端（Youer / Mohist） |
 
 ## Roadmap
 
