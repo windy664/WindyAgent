@@ -21,6 +21,10 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
+import org.windy.windyagent.knowledge.KnowledgeManager
+import org.windy.windyagent.knowledge.KnowledgeSearchTool
+import org.windy.windyagent.knowledge.KnowledgeWriteTool
+import org.windy.windyagent.knowledge.PlayerQa
 import org.windy.windyagent.mcp.McpLoader
 import org.windy.windyagent.memory.FileLongTermMemory
 import org.windy.windyagent.memory.RememberTool
@@ -58,6 +62,12 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
         val extraTools = mutableListOf<AgentTool>()
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
+        // 知识库（读+写）——对齐 Velocity，让本机 Agent 也能查/沉淀知识；玩家问答也用它
+        val knowledge = KnowledgeManager(plugin.dataFolder.toPath().resolve("knowledge"))
+        extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
+        extraTools += KnowledgeWriteTool(knowledge)
+        // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
+        val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander, cfg.serverName().ifBlank { "本服务器" })
         // hub 模式：把派发到其它子服的远端能力挂上，并接收其它子服推来的目录
         // 本机物品估值（standalone/hub：本服有 mods/）
         val items = ItemService.build(plugin, cfg)?.also { it.warmup() }
@@ -94,7 +104,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         CapabilitySync(plugin, actions, selfName) { cat -> registry.put(cat) }.start()
 
         // /ai 命令（需在 plugin.yml 声明 commands.ai）
-        plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, platform, sessions, router))
+        plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))
             ?: plugin.logger.warning("未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
 
         // 顶层审批命令（薄适配 → router）
@@ -103,7 +113,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // 聊天触发 <trigger> <消息>
         plugin.server.pluginManager.registerEvents(
-            BukkitChatListener(plugin, agent, platform, sessions, router, cfg.trigger()), plugin
+            BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger()), plugin
         )
 
         plugin.logger.info("嵌入式 Agent 已就绪 — provider: ${llm.name}, 触发: '${cfg.trigger()} <消息>' / '/ai <消息>'")

@@ -3,17 +3,18 @@ package org.windy.windyagent.platform.velocity
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.player.PlayerChatEvent
 import org.slf4j.Logger
-import org.windy.windyagent.agent.Agent
-import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.command.AgentCommandRouter
-import org.windy.windyagent.platform.SessionManager
+import org.windy.windyagent.knowledge.PlayerQa
 import org.windy.windyagent.safety.TrustLevel
 import java.util.concurrent.CompletableFuture
 
+/**
+ * 游戏内 `!ai <消息>`：玩家触发，**永远走知识库问答（[PlayerQa]）、不进 Agent、不碰工具**。
+ * 玩家无法借此踢人/查他人数据/跑命令。管理员要用完整 Agent 请走 `/ai`（按权限判可信）。
+ */
 class VelocityChatListener(
-    private val agent: Agent,
+    private val playerQa: PlayerQa,
     private val platform: VelocityPlatform,
-    private val sessions: SessionManager,
     private val router: AgentCommandRouter,
     private val logger: Logger,
     trigger: String
@@ -40,10 +41,8 @@ class VelocityChatListener(
                     platform.sendResponse(playerName, meta)
                     return@runAsync
                 }
-                val context = AgentContext(playerName, userInput, platform, sessions.getHistory(playerName), TrustLevel.UNTRUSTED)
-                val response = agent.run(context)
-                sessions.trimHistory(playerName)
-                platform.sendResponse(playerName, response.message)
+                // 非命令 → 知识库问答（不进 Agent、无工具）
+                platform.sendResponse(playerName, playerQa.answer(userInput))
             }.onFailure {
                 logger.error("Agent error for player {}", playerName, it)
                 platform.sendResponse(playerName, "处理出错，请稍后重试。")

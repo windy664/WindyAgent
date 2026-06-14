@@ -17,13 +17,18 @@ import java.util.concurrent.TimeUnit
  * 一条定时任务。到点把 [action]（broadcast 广播 / command 执行命令）下发到 [target]（子服名，或 * = 全部已连）。
  * 调度二选一：interval（每 N 分钟）/ daily（每天 HH:MM，可限定 [days] 周几；空=每天）。
  */
+/** 脚本里的一步：确定性动作。action: broadcast | command。 */
+data class TaskStep(val action: String = "broadcast", val target: String = "", val payload: String = "")
+
 data class ScheduledTask(
     val id: String = "",
     val name: String = "",
     val enabled: Boolean = true,
-    val action: String = "broadcast",   // broadcast | command
+    val action: String = "broadcast",   // broadcast | command | agent(实时) | script(LLM 编译的固定步骤)
     val target: String = "",            // 子服名 或 "*"=全部已连
-    val payload: String = "",           // 广播文案 或 命令
+    val payload: String = "",           // 广播文案 / 命令 / (script)需求描述 / (agent)指令
+    /** action=script 时：LLM 编译出的待执行步骤序列（到点确定性执行，不再调 LLM/Agent）。 */
+    val script: List<TaskStep> = emptyList(),
     val type: String = "interval",      // interval | daily
     val intervalMin: Int = 60,
     val time: String = "12:00",         // daily 用，HH:MM

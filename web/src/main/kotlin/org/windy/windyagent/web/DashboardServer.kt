@@ -8,6 +8,7 @@ import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.ops.ScheduledTask
 import org.windy.windyagent.ops.TaskScheduler
+import org.windy.windyagent.safety.PendingApprovals
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -38,7 +39,12 @@ class DashboardServer(
     private val alerts: AlertCenter? = null,
     /** 当前各子服健康快照 JSON（哨兵提供）；null=哨兵未启用，返回空数组。 */
     private val health: (() -> String)? = null,
-    private val scheduler: TaskScheduler? = null
+    private val scheduler: TaskScheduler? = null,
+    /** AI 整理：把一句话需求润成清晰任务描述（定时 AI 任务用）。 */
+    private val refine: ((String) -> String)? = null,
+    private val pending: PendingApprovals? = null,
+    /** 脚本编译：把需求描述(desc) + 默认子服(server) → LLM 编译成步骤 JSON 数组字符串。 */
+    private val compileScript: ((String, String) -> String)? = null
 ) {
     private val log = LoggerFactory.getLogger(DashboardServer::class.java)
     private val mapper = ObjectMapper()
@@ -106,9 +112,15 @@ class DashboardServer(
             // Forge/NeoForge 专属（前端仅对该类子服显示入口）：模组清单 / 分维度 TPS（回的是纯文本，包成 {text}）
             "/api/mods" -> proxyText(ex, q, "server_mods", "{}")
             "/api/dimtps" -> proxyText(ex, q, "dimension_tps", "{}")
+            "/api/serverdetail" -> proxy(ex, q, "server_detail", "{}")
             "/api/tasks" -> tasksApi(ex, q)
             "/api/tasks/run" -> { val s = scheduler; val id = q["id"]; if (s == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("result", s.runNow(id)).toString()) }
             "/api/tasks/toggle" -> { val s = scheduler; val id = q["id"]; if (s == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else { val t = s.toggle(id); json(ex, 200, mapper.createObjectNode().put("ok", t != null).put("enabled", t?.enabled ?: false).toString()) } }
+            "/api/tasks/refine" -> refineApi(ex)
+            "/api/tasks/compile" -> compileApi(ex)
+            "/api/approvals" -> approvalsApi(ex)
+            "/api/approvals/approve" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("result", p.approve(id) ?: "单号不存在或已过期").toString()) }
+            "/api/approvals/deny" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("desc", p.deny(id) ?: "单号不存在").toString()) }
             "/api/chat" -> chatApi(ex)
             "/api/chat/history" -> json(ex, 200, chatHistory(q["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             "/api/kb" -> kbApi(ex, q)
@@ -214,6 +226,40 @@ class DashboardServer(
         else json(ex, 200, reply.content)
     }
 
+    /** 审批：待审项 + 历史，一次拉齐。 */
+    private fun approvalsApi(ex: HttpExchange) {
+        val p = pending ?: return json(ex, 200, """{"pending":[],"history":[],"ttlMs":0}""")
+        val now = System.currentTimeMillis()
+        val root = mapper.createObjectNode()
+        val pend = root.putArray("pending")
+        p.items().forEach { it0 -> pend.addObject().put("id", it0.id).put("desc", it0.desc).put("at", it0.at).put("remainMs", (p.ttl() - (now - it0.at)).coerceAtLeast(0)) }
+        val hist = root.putArray("history")
+        p.historyItems().forEach { h -> hist.addObject().put("id", h.id).put("desc", h.desc).put("decision", h.decision).put("result", h.result).put("at", h.at) }
+        root.put("ttlMs", p.ttl())
+        json(ex, 200, root.toString())
+    }
+
+    /** 脚本编译：POST {description, server} → 步骤 JSON 数组（直接返回数组体）。 */
+    private fun compileApi(ex: HttpExchange) {
+        val c = compileScript ?: return json(ex, 400, """{"error":"compile unavailable"}""")
+        if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
+        val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
+        val desc = n["description"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"empty"}""")
+        val server = n["server"]?.asText() ?: ""
+        val out = runCatching { c(desc, server) }.getOrElse { "[]" }
+        respond(ex, 200, "application/json; charset=utf-8", out.toByteArray(StandardCharsets.UTF_8))
+    }
+
+    /** AI 整理任务描述：POST {text} → {text: 整理后}。 */
+    private fun refineApi(ex: HttpExchange) {
+        val r = refine ?: return json(ex, 400, """{"error":"refine unavailable"}""")
+        if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
+        val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
+        val text = n["text"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"empty"}""")
+        val out = runCatching { r(text) }.getOrElse { "出错：${it.message}" }
+        json(ex, 200, mapper.createObjectNode().put("text", out).toString())
+    }
+
     // ---- 定时任务 CRUD（手工解析，web 侧无 jackson-kotlin module）----
     private fun tasksApi(ex: HttpExchange, q: Map<String, String>) {
         val s = scheduler ?: return json(ex, 400, """{"error":"scheduler unavailable"}""")
@@ -231,7 +277,11 @@ class DashboardServer(
                     type = n["type"]?.asText() ?: "interval",
                     intervalMin = n["intervalMin"]?.asInt() ?: 60,
                     time = n["time"]?.asText() ?: "12:00",
-                    days = n["days"]?.mapNotNull { it.asInt() } ?: emptyList()
+                    days = n["days"]?.mapNotNull { it.asInt() } ?: emptyList(),
+                    script = n["script"]?.mapNotNull { st ->
+                        val a = st["action"]?.asText()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        org.windy.windyagent.ops.TaskStep(a, st["target"]?.asText() ?: "", st["payload"]?.asText() ?: "")
+                    } ?: emptyList()
                 )
                 val saved = s.upsert(t)
                 json(ex, 200, mapper.createObjectNode().put("ok", true).put("id", saved.id).toString())

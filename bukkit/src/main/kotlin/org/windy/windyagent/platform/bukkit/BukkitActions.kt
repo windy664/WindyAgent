@@ -1,9 +1,11 @@
 package org.windy.windyagent.platform.bukkit
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.bukkit.Bukkit
 import org.bukkit.command.Command
 import org.bukkit.command.PluginCommand
 import org.bukkit.plugin.java.JavaPlugin
+import java.lang.management.ManagementFactory
 import org.windy.windyagent.bus.CapabilityCommand
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.CommandGuard
@@ -30,6 +32,7 @@ class BukkitActions(
     private val pending: PendingApprovals
 ) {
 
+    private val mapper = ObjectMapper()
     @Volatile private var mainExec: java.util.concurrent.Executor? = null
     @Volatile private var mainExecResolved = false
 
@@ -115,6 +118,50 @@ class BukkitActions(
         val players = Bukkit.getOnlinePlayers()
         if (players.isEmpty()) "本服在线 0 人"
         else "本服在线 ${players.size} 人：" + players.joinToString(", ") { it.name }
+    }
+
+    /**
+     * 服务器详情快照（供 WebUI 点开看）：概况 + 各世界(时间/天气/实体/区块/难度) + 在线玩家。
+     * 全在主线程读 Bukkit API；tps/平台/内存由调用方(handler)预先算好传入（那些可在总线线程安全读）。
+     */
+    fun serverDetail(tps: Double, platform: String, mcVersion: String, modCount: Int, memUsedMb: Long, memMaxMb: Long): String = onMain {
+        val m = mapper.createObjectNode()
+        m.put("uptimeSec", ManagementFactory.getRuntimeMXBean().uptime / 1000)
+        m.put("online", Bukkit.getOnlinePlayers().size)
+        m.put("maxPlayers", Bukkit.getMaxPlayers())
+        m.put("memUsedMb", memUsedMb); m.put("memMaxMb", memMaxMb)
+        m.put("tps", tps); m.put("platform", platform); m.put("mcVersion", mcVersion); m.put("modCount", modCount)
+        m.put("pluginCount", runCatching { Bukkit.getPluginManager().plugins.size }.getOrDefault(0))
+        m.put("whitelist", runCatching { Bukkit.hasWhitelist() }.getOrDefault(false))
+        m.put("onlineMode", runCatching { Bukkit.getOnlineMode() }.getOrDefault(true))
+        runCatching { (Bukkit.getServer().javaClass.getMethod("getViewDistance").invoke(Bukkit.getServer()) as? Int) }.getOrNull()?.let { m.put("viewDistance", it) }
+        val warr = m.putArray("worlds")
+        for (w in Bukkit.getWorlds()) {
+            val t = w.time
+            val o = warr.addObject()
+            o.put("name", w.name); o.put("env", w.environment.name)
+            o.put("timeHM", tickToHM(t)); o.put("day", t < 12300L || t > 23850L)
+            o.put("weather", if (w.isThundering) "thunder" else if (w.hasStorm()) "rain" else "clear")
+            o.put("entities", runCatching { w.entities.size }.getOrDefault(-1))
+            o.put("chunks", runCatching { w.loadedChunks.size }.getOrDefault(-1))
+            o.put("players", w.players.size)
+            o.put("difficulty", runCatching { w.difficulty.name }.getOrDefault(""))
+        }
+        val parr = m.putArray("players")
+        for (p in Bukkit.getOnlinePlayers()) {
+            val o = parr.addObject()
+            o.put("name", p.name); o.put("world", p.world.name)
+            o.put("ping", runCatching { p.javaClass.getMethod("getPing").invoke(p) as? Int }.getOrNull() ?: -1)
+            o.put("gamemode", runCatching { p.gameMode.name }.getOrDefault(""))
+        }
+        m.toString()
+    }
+
+    /** MC tick(0–24000) → 游戏内时钟 HH:MM（tick 0 = 6:00）。 */
+    private fun tickToHM(t: Long): String {
+        val h = (t / 1000.0 + 6.0) % 24.0
+        val hh = h.toInt(); val mm = ((h - hh) * 60).toInt()
+        return "%02d:%02d".format(hh, mm)
     }
 
     fun kick(name: String, reason: String): Pair<Boolean, String> {

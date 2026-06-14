@@ -30,6 +30,9 @@ import org.windy.windyagent.buildEmbeddingProvider
 import org.windy.windyagent.buildFastProvider
 import org.windy.windyagent.buildProvider
 import org.windy.windyagent.knowledge.KnowledgeManager
+import org.windy.windyagent.knowledge.KnowledgeWriteTool
+import org.windy.windyagent.knowledge.PlayerQa
+import org.windy.windyagent.ops.ScheduledTask
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.safety.TrustLevel
@@ -110,7 +113,10 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 知识库（可读写 + 热重载，供 WebUI 编辑）：挂上 knowledge_search 工具
         val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"))
         extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
+        extraTools += KnowledgeWriteTool(knowledge)   // 让 Agent 能写知识库（夜间整理沉淀用，仅 TRUSTED）
         logger.info("知识库已加载 — {} 条", knowledge.size())
+        // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
+        val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander)
 
         // MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent（与跨服总线正交）
         val mcpTools = McpLoader.load(cfg.mcpServers())
@@ -147,20 +153,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
 
-                // 定时任务调度器：到点把广播/命令下发到目标子服（* = 全部已连）
-                val schedMapper = ObjectMapper()
-                scheduler = TaskScheduler(dataDirectory.resolve("tasks.json")) { task ->
-                    val targets = if (task.target == "*" || task.target.isBlank()) online() else setOf(task.target)
-                    if (targets.isEmpty()) "无目标子服（未连接）" else {
-                        val act = if (task.action == "command") "run_command" else "broadcast"
-                        val field = if (task.action == "command") "command" else "message"
-                        val args = schedMapper.createObjectNode().put(field, task.payload).toString()
-                        targets.joinToString(" | ") { srv ->
-                            val rep = runCatching { b.dispatch(srv, act, args, cfg.remoteTimeoutMs()).get(cfg.remoteTimeoutMs() + 1000, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrNull()
-                            "$srv:" + (rep?.content?.take(50) ?: "超时")
-                        }
-                    }
-                }.also { it.start() }
+                // Agent 读「今日运营洞察」的手（各子服统计/分群/词云 + 告警）——夜间整理任务靠它取数据
+                extraTools += OpsInsightTool(b, online, alerts, cfg.remoteTimeoutMs())
                 // 代理层捕获聊天做词云（绕开 Bukkit 侧聊天事件 bug），词频经总线回各子服
                 chatWords = ChatWordCollector(b, cfg.remoteTimeoutMs()).also { server.eventManager.register(this, it); it.start() }
 
@@ -197,6 +191,40 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
         val sessions = SessionManager(cfg.maxHistory())
 
+        // 定时任务调度器：broadcast/command 走总线下发；**agent 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。
+        // 建在 agent 之后（agent 任务要用它）；需跨服总线（下发/取数走总线）。内置一条凌晨 0 点的知识整理任务。
+        val schedMapper = ObjectMapper()
+        scheduler = bus?.let { b ->
+            // 一步确定性执行（broadcast/command 下发到目标子服）；脚本任务逐步调它
+            val runStep: (String, String, String) -> String = { action, target, payload ->
+                val targets = if (target == "*" || target.isBlank()) connectedServers() else setOf(target)
+                if (targets.isEmpty()) "无目标子服（未连接）" else {
+                    val act = if (action == "command") "run_command" else "broadcast"
+                    val field = if (action == "command") "command" else "message"
+                    val args = schedMapper.createObjectNode().put(field, payload).toString()
+                    targets.joinToString("；") { srv ->
+                        val rep = runCatching { b.dispatch(srv, act, args, cfg.remoteTimeoutMs()).get(cfg.remoteTimeoutMs() + 1000, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrNull()
+                        "$srv:" + (rep?.content?.take(40) ?: "超时")
+                    }
+                }
+            }
+            TaskScheduler(dataDirectory.resolve("tasks.json")) { task ->
+                when (task.action) {
+                    // 实时：现场交给 Agent 判断执行（夜间整理这类要读数据决策的）
+                    "agent" -> {
+                        val sid = "scheduler-${task.id}"
+                        val resp = agent.run(AgentContext(sid, task.payload, platform, sessions.getHistory(sid), TrustLevel.TRUSTED, unattended = true))
+                        sessions.trimHistory(sid); resp.message ?: "(无回复)"
+                    }
+                    // 脚本：跑创建时 LLM 编译好的固定步骤，确定性、不调 LLM
+                    "script" -> if (task.script.isEmpty()) "脚本为空（未生成步骤）" else
+                        task.script.mapIndexed { i, s -> "步骤${i + 1} " + runStep(s.action, s.target, s.payload) }.joinToString("\n")
+                    // 单动作：广播 / 命令
+                    else -> runStep(task.action, task.target, task.payload)
+                }
+            }.also { sch -> if (sch.list().isEmpty()) sch.upsert(defaultNightlyTask()); sch.start() }
+        }
+
         // 载体无关的元命令路由（help/clear/history/status/approve…）
         val statusSupplier = {
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n" +
@@ -216,18 +244,33 @@ class WindyAgentVelocityPlugin @Inject constructor(
             val draftSys = "你帮服主把一段话整理成一条服务器知识库条目。只输出 JSON：" +
                 "{\"title\":简短标题,\"content\":正文,\"tags\":[2-4个关键词]}。不要解释、不要代码块标记。"
             val draft: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            // AI 整理：把服主一句话需求润成给 Agent 执行的清晰任务描述
+            val refineSys = "把服主的一句话需求整理成给运维 AI 执行的清晰任务描述。只输出整理后的任务描述本身（一段话），不要解释、不要步骤编号、不要客套。"
+            val refine: (String) -> String = { nl -> (fastLlm ?: llm).chat(refineSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            // 脚本编译：把需求描述编译成"待执行步骤"JSON 数组（创建时跑一次 LLM，到点确定性执行，不再调 LLM）
+            val cmapper = ObjectMapper()
+            val compileScript: (String, String) -> String = { desc, server ->
+                val sys = "你是运维任务编译器。把管理员的需求编译成一串可执行步骤。可用动作仅两种：" +
+                    "broadcast(向玩家广播一句话，payload=文案)、command(在子服后台执行一条控制台命令，payload=命令不带斜杠)。" +
+                    "target 填子服名（默认用「${server.ifBlank { "*" }}」），或 * 表示全部已连子服。" +
+                    "严格只输出 JSON 数组，每项 {\"action\":\"broadcast或command\",\"target\":\"...\",\"payload\":\"...\"}，不要解释、不要代码块标记。"
+                val raw = runCatching { (fastLlm ?: llm).chat(sys, listOf(LLMMessage.User(desc))).textContent }.getOrNull().orEmpty()
+                val i = raw.indexOf('['); val j = raw.lastIndexOf(']')
+                val arr = if (i in 0 until j) raw.substring(i, j + 1) else "[]"
+                runCatching { cmapper.readTree(arr).takeIf { it.isArray }?.toString() }.getOrNull() ?: "[]"
+            }
             web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
-                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler).also { it.start() }
+                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript).also { it.start() }
         }
 
-        // 玩家游戏内聊天触发：!ai <message>
-        server.eventManager.register(this, VelocityChatListener(agent, platform, sessions, router, logger, cfg.trigger()))
+        // 玩家游戏内聊天触发：!ai <message>（永远只走知识库问答，不进 Agent）
+        server.eventManager.register(this, VelocityChatListener(playerQa, platform, router, logger, cfg.trigger()))
 
         // 命令触发（控制台 + 玩家）：/ai <message>，命令名由 trigger 去掉前缀符号得出
         val commandName = cfg.trigger().trimStart('!', '/', '.', ' ').ifBlank { "ai" }
         val commandManager = server.commandManager
         val meta = commandManager.metaBuilder(commandName).plugin(this).build()
-        commandManager.register(meta, AgentCommand(agent, platform, sessions, router, logger))
+        commandManager.register(meta, AgentCommand(agent, playerQa, platform, sessions, router, logger))
 
         // 顶层审批命令（薄适配 → router）
         for (act in listOf("approve", "deny", "pending")) {
@@ -263,6 +306,24 @@ class WindyAgentVelocityPlugin @Inject constructor(
         }
         else -> RedisBus(cfg.redisHost(), cfg.redisPort(), cfg.redisPassword())
     }
+
+    /** 内置定时任务：每天凌晨 0 点，让 Agent 无人值守整理今日数据 → 沉淀知识库 + 记忆。 */
+    private fun defaultNightlyTask() = ScheduledTask(
+        id = "builtin-nightly-curation",
+        name = "夜间知识整理（内置）",
+        enabled = true,
+        action = "agent",
+        target = "",
+        payload = "现在是夜间无人值守整理时间。请依次：" +
+            "1) 调用 ops_digest 拉取今日各子服运营摘要；" +
+            "2) 从高频聊天词/命令里识别玩家反复关注或常问的点，用 knowledge_write 整理成或更新「玩家常见问答(FAQ)」类知识条目（只沉淀长期有用的，避免一次性琐碎）；" +
+            "3) 把今日运维告警与异常归纳，用 knowledge_write 追加到 id 为 ops-log、标题「运营日志」的滚动条目（覆盖更新，正文保留近期要点）；" +
+            "4) 把玩家结构变化（新增/活跃/流失趋势）用 remember 记入管理方记忆。" +
+            "注意：你处于无人值守模式，任何高危服务器命令都会被拦截，不要尝试破坏性操作，只做整理与沉淀。",
+        type = "daily",
+        time = "00:00",
+        days = emptyList()
+    )
 
     /** 哨兵告警 → 调 LLM 给一句话诊断 + 处置建议（建议式，人工执行/审批）。用便宜模型省 token。 */
     private fun sentinelAdvise(inc: Incident, advisor: LLMProvider): String {

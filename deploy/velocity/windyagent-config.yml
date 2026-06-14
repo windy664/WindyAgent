@@ -59,3 +59,13 @@ web:
   host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
   port: 8080
   token: ""              # ★设成随机串，/api 鉴权用（留空=无鉴权，仅限本机调试）
+
+# 主动运维哨兵：中心定时巡检在线子服健康，异常时调 LLM 出处置建议并通知（控制台日志 + WebUI 🔔）。
+# 处置走"建议→人工"：哨兵只报警+给建议，不自动执行命令（高危操作仍走 ai-approve 审批）。仅 Velocity 读，需 cross-server 启用。
+sentinel:
+  enabled: false         # 设 true 开启
+  interval-sec: 30       # 巡检周期
+  tps-min: 15.0          # TPS 低于此=卡顿（Paper/Youer 有 TPS；远古 Spigot 无则跳过此项）
+  mem-pct: 90            # 子服 JVM 内存占用超此%=内存吃紧
+  player-drop: 5         # 一个周期内在线掉这么多人=骤降（疑似崩服/被打）；0=关此项
+  advise: true           # 出事调 LLM 给处置建议（false=只报原始告警，省 token）
