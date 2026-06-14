@@ -9,6 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.command.AgentCommandRouter
+import org.windy.windyagent.knowledge.PlayerQa
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.TrustLevel
 
@@ -21,6 +22,7 @@ import org.windy.windyagent.safety.TrustLevel
 class BukkitCommand(
     private val plugin: JavaPlugin,
     private val agent: Agent,
+    private val playerQa: PlayerQa,
     private val platform: BukkitPlatform,
     private val sessions: SessionManager,
     private val router: AgentCommandRouter
@@ -41,10 +43,12 @@ class BukkitCommand(
             runCatching {
                 val meta = router.dispatch(input, sessionId, trust)
                 if (meta != null) { reply(sender, meta); return@Runnable }
-                val ctx = AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust)
-                val resp = agent.run(ctx)
-                sessions.trimHistory(sessionId)
-                reply(sender, resp.message)
+                // 可信(管理员/控制台) → 完整 Agent；普通玩家 → 只答疑的知识库问答（不碰工具）
+                val out = if (trust == TrustLevel.TRUSTED) {
+                    val resp = agent.run(AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust))
+                    sessions.trimHistory(sessionId); resp.message
+                } else playerQa.answer(input)
+                reply(sender, out)
             }.onFailure {
                 plugin.logger.severe("Agent 处理出错（$sessionId）：${it.message}")
                 reply(sender, "处理出错，请稍后重试。")

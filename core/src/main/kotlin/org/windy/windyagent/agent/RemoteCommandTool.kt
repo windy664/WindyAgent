@@ -43,6 +43,11 @@ class RemoteCommandTool(
                 return ToolResult.error(toolCallId, "命令「$command」被安全策略拦截：${d.reason}")
             }
             is CommandGuard.Decision.NeedsApproval -> {
+                // 无人值守（定时 Agent 任务）：高危一律拦截只记录，不挂审批单空等
+                if (RequestContext.unattended()) {
+                    audit.record(server, "run_command", command, "BLOCKED_UNATTENDED", d.reason)
+                    return ToolResult.error(toolCallId, "高危操作「$command」在无人值守的定时任务中被拦截（仅记录，未执行）。如需执行请人工操作。")
+                }
                 val id = pending.submit("在子服「$server」执行：$command") { dispatchRaw(server, command) }
                 audit.record(server, "run_command", command, "NEEDS_APPROVAL", "${d.reason} #$id")
                 return ToolResult.success(

@@ -11,6 +11,8 @@ class AgentContext(
     val history: MutableList<LLMMessage> = mutableListOf(),
     /** 触发来源信任级别（决定高危命令处置）。默认最保守。 */
     val trust: TrustLevel = TrustLevel.UNTRUSTED,
+    /** 无人值守（定时 Agent 任务）：高危命令一律拦截只记录，不入审批闸等待。 */
+    val unattended: Boolean = false,
     /** 本次请求自动召回的长期记忆文本（由 AgentRouter 填充，agent 拼入系统提示）。 */
     var recalled: String = ""
 )

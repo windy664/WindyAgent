@@ -50,7 +50,9 @@
   .topbar{position:relative;height:54px;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--line);background:rgba(14,10,26,.5);backdrop-filter:blur(10px)}
   .ticon{position:relative}
   .bdot{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px var(--red)}
-  .alertpop{position:absolute;top:52px;left:12px;width:370px;max-height:64vh;overflow:auto;border-radius:14px;padding:8px;z-index:40;animation:inUp .16s ease}
+  .tbtitle{font-weight:800;font-size:15.5px;letter-spacing:.3px}
+  /* 告警下拉：脱离 topbar 层叠上下文置顶（fixed + 高 z-index），不被下方内容盖住；加重投影浮起 */
+  .alertpop{position:fixed;top:56px;right:14px;width:374px;max-height:66vh;overflow:auto;border-radius:14px;padding:8px;z-index:9999;box-shadow:0 22px 56px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.1);animation:inUp .16s ease}
   .alertpop .ai{padding:9px 11px;border-radius:10px;margin-bottom:6px;background:var(--glass2);border-left:3px solid var(--mut)}
   .topbar .grow{flex:1}
   .ticon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:17px;cursor:pointer;background:var(--glass2);border:1px solid var(--bd)}
@@ -147,6 +149,25 @@
   .hcard .hs .v{font-weight:800;font-size:19px;font-variant-numeric:tabular-nums}
   .hcard .hs .k{font-size:11px;color:var(--mut)}
   .sdot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+  /* 服务器列表行 */
+  .slist{display:flex;flex-direction:column;gap:8px}
+  .srow{display:flex;align-items:center;gap:11px;padding:12px 15px;border-radius:12px;background:var(--glass2);border:1px solid var(--bd);cursor:pointer;transition:transform .18s,border-color .18s}
+  .srow:hover{border-color:rgba(183,155,255,.55);transform:translateX(3px)}
+  .srow .snm{font-weight:800;font-size:15px}
+  .srow .spbadge{font-size:11px}
+  .srow .smetric{font-size:11px;color:var(--mut)} .srow .smetric b{color:var(--fg);font-size:15px;font-variant-numeric:tabular-nums;margin-right:2px}
+  /* 服务器详情弹窗 */
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
+  .dcell{background:var(--glass2);border-radius:9px;padding:8px 10px}
+  .dcell .dk{font-size:11px;color:var(--mut)} .dcell .dv{font-weight:800;font-size:15px;margin-top:2px}
+  .dtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .dtbl th{text-align:left;color:var(--mut);font-weight:700;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .dtbl td{padding:6px 8px;border-bottom:1px solid var(--line)}
+  /* 定时任务表单 */
+  .tf{margin-bottom:11px} .tf>label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+  .tf2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:11px} .tf2 label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+  .dchk{display:flex;align-items:center;gap:5px;font-size:13px;background:var(--glass2);border:1px solid var(--bd);border-radius:9px;padding:5px 11px;cursor:pointer}
+  .dchk input{width:auto;margin:0}
   .heat{display:grid;grid-template-columns:24px repeat(24,1fr);gap:2px}
   .heat .hl{color:var(--mut);font-size:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px}
   .heat .hc{aspect-ratio:1;border-radius:2px;min-height:8px}
@@ -187,13 +208,14 @@
   </div></div>
 
 <div class="topbar">
-  <div class="ticon" id="bell" title="运维告警" onclick="toggleAlerts()">🔔<span id="bellDot" class="bdot" style="display:none">0</span></div>
-  <div id="alertPop" class="alertpop glass" style="display:none"></div>
-  <div class="ticon" title="文档">📄</div>
+  <div class="tbtitle" id="pageTitle">🛰️ 运维总览</div>
   <div class="grow"></div>
-  <div class="pill">🌐 <select id="server" onchange="onServer()"></select></div>
-  <div class="pill"><span class="dot"></span><span id="onlineLbl">在线</span></div>
-  <div class="ticon" title="账户">👤</div>
+  <div class="pill" title="当前操作的子服"><span style="opacity:.7">🌐</span> <select id="server" onchange="onServer()"></select></div>
+  <div class="pill" title="活跃玩家"><span class="dot"></span><span id="onlineLbl">在线</span></div>
+  <div id="apprBadge" class="pill" style="display:none;cursor:pointer;border-color:rgba(255,122,152,.6);color:#fff" onclick="go('ops')">🛡️ 待审 <b id="apprCount">0</b></div>
+  <div class="ticon" id="bell" title="运维告警" onclick="toggleAlerts()">🔔<span id="bellDot" class="bdot" style="display:none">0</span></div>
+  <div class="ticon" title="退出登录" onclick="logout()">🚪</div>
+  <div id="alertPop" class="alertpop glass" style="display:none"></div>
 </div>
 
 <div class="shell">
@@ -222,8 +244,9 @@
       <div class="board">
         <div class="bhead"><div><h2>🛰️ 运维总览</h2><p>主动运维哨兵实时巡检 · 异常自动告警与处置建议</p></div>
           <div class="tools"><span class="pill" id="sentinelState"><span class="dot"></span>哨兵</span><button class="btn ghost sm" onclick="loadOps()">刷新</button></div></div>
+        <div id="apprBox"></div>
         <div class="kpis" id="opsKpis"></div>
-        <div class="panel glass"><h3>🖥️ 子服健康 <span class="tag">实时</span></h3><div id="healthGrid" class="hgrid"></div></div>
+        <div class="panel glass"><h3>🖥️ 服务器 <span class="tag">点击卡片看详情</span></h3><div id="healthGrid" class="hgrid"></div></div>
         <div class="panel glass" style="margin-top:16px"><h3>🚨 运维告警 / 处置过程 <span class="tag">哨兵自动</span></h3><div id="opsAlerts"></div></div>
       </div>
     </div>
@@ -362,8 +385,12 @@ async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr
   try{await loadServers();$('gate').style.display='none';onServer();}catch(e){if(e.message!=='unauthorized')$('gateErr').textContent='连不上：'+e.message;}}
 
 /* 导航 */
+const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',plugin:'🧩 插件管理',settings:'⚙️ 设置中心'};
+function logout(){localStorage.removeItem('wa_token');location.reload();}
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+v));
+  const pt=$('pageTitle');if(pt&&PAGES[v])pt.textContent=PAGES[v];
+  $('alertPop').style.display='none';   // 切页收起告警下拉，别盖住内容
   animateIn('page-'+v);
   if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks();}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.v));
@@ -392,8 +419,8 @@ async function loadServers(){const sv=await api('/api/servers');
   if(savT&&[...$('chatTarget').options].some(o=>o.value===savT))$('chatTarget').value=savT;
   renderHist();
   loadOps();   // 首页=运维总览，登录后即拉
-  pollAlerts();
-  if(!window._alertTimer)window._alertTimer=setInterval(()=>{pollAlerts();if($('page-ops')&&$('page-ops').classList.contains('on'))loadOps();},30000);}
+  pollAlerts();pollApprovals();
+  if(!window._alertTimer)window._alertTimer=setInterval(()=>{pollAlerts();pollApprovals();if($('page-ops')&&$('page-ops').classList.contains('on'))loadOps();},30000);}
 
 /* 运维告警：轮询 /api/alerts（哨兵推来的），铃铛角标计数 + 下拉列表 */
 let lastAlerts=[];
@@ -408,6 +435,8 @@ function renderAlerts(a){lastAlerts=a||[];const dot=$('bellDot'),n=lastAlerts.le
       ${x.advice?`<div style="font-size:12px;color:var(--mut);margin-top:5px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:5px">💡 ${esc(x.advice)}</div>`:''}
     </div>`).join(''):'<div class="muted" style="padding:16px;text-align:center">暂无告警 🎐 服务器一切正常</div>';}
 function toggleAlerts(){const p=$('alertPop');const show=p.style.display==='none';p.style.display=show?'':'none';if(show)pollAlerts();}
+/* 告警下拉：点铃铛外的任何地方都收起，避免浮层盖住下方内容 */
+document.addEventListener('click',e=>{const p=$('alertPop');if(p&&p.style.display!=='none'&&!e.target.closest('#alertPop')&&!e.target.closest('#bell'))p.style.display='none';});
 
 /* 运维总览首页：子服健康卡片 + 哨兵告警/处置过程 */
 function stColor(s){return s==='offline'?'var(--red)':(s==='lag'||s==='mem')?'var(--gold)':'var(--mint)';}
@@ -417,30 +446,144 @@ function platBadge(x){if(!x.platform)return'';const bits=[platLabel(x.platform)]
   return `<div class="muted" style="font-size:11px;margin-top:7px;display:flex;align-items:center;gap:5px"><span>🧩</span>${esc(bits.join(' · '))}</div>`;}
 async function loadOps(){
   const [health,alerts,servers]=await Promise.all([api('/api/health').catch(()=>[]),api('/api/alerts').catch(()=>[]),api('/api/servers').catch(()=>[])]);
-  renderHealth(health,servers);renderOpsAlerts(alerts);renderOpsKpis(health,alerts);}
+  renderHealth(health,servers);renderOpsAlerts(alerts);renderOpsKpis(health,alerts);pollApprovals();}
 function renderHealth(h,servers){
   const list=(h&&h.length)?h:(servers||[]).map(s=>({server:s,status:'ok',connected:true}));
-  $('healthGrid').innerHTML=list.length?list.map(x=>`<div class="hcard">
-      <div class="hn"><span class="sdot" style="background:${stColor(x.status)};box-shadow:0 0 8px ${stColor(x.status)}"></span>${esc(x.server)}<span class="muted" style="font-size:12px;margin-left:auto">${stLabel(x.status)}</span></div>
+  $('healthGrid').innerHTML=list.length?list.map(x=>`<div class="hcard" style="cursor:pointer" onclick="openServerDetail('${x.server}')">
+      <div class="hn"><span class="sdot" style="background:${stColor(x.status)};box-shadow:0 0 8px ${stColor(x.status)}"></span>${esc(x.server)}<span class="muted" style="font-size:12px;margin-left:auto">${stLabel(x.status)} ›</span></div>
       <div class="hs"><div><div class="v">${x.tps!=null?x.tps:'—'}</div><div class="k">TPS</div></div>
         <div><div class="v">${x.players!=null?x.players:'—'}</div><div class="k">在线</div></div>
         <div><div class="v">${x.memPct!=null?x.memPct+'%':'—'}</div><div class="k">内存</div></div></div>
       ${platBadge(x)}
-      ${/forge/.test(x.platform||'')?`<div style="display:flex;gap:7px;margin-top:10px">
-        <button class="btn ghost sm" onclick="srvInfo('${x.server}','mods','🧩 ${x.server} · 模组清单')">🧩 模组</button>
-        <button class="btn ghost sm" onclick="srvInfo('${x.server}','dimtps','⏱️ ${x.server} · 分维度 TPS')">⏱️ 维度TPS</button></div>`:''}
     </div>`).join(''):'<div class="muted" style="padding:6px">暂无已连接子服</div>';}
+/* 服务器详情：点开列表某行 → 拉 /api/serverdetail → 弹窗(概况+世界+玩家) */
+function envIcon(e){return({NORMAL:'🌍',NETHER:'🔥',THE_END:'🌑'})[e]||'🗺️';}
+function weatherTxt(w){return({clear:'☀️晴',rain:'🌧️雨',thunder:'⛈️雷暴'})[w]||w||'-';}
+function diffTxt(d){return({PEACEFUL:'和平',EASY:'简单',NORMAL:'普通',HARD:'困难'})[d]||d||'-';}
+function gmTxt(g){return({SURVIVAL:'生存',CREATIVE:'创造',ADVENTURE:'冒险',SPECTATOR:'旁观'})[g]||g||'-';}
+function fmtUp(s){s=s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+'天':'')+(h||d?h+'时':'')+m+'分';}
+function dcell(k,v){return `<div class="dcell"><div class="dk">${k}</div><div class="dv">${esc(''+v)}</div></div>`;}
+async function openServerDetail(server){showModalHtml('🖥️ '+server,'加载中…');
+  try{renderServerDetail(server,await api('/api/serverdetail?server='+encodeURIComponent(server)));}
+  catch(e){showModalHtml('🖥️ '+server,'出错：'+esc(e.message));}}
+function renderServerDetail(server,d){
+  const isF=/forge/.test(d.platform||'');
+  const ov=`<div class="dgrid">
+    ${dcell('平台',platLabel(d.platform)||'-')}${dcell('版本','MC'+(d.mcVersion||'?'))}
+    ${dcell('运行',fmtUp(d.uptimeSec))}${dcell('在线',(d.online||0)+'/'+(d.maxPlayers||0))}
+    ${dcell('内存',d.memMaxMb?Math.round(d.memUsedMb*100/d.memMaxMb)+'%':'-')}${dcell('TPS',(d.tps!=null&&d.tps>=0)?d.tps:'-')}
+    ${dcell('模组',d.modCount>0?d.modCount:'-')}${dcell('插件',d.pluginCount||'-')}
+    ${dcell('白名单',d.whitelist?'开':'关')}${dcell('正版',d.onlineMode?'开':'关')}${d.viewDistance?dcell('视距',d.viewDistance):''}
+  </div>`;
+  const worlds=(d.worlds||[]).map(w=>`<tr><td>${envIcon(w.env)} ${esc(w.name)}</td><td>${w.timeHM||'-'} ${w.day?'☀️':'🌙'}</td><td>${weatherTxt(w.weather)}</td><td>${w.players||0}</td><td>${w.entities>=0?w.entities:'-'}</td><td>${w.chunks>=0?w.chunks:'-'}</td><td>${diffTxt(w.difficulty)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">无世界</td></tr>';
+  const players=(d.players&&d.players.length)?d.players.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.world)}</td><td>${p.ping>=0?p.ping+'ms':'-'}</td><td>${gmTxt(p.gamemode)}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">无在线玩家</td></tr>';
+  const html=`${ov}
+    <h4 style="margin:16px 0 8px">🗺️ 世界</h4>
+    <table class="dtbl"><thead><tr><th>世界</th><th>时间</th><th>天气</th><th>人</th><th>实体</th><th>区块</th><th>难度</th></tr></thead><tbody>${worlds}</tbody></table>
+    <h4 style="margin:16px 0 8px">👥 在线玩家 (${(d.players||[]).length})</h4>
+    <table class="dtbl"><thead><tr><th>玩家</th><th>世界</th><th>延迟</th><th>模式</th></tr></thead><tbody>${players}</tbody></table>
+    ${isF?`<div style="display:flex;gap:8px;margin-top:14px"><button class="btn ghost sm" onclick="srvInfo('${server}','mods','🧩 ${server} · 模组清单')">🧩 模组清单</button><button class="btn ghost sm" onclick="srvInfo('${server}','dimtps','⏱️ ${server} · 分维度TPS')">⏱️ 分维度TPS</button></div>`:''}`;
+  showModalHtml('🖥️ '+server+' · 详情',html);}
 async function srvInfo(server,kind,title){showInfo(title,'加载中…');
   try{const r=await api('/api/'+kind+'?server='+encodeURIComponent(server));showInfo(title,r.text||'(空)');}
   catch(e){showInfo(title,'出错：'+e.message);}}
-function showInfo(t,b){$('infoTitle').textContent=t;$('infoBody').textContent=b;$('infoModal').style.display='grid';}
+function showInfo(t,b){$('infoTitle').textContent=t;$('infoBody').style.whiteSpace='pre-wrap';$('infoBody').textContent=b;$('infoModal').style.display='grid';}
+function showModalHtml(t,html){$('infoTitle').textContent=t;$('infoBody').style.whiteSpace='normal';$('infoBody').innerHTML=html;$('infoModal').style.display='grid';}
 function hideInfo(){$('infoModal').style.display='none';}
+
+/* 定时任务 */
+let tasks=[];
+const WK='一二三四五六日';
+function fmtTime(ms){const d=new Date(ms),p=n=>(''+n).padStart(2,'0');return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function schedText(t){return t.type==='daily'?('每天 '+t.time+(t.days&&t.days.length?' ('+t.days.map(d=>WK[d-1]).join('')+')':'')):('每 '+t.intervalMin+' 分钟');}
+function actText(t){const a={broadcast:'广播',command:'命令',agent:'🤖 AI实时',script:'📜 AI脚本('+(t.script?t.script.length:0)+'步)'}[t.action]||t.action;return (t.action==='agent'||t.action==='script')?a:(a+' → '+(t.target==='*'||!t.target?'全部子服':t.target));}
+async function loadTasks(){try{tasks=await api('/api/tasks');renderTasks();}catch(e){$('taskList').innerHTML='<span class="err">'+esc(e.message)+'</span>';}}
+function renderTasks(){
+  $('taskList').innerHTML=tasks.length?tasks.map(t=>`<div class="panel glass" style="margin-bottom:12px;display:flex;align-items:center;gap:14px">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800;font-size:15px">${t.enabled?'🟢':'⚪'} ${esc(t.name)}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px">${esc(actText(t))} · ${esc(schedText(t))}${t.enabled&&t.nextRun>0?' · 下次 '+fmtTime(t.nextRun):''}</div>
+      <div class="muted" style="font-size:12px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">「${esc(t.payload)}」${t.lastResult?' · 上次：'+esc(t.lastResult):''}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn ghost sm" onclick="runTask('${t.id}')">▶ 立即</button>
+      <button class="btn ghost sm" onclick="toggleTask('${t.id}')">${t.enabled?'⏸':'▶'}</button>
+      <button class="btn ghost sm" onclick="editTask('${t.id}')">编辑</button>
+      <button class="btn ghost sm" onclick="delTask('${t.id}')">🗑</button>
+    </div></div>`).join(''):'<div class="ph" style="height:120px">还没有定时任务 — 点「+ 新建任务」加一个</div>';}
+let tfScriptData=[];
+function openTask(t){t=t||{};const isE=!!t.id,days=t.days||[];tfScriptData=t.script||[];
+  const srvOpts='<option value="*"'+(t.target==='*'||!t.target?' selected':'')+'>全部子服</option>'+[...$('server').options].map(o=>o.value).filter(v=>v).map(v=>`<option ${t.target===v?'selected':''}>${v}</option>`).join('');
+  const A=t.action||'broadcast';
+  $('taskForm').innerHTML=`<h3>${isE?'编辑':'新建'}定时任务</h3>
+    <div class="tf"><label>名称</label><input id="tfName" value="${esc(t.name||'')}" placeholder="如：整点广播"></div>
+    <div class="tf2"><div><label>动作</label><select id="tfAction" onchange="tfActionChange()">
+        <option value="broadcast" ${A==='broadcast'?'selected':''}>广播消息</option>
+        <option value="command" ${A==='command'?'selected':''}>执行命令</option>
+        <option value="script" ${A==='script'?'selected':''}>📜 AI 脚本（说需求→编译成步骤）</option>
+        <option value="agent" ${A==='agent'?'selected':''}>🤖 AI 实时（现场判断执行）</option></select></div>
+      <div><label>目标子服（脚本/AI 可留全部）</label><select id="tfTarget">${srvOpts}</select></div></div>
+    <div class="tf"><label id="tfPayLabel">内容<span id="tfAiBtn" style="float:right;color:var(--violet);cursor:pointer;font-weight:700;font-size:12px"></span></label><input id="tfPayload" value="${esc(t.payload||'')}" placeholder=""></div>
+    <div id="tfScriptWrap" class="tf" style="display:none"><label>待执行步骤（到点按序确定性执行；先点上面「✨生成脚本」）</label><div id="tfScriptBox" style="font-size:12.5px"></div></div>
+    <div class="tf2"><div><label>触发方式</label><select id="tfType" onchange="tfTypeChange()"><option value="interval" ${t.type!=='daily'?'selected':''}>每隔 N 分钟</option><option value="daily" ${t.type==='daily'?'selected':''}>每天定时</option></select></div>
+      <div id="tfIntWrap" style="${t.type==='daily'?'display:none':''}"><label>间隔（分钟）</label><input id="tfInterval" type="number" min="1" value="${t.intervalMin||60}"></div>
+      <div id="tfTimeWrap" style="${t.type==='daily'?'':'display:none'}"><label>时间</label><input id="tfTime" type="time" value="${t.time||'12:00'}"></div></div>
+    <div id="tfDaysWrap" class="tf" style="${t.type==='daily'?'':'display:none'}"><label>周几（不选=每天）</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${[1,2,3,4,5,6,7].map(d=>`<label class="dchk"><input type="checkbox" class="tfDay" value="${d}" ${days.includes(d)?'checked':''}>${WK[d-1]}</label>`).join('')}</div></div>
+    <input type="hidden" id="tfId" value="${t.id||''}">
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn sm" onclick="saveTask()">保存</button><button class="btn ghost sm" onclick="$('taskForm').style.display='none'">取消</button></div>`;
+  tfActionChange();renderScriptBox();
+  $('taskForm').style.display='';$('taskForm').scrollIntoView({behavior:'smooth',block:'nearest'});}
+function tfActionChange(){const a=$('tfAction').value,isS=a==='script';
+  $('tfScriptWrap').style.display=isS?'':'none';
+  const lab=$('tfPayLabel'),btn=$('tfAiBtn'),inp=$('tfPayload');
+  if(a==='broadcast'){lab.childNodes[0].nodeValue='广播文案';btn.textContent='';btn.onclick=null;inp.placeholder='如：欢迎来玩！今晚8点开活动';}
+  else if(a==='command'){lab.childNodes[0].nodeValue='控制台命令（不带斜杠）';btn.textContent='';btn.onclick=null;inp.placeholder='如：save-all';}
+  else if(a==='script'){lab.childNodes[0].nodeValue='需求描述（说人话）';btn.textContent='✨ 生成脚本';btn.onclick=genScript;inp.placeholder='如：先广播提醒今晚维护，再在 earth 执行 save-all';}
+  else{lab.childNodes[0].nodeValue='任务指令（说人话）';btn.textContent='✨ AI整理';btn.onclick=refineTask;inp.placeholder='如：看看哪些玩家快流失了并广播召回';}}
+function renderScriptBox(){const box=$('tfScriptBox');if(!box)return;
+  box.innerHTML=tfScriptData.length?tfScriptData.map((s,i)=>`<div style="background:var(--glass2);border-radius:8px;padding:7px 10px;margin-bottom:5px"><b>${i+1}. ${s.action==='command'?'⌨️命令':'📢广播'}</b> → ${esc(s.target||'*')}<div style="color:var(--mut);margin-top:2px">${esc(s.payload||'')}</div></div>`).join(''):'<span class="muted">还没有步骤——填好需求点「✨生成脚本」</span>';}
+async function genScript(){const desc=$('tfPayload').value.trim();if(!desc){alert('先写需求描述');return;}
+  const box=$('tfScriptBox');box.innerHTML='<span class="muted">编译中…</span>';
+  try{const steps=await api('/api/tasks/compile',{method:'POST',body:JSON.stringify({description:desc,server:$('tfTarget').value})});
+    tfScriptData=Array.isArray(steps)?steps:[];renderScriptBox();if(!tfScriptData.length)box.innerHTML='<span class="err">没编译出步骤，换个说法再试</span>';}
+  catch(e){box.innerHTML='<span class="err">编译失败：'+esc(e.message)+'</span>';}}
+function tfTypeChange(){const d=$('tfType').value==='daily';$('tfIntWrap').style.display=d?'none':'';$('tfTimeWrap').style.display=d?'':'none';$('tfDaysWrap').style.display=d?'':'none';}
+function editTask(id){openTask(tasks.find(t=>t.id===id));}
+async function saveTask(){const a=$('tfAction').value;
+  const body={id:$('tfId').value,name:$('tfName').value.trim(),action:a,target:$('tfTarget').value,payload:$('tfPayload').value.trim(),
+    type:$('tfType').value,intervalMin:parseInt($('tfInterval').value)||60,time:$('tfTime').value,days:[...document.querySelectorAll('.tfDay:checked')].map(c=>parseInt(c.value))};
+  if(!body.name||!body.payload){alert('请填名称和内容/需求');return;}
+  if(a==='script'){if(!tfScriptData.length){alert('请先「✨生成脚本」并确认步骤');return;}body.script=tfScriptData;}
+  try{await api('/api/tasks',{method:'POST',body:JSON.stringify(body)});$('taskForm').style.display='none';loadTasks();}catch(e){alert('保存失败：'+e.message);}}
+async function delTask(id){if(!confirm('删除这个定时任务？'))return;try{await api('/api/tasks?id='+id,{method:'DELETE'});loadTasks();}catch(e){alert(e.message);}}
+async function toggleTask(id){try{await api('/api/tasks/toggle?id='+id,{method:'POST'});loadTasks();}catch(e){alert(e.message);}}
+async function runTask(id){try{const r=await api('/api/tasks/run?id='+id,{method:'POST'});showInfo('▶ 手动触发结果',r.result||'(完成)');loadTasks();}catch(e){alert(e.message);}}
+async function refineTask(){const inp=$('tfPayload'),t=inp.value.trim();if(!t){alert('先写点内容，AI 帮你整理成清晰任务');return;}
+  const old=inp.value;inp.value='整理中…';try{const r=await api('/api/tasks/refine',{method:'POST',body:JSON.stringify({text:t})});inp.value=r.text||old;}catch(e){inp.value=old;alert('整理失败：'+e.message);}}
 function renderOpsKpis(h,a){
   const arr=h||[],on=arr.filter(x=>x.status!=='offline').length;
   const players=arr.reduce((s,x)=>s+(x.players||0),0);
   const alarms=(a||[]).filter(x=>x.kind!=='RECOVERED').length;
   const it=[['🖥️','在线子服',on],['👥','在线玩家',players],['🚨','活跃告警',alarms],['🛰️','哨兵','运行中']];
   $('opsKpis').innerHTML=it.map(([i,k,v],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join('');}
+/* 审批：待审 + 历史。topbar 角标始终更新；首页面板仅 ops 页渲染 */
+async function pollApprovals(){try{renderApprovals(await api('/api/approvals'));}catch(e){}}
+function renderApprovals(d){const pend=d.pending||[],hist=d.history||[];
+  const b=$('apprBadge');if(b){if(pend.length){b.style.display='';$('apprCount').textContent=pend.length;}else b.style.display='none';}
+  const box=$('apprBox');if(!box)return;
+  let html='';
+  if(pend.length){html+=`<div class="panel glass" style="margin-bottom:16px;border:1px solid rgba(255,122,152,.55)"><h3>🛡️ 待审批 <span class="tag" style="color:var(--red);border-color:rgba(255,122,152,.5)">${pend.length} 项 · 高危需你确认</span></h3>`
+    +pend.map(p=>`<div style="background:var(--glass2);border-radius:10px;padding:11px 13px;margin-bottom:9px;border-left:3px solid var(--red)">
+        <div style="display:flex;justify-content:space-between;gap:8px"><b>#${esc(p.id)}</b><span class="muted" style="font-size:11px">剩 ${Math.max(0,Math.round(p.remainMs/60000))} 分钟</span></div>
+        <div style="font-size:13px;margin:5px 0;white-space:pre-wrap">${esc(p.desc)}</div>
+        <div style="display:flex;gap:7px"><button class="btn sm" onclick="approveItem('${p.id}')">✅ 批准并执行</button><button class="btn ghost sm" onclick="denyItem('${p.id}')">❌ 驳回</button></div>
+      </div>`).join('')+`</div>`;}
+  html+=`<details class="panel glass" style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:800;font-size:14px">🗂️ 审批历史 <span class="muted" style="font-weight:400;font-size:12px">(${hist.length})</span></summary>`
+    +(hist.length?'<div style="margin-top:10px">'+hist.map(h=>`<div style="display:flex;gap:9px;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)"><span>${h.decision==='approved'?'✅':h.decision==='denied'?'❌':'⌛'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#${esc(h.id)} ${esc(h.desc)}</span><span class="muted" style="font-size:11px;flex-shrink:0">${ago(h.at)}</span></div>`).join('')+'</div>':'<div class="muted" style="margin-top:10px">暂无审批记录</div>')+`</details>`;
+  box.innerHTML=html;}
+async function approveItem(id){if(!confirm('批准并执行 #'+id+' ？'))return;try{const r=await api('/api/approvals/approve?id='+id,{method:'POST'});showInfo('✅ 批准结果',r.result||'(完成)');pollApprovals();}catch(e){alert(e.message);}}
+async function denyItem(id){try{await api('/api/approvals/deny?id='+id,{method:'POST'});pollApprovals();}catch(e){alert(e.message);}}
 function renderOpsAlerts(a){const list=a||[];
   $('opsAlerts').innerHTML=list.length?list.map(x=>`<div class="ai" style="border-left:3px solid ${sevColor(x.severity)};background:var(--glass2);border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;gap:8px"><b>${kindLabel(x.kind)} · ${esc(x.server)}</b><span class="muted" style="font-size:11px">${ago(x.ts)}</span></div>

@@ -7,6 +7,7 @@ import org.slf4j.Logger
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.command.AgentCommandRouter
+import org.windy.windyagent.knowledge.PlayerQa
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.TrustLevel
 import java.util.concurrent.CompletableFuture
@@ -20,6 +21,7 @@ import java.util.concurrent.CompletableFuture
  */
 class AgentCommand(
     private val agent: Agent,
+    private val playerQa: PlayerQa,
     private val platform: VelocityPlatform,
     private val sessions: SessionManager,
     private val router: AgentCommandRouter,
@@ -48,10 +50,12 @@ class AgentCommand(
                     source.sendMessage(Component.text("[WindyAgent] $meta"))
                     return@runAsync
                 }
-                val context = AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust)
-                val response = agent.run(context)
-                sessions.trimHistory(sessionId)
-                source.sendMessage(Component.text("[WindyAgent] ${response.message}"))
+                // 可信(管理员/控制台) → 完整 Agent；普通玩家 → 只答疑的知识库问答（不碰工具）
+                val reply = if (trust == TrustLevel.TRUSTED) {
+                    val response = agent.run(AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust))
+                    sessions.trimHistory(sessionId); response.message
+                } else playerQa.answer(input)
+                source.sendMessage(Component.text("[WindyAgent] $reply"))
             }.onFailure {
                 logger.error("Agent error for {}", sessionId, it)
                 source.sendMessage(Component.text("[WindyAgent] 处理出错，请稍后重试。"))

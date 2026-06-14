@@ -47,6 +47,12 @@ class BukkitCapabilityHandler(
             }
             "get_online_players" -> ToolReply(req.requestId, true, actions.onlinePlayers())
             "health_query" -> ToolReply(req.requestId, true, healthSnapshot())
+            "server_detail" -> {
+                val p = ServerProfile.detect(plugin)
+                val rt = Runtime.getRuntime()
+                ToolReply(req.requestId, true, actions.serverDetail(currentTps(), p.platform, p.mcVersion, p.modCount,
+                    (rt.totalMemory() - rt.freeMemory()) / 1_048_576, rt.maxMemory() / 1_048_576))
+            }
             // Forge/NeoForge 专属（按子服核心类型门控）：非 forge/neoforge 由 NeoForgeOps 内部直接拒
             "server_mods" -> ToolReply(req.requestId, true, NeoForgeOps.modList(plugin))
             "dimension_tps" -> ToolReply(req.requestId, true, NeoForgeOps.dimensionTps(plugin, actions))
@@ -113,11 +119,7 @@ class BukkitCapabilityHandler(
         val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1_048_576
         val maxMb = rt.maxMemory() / 1_048_576
         val online = runCatching { plugin.server.onlinePlayers.size }.getOrDefault(-1)
-        // 整体 TPS：先试 Bukkit getTPS()（Paper 系有）；Youer 等无此 API → 退 NMS 平均 tick 时长推算
-        val tps = runCatching {
-            val arr = plugin.server.javaClass.getMethod("getTPS").invoke(plugin.server) as DoubleArray
-            (arr.firstOrNull() ?: -1.0).coerceAtMost(20.0)
-        }.getOrDefault(-1.0).let { if (it >= 0) it else nmsTps() }
+        val tps = currentTps()
         val p = ServerProfile.detect(plugin)
         return mapper.createObjectNode()
             .put("tps", Math.round(tps * 100) / 100.0)
@@ -130,6 +132,12 @@ class BukkitCapabilityHandler(
             .put("modCount", p.modCount)
             .toString()
     }
+
+    /** 整体 TPS：先试 Bukkit getTPS()（Paper 系有）；Youer 等无此 API → 退 NMS 平均 tick 时长推算。 */
+    private fun currentTps(): Double = runCatching {
+        val arr = plugin.server.javaClass.getMethod("getTPS").invoke(plugin.server) as DoubleArray
+        (arr.firstOrNull() ?: -1.0).coerceAtMost(20.0)
+    }.getOrDefault(-1.0).let { if (it >= 0) it else nmsTps() }
 
     /** Bukkit getTPS() 不可用时，从 NMS MinecraftServer 的平均 tick 时长推算整体 TPS；推不出回 -1。 */
     private fun nmsTps(): Double {

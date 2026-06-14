@@ -10,17 +10,22 @@ package org.windy.windyagent.safety
 object RequestContext {
     private val trust = ThreadLocal<TrustLevel>()
     private val session = ThreadLocal<String>()
+    private val unattendedTL = ThreadLocal<Boolean>()
 
-    fun enter(level: TrustLevel, sessionId: String) {
+    fun enter(level: TrustLevel, sessionId: String, unattended: Boolean = false) {
         trust.set(level)
         session.set(sessionId)
+        unattendedTL.set(unattended)
     }
 
     fun clear() {
         trust.remove()
         session.remove()
+        unattendedTL.remove()
     }
 
     fun current(): TrustLevel = trust.get() ?: TrustLevel.UNTRUSTED
     fun sessionId(): String = session.get() ?: "unknown"
+    /** 无人值守：定时 Agent 任务执行中，高危命令应直接拦截而非入审批闸。 */
+    fun unattended(): Boolean = unattendedTL.get() ?: false
 }
