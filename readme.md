@@ -13,8 +13,12 @@
 ![Platform](https://img.shields.io/badge/Minecraft-Velocity%20|%20Bukkit%20|%20Paper%20|%20混合端-62B47A)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20|%20Claude%20|%20Ollama-412991)
 
+<br/>
+
+<img src="assets/web-console.png" alt="WindyAgent Web 控制台" width="860">
+
 </div>
-![img.png](img.png)
+
 ---
 
 ## 简介
