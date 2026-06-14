@@ -1,0 +1,20 @@
+// ============================================================
+// web —— 平台无关的 AI 管理控制台后端（JDK 内置 HttpServer + 静态单页）。
+//   不依赖任何具体载体：只靠注入的 MessageBus + 供给函数工作，
+//   故 velocity 现在挂载它，未来 Bukkit-hub 也能挂。被载体模块依赖并 shade。
+//   Java 8 基线（HttpServer 自 Java 6 起内置），与 core/bus 一致，便于跨载体复用。
+// ============================================================
+
+// 覆盖根 subprojects 的 Java 11 默认 → 8
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    // core 经 api 暴露 bus + jackson，故依赖 core 即可见 MessageBus
+    implementation project(':core')
+
+    // slf4j 门面：运行时由宿主（Velocity / Paper）提供，仅编译期引入、不打包
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+}
