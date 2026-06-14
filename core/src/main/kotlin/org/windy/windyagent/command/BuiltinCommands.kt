@@ -134,10 +134,11 @@ object MemoryCommand : AgentSubcommand {
                 "已清理 $n 条重复记忆。"
             }
             null, "" -> {
-                val list = mem.list(ctx.sessionId)
+                val list = mem.list(ctx.sessionId, ctx.trust == TrustLevel.TRUSTED)
                 if (list.isEmpty()) "暂无长期记忆。说点稳定偏好我帮你记，或用 remember。"
-                else "长期记忆（你的 + 全服）：\n" + list.joinToString("\n") {
-                    "#${it.id}${if (it.scope == "global") "[全服]" else ""} ${it.content}"
+                else "长期记忆（你的 + 管理方 + 全服）：\n" + list.joinToString("\n") {
+                    val mark = when (it.scope) { "global" -> "[全服]"; "admin" -> "[管理]"; else -> "" }
+                    "#${it.id}$mark ${it.content}"
                 }
             }
             else -> "用法：memory（列出） | memory forget <id> | memory clear"

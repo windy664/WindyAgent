@@ -106,6 +106,18 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     /** 是否采集聊天内容做词云：仅在能正常触发 AsyncPlayerChatEvent 的服开（Youer 等混合端有 bug，默认关）。命令词云不受此开关影响。 */
     fun behaviorTrackChat() = (getNode("behavior.track-chat") as? Boolean) ?: false
 
+    // 主动运维哨兵（仅中心 Velocity 读取）：定时巡检子服健康，异常时出处置建议 + 通知
+    fun sentinelEnabled() = (getNode("sentinel.enabled") as? Boolean) ?: false
+    fun sentinelIntervalSec() = (getNode("sentinel.interval-sec") as? Number)?.toLong() ?: 30L
+    /** TPS 低于此判为卡顿（Paper/Youer 有 TPS，远古 Spigot 无则跳过此项）。 */
+    fun sentinelTpsMin() = (getNode("sentinel.tps-min") as? Number)?.toDouble() ?: 15.0
+    /** JVM 内存占用百分比超此判为内存吃紧。 */
+    fun sentinelMemPct() = (getNode("sentinel.mem-pct") as? Number)?.toInt() ?: 90
+    /** 一个巡检周期内在线人数掉这么多判为骤降（疑似崩服/被打）；0=关此项。 */
+    fun sentinelPlayerDrop() = (getNode("sentinel.player-drop") as? Number)?.toInt() ?: 5
+    /** 告警时是否调 LLM 给处置建议（false=只报原始告警，省 token）。 */
+    fun sentinelAdvise() = (getNode("sentinel.advise") as? Boolean) ?: true
+
     // AI 管理控制台（WebUI，仅 Velocity 读取）
     fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: false
     fun webHost() = getString("web.host", "127.0.0.1")

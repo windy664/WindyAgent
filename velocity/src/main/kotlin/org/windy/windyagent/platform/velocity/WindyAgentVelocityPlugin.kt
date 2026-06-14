@@ -42,7 +42,17 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.knowledge.KnowledgeSearchTool
 import org.windy.windyagent.platform.SessionManager
+import org.windy.windyagent.llm.LLMProvider
+import org.windy.windyagent.ops.CompositeNotifier
+import org.windy.windyagent.ops.HealthMonitor
+import org.windy.windyagent.ops.HealthSnapshot
+import org.windy.windyagent.ops.Incident
+import org.windy.windyagent.ops.IncidentKind
+import org.windy.windyagent.ops.LogNotifier
+import org.windy.windyagent.ops.TaskScheduler
+import org.windy.windyagent.web.AlertCenter
 import org.windy.windyagent.web.DashboardServer
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.nio.file.Path
 
 @Plugin(
@@ -59,6 +69,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
     private var bus: MessageBus? = null
     private var web: DashboardServer? = null
     private var chatWords: ChatWordCollector? = null
+    private var sentinel: HealthMonitor? = null
+    private var scheduler: TaskScheduler? = null
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -80,6 +92,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val extraTools = mutableListOf<AgentTool>()
         var valueExecutor: org.windy.windyagent.command.ValueExecutor? = null
         var connectedServers: () -> Set<String> = { emptySet() }   // 跨服启用后指向能力注册表
+        val alerts = AlertCenter()   // 哨兵告警缓冲（供 WebUI /api/alerts 拉取），早建以便哨兵与看板共用
 
         // 安全护栏 + 审计 + 人工审批闸（拦 AI 自动跑高危命令；可信来源高危走审批）
         val guard = buildCommandGuard(cfg)
@@ -133,8 +146,49 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 connectedServers = online
                 bus = b
                 logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
+
+                // 定时任务调度器：到点把广播/命令下发到目标子服（* = 全部已连）
+                val schedMapper = ObjectMapper()
+                scheduler = TaskScheduler(dataDirectory.resolve("tasks.json")) { task ->
+                    val targets = if (task.target == "*" || task.target.isBlank()) online() else setOf(task.target)
+                    if (targets.isEmpty()) "无目标子服（未连接）" else {
+                        val act = if (task.action == "command") "run_command" else "broadcast"
+                        val field = if (task.action == "command") "command" else "message"
+                        val args = schedMapper.createObjectNode().put(field, task.payload).toString()
+                        targets.joinToString(" | ") { srv ->
+                            val rep = runCatching { b.dispatch(srv, act, args, cfg.remoteTimeoutMs()).get(cfg.remoteTimeoutMs() + 1000, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrNull()
+                            "$srv:" + (rep?.content?.take(50) ?: "超时")
+                        }
+                    }
+                }.also { it.start() }
                 // 代理层捕获聊天做词云（绕开 Bukkit 侧聊天事件 bug），词频经总线回各子服
                 chatWords = ChatWordCollector(b, cfg.remoteTimeoutMs()).also { server.eventManager.register(this, it); it.start() }
+
+                // 主动运维哨兵：定时巡检在线子服健康 → 异常调 LLM 出处置建议 → 通知(控制台 + WebUI)。
+                // 处置走"建议→人工"（高危仍走已有审批闸），哨兵自身不自动执行命令。
+                if (cfg.sentinelEnabled()) {
+                    val smapper = ObjectMapper()
+                    val probe: (String) -> HealthSnapshot? = { srv ->
+                        runCatching {
+                            val rep = b.dispatch(srv, "health_query", "{}", cfg.remoteTimeoutMs())
+                                .get(cfg.remoteTimeoutMs() + 1000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                            if (!rep.success) null else smapper.readTree(rep.content).let { j ->
+                                HealthSnapshot(srv, true, j["tps"]?.asDouble() ?: -1.0, j["online"]?.asInt() ?: -1,
+                                    j["memUsedMb"]?.asLong() ?: 0L, j["memMaxMb"]?.asLong() ?: 0L,
+                                    j["platform"]?.asText() ?: "", j["mcVersion"]?.asText() ?: "",
+                                    j["brand"]?.asText() ?: "", j["modCount"]?.asInt() ?: -1)
+                            }
+                        }.getOrNull()
+                    }
+                    val notifier = CompositeNotifier(listOf(LogNotifier(), alerts))
+                    val adviser = fastLlm ?: llm
+                    sentinel = HealthMonitor(online, probe,
+                        HealthMonitor.Config(cfg.sentinelIntervalSec(), cfg.sentinelTpsMin(), cfg.sentinelMemPct(), cfg.sentinelPlayerDrop())
+                    ) { inc ->
+                        val advice = if (cfg.sentinelAdvise() && inc.kind != IncidentKind.RECOVERED) sentinelAdvise(inc, adviser) else null
+                        notifier.notify(inc, advice)
+                    }.also { it.start() }
+                }
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
         }
 
@@ -163,7 +217,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "{\"title\":简短标题,\"content\":正文,\"tags\":[2-4个关键词]}。不要解释、不要代码块标记。"
             val draft: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
-                connectedServers, chat, knowledge, draft).also { it.start() }
+                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler).also { it.start() }
         }
 
         // 玩家游戏内聊天触发：!ai <message>
@@ -210,8 +264,22 @@ class WindyAgentVelocityPlugin @Inject constructor(
         else -> RedisBus(cfg.redisHost(), cfg.redisPort(), cfg.redisPassword())
     }
 
+    /** 哨兵告警 → 调 LLM 给一句话诊断 + 处置建议（建议式，人工执行/审批）。用便宜模型省 token。 */
+    private fun sentinelAdvise(inc: Incident, advisor: LLMProvider): String {
+        val sys = "你是资深 Minecraft 服务器运维。下面是一条服务器健康告警。用最多 4 行中文给出：" +
+            "①一句话判断最可能原因；②建议的具体处置（可含命令）。高危命令请注明「需人工确认」。不要寒暄、不要客套。"
+        val s = inc.snapshot
+        val detail = buildString {
+            append("子服：${inc.server}\n类型：${inc.kind}\n详情：${inc.detail}")
+            if (s != null) append("\n快照：TPS=${s.tps} 在线=${s.online} 内存=${s.memUsedMb}/${s.memMaxMb}MB")
+        }
+        return runCatching { advisor.chat(sys, listOf(LLMMessage.User(detail))).textContent }.getOrNull()?.trim().orEmpty()
+    }
+
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        sentinel?.stop(); sentinel = null
+        scheduler?.stop(); scheduler = null
         chatWords?.stop(); chatWords = null
         web?.stop(); web = null
         bus?.close()
