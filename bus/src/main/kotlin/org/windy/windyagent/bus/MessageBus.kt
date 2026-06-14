@@ -32,5 +32,15 @@ interface MessageBus : AutoCloseable {
     /** 中心侧：注册目录接收回调（收到任一子服推来的目录 JSON 即触发）。默认空实现。 */
     fun onCatalog(handler: (String) -> Unit) {}
 
+    /**
+     * 中心侧：**当前真实在线**（此刻已连接到中枢）的子服名集——权威的"在线"来源。
+     * 与能力注册表（持久化目录=曾见过、含离线）区分开：选子服对话 / 校验可派发要用这个，
+     * 否则会派到离线子服白等超时（"假在线"）。
+     *
+     * 默认 `null` = 该传输无法判定在线（如无心跳的 Redis）→ 调用方应退回注册表的"曾见过"集（旧行为，不退化）。
+     * 能判定的传输（自建 Socket 中枢 / 进程内）返回非空集（可能为空集=确无子服在线）。
+     */
+    fun onlineServers(): Set<String>? = null
+
     override fun close()
 }

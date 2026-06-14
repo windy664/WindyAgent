@@ -7,12 +7,16 @@ import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.inventory.CraftItemEvent
+import org.bukkit.event.player.AsyncPlayerChatEvent
 import org.bukkit.event.player.PlayerAdvancementDoneEvent
-import org.bukkit.event.player.PlayerChatEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.java.JavaPlugin
+import org.windy.windyagent.behavior.BehaviorDatabase
+import org.windy.windyagent.behavior.EventRow
+import org.windy.windyagent.behavior.ProfileDelta
+import org.windy.windyagent.behavior.SessionRow
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -49,13 +53,14 @@ class BehaviorTracker(
     @Volatile private var flushes = 0L
     private val cmdWords = ConcurrentHashMap<String, AtomicLong>()    // 命令名词频（始终采）
     private val chatWords = ConcurrentHashMap<String, AtomicLong>()   // 聊天词频（仅 trackChat 时采）
-    // 仅当 trackChat 才注册。用**同步**的 PlayerChatEvent（已废弃但仍在 API）——Youer 把异步的
-    // AsyncPlayerChatEvent 在主线程触发才崩；同步事件在主线程触发是合法的、不撞护栏。能不能采到取决于 Youer 是否触发它。
+    // 仅当 trackChat 才注册。用标准的 AsyncPlayerChatEvent——它本就该在异步聊天线程触发，
+    // 正好契合本类"监听器只做原子自增"的防卡设计（异步线程上对 ConcurrentHashMap/AtomicLong 自增是安全的）。
+    // 旧 Youer(≤26.1.2.75) 错把它在主线程触发才撞 Bukkit 护栏刷错；26.1.2.76 起聊天链改走 server.chatExecutor 已修复。
     private val chatListener = object : Listener {
-        @Suppress("DEPRECATION")
         @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-        fun onChat(e: PlayerChatEvent) {
-            if (chatSeen++ == 0L) plugin.logger.info("[聊天词云] 收到首条同步聊天事件（${e.player.name}）——本服可用同步事件采集 ✓")
+        fun onChat(e: AsyncPlayerChatEvent) {
+            if (chatSeen++ == 0L) plugin.logger.info("[聊天词云] 收到首条聊天事件（${e.player.name}）——本服聊天采集已生效 ✓")
+            a(e.player.uniqueId, e.player.name).chats.incrementAndGet()
             tokenizeChat(e.message)
         }
     }
@@ -70,7 +75,7 @@ class BehaviorTracker(
         plugin.server.pluginManager.registerEvents(this, plugin)
         if (trackChat) {
             plugin.server.pluginManager.registerEvents(chatListener, plugin)
-            plugin.logger.info("行为采集：聊天词云已开启（试同步 PlayerChatEvent；若本服只触发异步事件则采不到，看是否出现「收到首条同步聊天」）")
+            plugin.logger.info("行为采集：聊天词云已开启（AsyncPlayerChatEvent；旧 Youer≤26.1.2.75 采不到，请升到 26.1.2.76+，看是否出现「收到首条聊天事件」）")
         }
         exec.scheduleAtFixedRate({ runCatching { flush() }.onFailure { plugin.logger.warning("行为 flush 失败：${it.message}") } },
             flushIntervalSec, flushIntervalSec, TimeUnit.SECONDS)
@@ -108,8 +113,8 @@ class BehaviorTracker(
         if (cmd.isNotEmpty()) bumpWord(cmdWords, cmd)   // 命令词云：只记命令名，不记参数
     }
 
-    // 注：不监听 AsyncPlayerChatEvent —— 它在 1.19+ 已废弃，且混合端(Youer/Mohist)会在主线程触发它、
-    // 撞 Bukkit "异步事件不能主线程触发" 护栏刷错。聊天计数价值低，直接不采。要的话改用 Paper 的 AsyncChatEvent。
+    // 注：聊天采集走上面独立的 chatListener(AsyncPlayerChatEvent)，仅 trackChat 时注册；
+    // 这里主监听器不放聊天，避免没开词云时也注册无用监听。
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onPlace(e: BlockPlaceEvent) { a(e.player.uniqueId, e.player.name).placed.incrementAndGet() }

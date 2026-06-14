@@ -46,6 +46,9 @@ class InProcessBus : MessageBus {
         handlers[server] = handler
     }
 
+    /** 进程内：已注册 handler 的子服即"在线"（同 JVM，注册即可达）。 */
+    override fun onlineServers(): Set<String> = handlers.keys.toSet()
+
     override fun dispatch(server: String, action: String, argsJson: String, timeoutMs: Long): CompletableFuture<ToolReply> {
         val id = UUID.randomUUID().toString()
         val future = CompletableFuture<ToolReply>()

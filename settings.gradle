@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = 'windyagent'
-include 'core', 'bus', 'velocity', 'bukkit', 'web'
+include 'core', 'bus', 'velocity', 'bukkit', 'web', 'behavior'
