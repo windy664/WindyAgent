@@ -142,6 +142,12 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun embeddingApiBaseUrl() = getString("embedding.api-base-url", "").ifBlank { apiBaseUrl() }
     fun embeddingApiKey() = getString("embedding.api-key", "").ifBlank { apiKey() }
 
+    // Groovy 技能（服主编写的扩展能力，放插件数据目录的 skills/ 下，启动/插件变更时热重载）
+    fun skillsEnabled() = (getNode("skills.enabled") as? Boolean) ?: true
+    fun skillsDir() = getString("skills.dir", "skills")
+    /** 技能执行的主线程超时看门狗（秒）：脚本久占主线程时解除 Agent 等待。 */
+    fun skillTimeoutSec() = (getNode("skills.timeout-sec") as? Number)?.toLong() ?: 5L
+
     // MCP 工具接入（可选）：外部 MCP server 列表
     fun mcpServers(): List<McpServerConfig> {
         val list = getNode("mcp.servers") as? List<*> ?: return emptyList()

@@ -58,6 +58,11 @@ dependencies {
 
     // 模组物品库：嵌入式 SQLite（解析模组 jar 的物品/配方落库做估值），Java 8 兼容，shade 进 fat jar
     implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
+
+    // Groovy 技能引擎：服主写 .groovy 脚本扩展 Agent 能力，内嵌 GroovyShell 执行。
+    // 3.0.x 支持 Java 8（与本模块 toolchain 一致）；shade 进 fat jar。不 relocate：
+    // Bukkit 插件类加载器天然隔离，同居插件自带的 Groovy 各走各的，不冲突（不同于 Velocity 宿主共享的 jackson）。
+    implementation 'org.codehaus.groovy:groovy:3.0.22'
 }
 
 // 带分类器 'all'，避免空分类器让 shadow 把本模块的 fat jar 设成对外消费制品

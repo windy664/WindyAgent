@@ -26,7 +26,10 @@ class CapabilitySync(
     private val plugin: JavaPlugin,
     private val actions: BukkitActions,
     private val serverName: String,
-    private val deliver: (CapabilityCatalog) -> Unit
+    private val deliver: (CapabilityCatalog) -> Unit,
+    /** 技能目录补充项（默认空）：每次重建目录时调用，可在内部热重载 skills/ 目录，
+     *  返回的条目并入命令目录一并推给中心，让 search_capabilities 能搜到技能。 */
+    private val skillCatalog: () -> List<CapabilityCommand> = { emptyList() }
 ) : Listener {
 
     private val exec = Executors.newSingleThreadScheduledExecutor { r ->
@@ -49,7 +52,7 @@ class CapabilitySync(
         exec.schedule({
             scheduled = false
             runCatching {
-                val commands = actions.capabilityCommands()
+                val commands = actions.capabilityCommands() + skillCatalog()
                 val sig = signature(commands)
                 // 变更门控：签名与上次已提交一致就不推（中心靠持久记忆存活）
                 if (sig == readSig()) {

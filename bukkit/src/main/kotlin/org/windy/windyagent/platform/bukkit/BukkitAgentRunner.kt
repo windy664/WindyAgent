@@ -12,6 +12,9 @@ import org.windy.windyagent.agent.RemoteCommandTool
 import org.windy.windyagent.agent.RemoteProposePackTool
 import org.windy.windyagent.agent.RemoteRefreshItemsTool
 import org.windy.windyagent.platform.bukkit.item.ItemService
+import org.windy.windyagent.platform.bukkit.skill.SkillEngine
+import org.windy.windyagent.platform.bukkit.skill.SkillRegistry
+import org.windy.windyagent.platform.bukkit.skill.SkillTool
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.buildEmbeddingProvider
@@ -81,6 +84,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             extraTools += RemoteAppraiseTool(remoteBus, remoteTimeoutMs)
             extraTools += RemoteProposePackTool(remoteBus, remoteTimeoutMs)
             extraTools += RemoteRefreshItemsTool(remoteBus, remoteTimeoutMs)
+            // hub：也能调其它子服推上来的技能（本机技能则已是本地工具）
+            extraTools += org.windy.windyagent.agent.RemoteSkillTool(remoteBus, remoteTimeoutMs, audit)
             remoteBus.onCatalog { registry.accept(it) }
         }
         // 长期记忆（跨会话）
@@ -88,6 +93,15 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         memory?.let { extraTools += RememberTool(it) }
         // MCP 工具接入（可选）
         extraTools += McpLoader.load(cfg.mcpServers())
+        // 服主编写的 Groovy 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
+        val skills = if (cfg.skillsEnabled())
+            SkillRegistry(plugin.dataFolder.toPath().resolve(cfg.skillsDir()).toFile(), plugin.logger) else null
+        val skillEngine = skills?.let { SkillEngine(plugin, actions, cfg.skillTimeoutSec()) }
+        if (skills != null && skillEngine != null) {
+            val n = skills.reload()
+            skills.all().forEach { extraTools += SkillTool(it, skillEngine, audit) }
+            plugin.logger.info("技能已加载 — $n 个（skills/ 目录）")
+        }
         val platform = BukkitPlatform(plugin, actions, extraTools)
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
         val sessions = SessionManager(cfg.maxHistory())
@@ -101,7 +115,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // 启动后建本机能力目录，放进本地注册表
         val selfName = cfg.serverName().ifBlank { "local" }
-        CapabilitySync(plugin, actions, selfName) { cat -> registry.put(cat) }.start()
+        // 嵌入式：本机技能已是本地工具（LLM 直接可见），不重复进可搜索目录，避免"目录有名、无对应工具"。
+        CapabilitySync(plugin, actions, selfName, deliver = { cat -> registry.put(cat) }).start()
 
         // /ai 命令（需在 plugin.yml 声明 commands.ai）
         plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))

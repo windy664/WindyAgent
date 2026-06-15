@@ -44,7 +44,9 @@ class DashboardServer(
     private val refine: ((String) -> String)? = null,
     private val pending: PendingApprovals? = null,
     /** 脚本编译：把需求描述(desc) + 默认子服(server) → LLM 编译成步骤 JSON 数组字符串。 */
-    private val compileScript: ((String, String) -> String)? = null
+    private val compileScript: ((String, String) -> String)? = null,
+    /** 技能起草：把服主一句话需求 → LLM 生成一份「纯文字技能」的 SKILL.md 文本。 */
+    private val draftSkill: ((String) -> String)? = null
 ) {
     private val log = LoggerFactory.getLogger(DashboardServer::class.java)
     private val mapper = ObjectMapper()
@@ -125,6 +127,15 @@ class DashboardServer(
             "/api/chat/history" -> json(ex, 200, chatHistory(q["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             "/api/kb" -> kbApi(ex, q)
             "/api/kb/draft" -> draftApi(ex)
+            // 技能（Groovy skill）：管理选中子服的 skills/ 目录（经总线远程读写 + 热重载 + 测试运行）
+            "/api/skills" -> skillsApi(ex, q)
+            "/api/skills/content" -> {
+                val handle = q["handle"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
+                proxy(ex, q, "skill_get", mapper.createObjectNode().put("handle", handle).toString())
+            }
+            "/api/skills/reload" -> proxy(ex, q, "skill_reload", "{}")
+            "/api/skills/run" -> skillRunApi(ex)
+            "/api/skills/draft" -> skillDraftApi(ex)
             else -> json(ex, 404, """{"error":"unknown api"}""")
         }
     }
@@ -213,6 +224,68 @@ class DashboardServer(
         val out = runCatching { d(text) }.getOrElse { return json(ex, 502, """{"error":${jstr(it.message ?: "draft failed")}}""") }
         val s = out.indexOf('{'); val e = out.lastIndexOf('}')
         json(ex, 200, if (s >= 0 && e > s) out.substring(s, e + 1) else """{"title":"","content":${jstr(out)},"tags":[]}""")
+    }
+
+    // ---- 技能（Groovy skill）管理：list / save / delete（内容读取、reload、run 在 api() 里直接代理）----
+    private fun skillsApi(ex: HttpExchange, q: Map<String, String>) {
+        when (ex.requestMethod) {
+            "GET" -> proxy(ex, q, "skill_list", "{}")   // server 取自 q
+            "POST" -> {
+                val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
+                val server = n["server"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
+                val handle = n["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
+                val args = mapper.createObjectNode()
+                    .put("handle", handle)
+                    .put("md", n["md"]?.asText() ?: "")
+                    .put("script", n["script"]?.asText() ?: "")
+                    .put("isScript", n["isScript"]?.asBoolean() ?: false).toString()
+                dispatchTo(ex, server, "skill_save", args)
+            }
+            "DELETE" -> {
+                val server = q["server"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
+                val handle = q["handle"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
+                dispatchTo(ex, server, "skill_delete", mapper.createObjectNode().put("handle", handle).toString())
+            }
+            else -> json(ex, 405, """{"error":"method not allowed"}""")
+        }
+    }
+
+    /** WebUI 里测试运行一个技能：POST {server, skill, args} → 派发 run_skill。 */
+    private fun skillRunApi(ex: HttpExchange) {
+        if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
+        val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
+        val server = n["server"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
+        val skill = n["skill"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing skill"}""")
+        val payload = mapper.createObjectNode().put("skill", skill)
+        payload.replace("args", n["args"]?.takeIf { it.isObject } ?: mapper.createObjectNode())
+        // 子服 run_skill 回的是纯文本结果，包成 {result} 给前端
+        val b = bus ?: return json(ex, 503, """{"error":"cross-server bus not enabled"}""")
+        if (server !in connectedServers()) return json(ex, 400, """{"error":"server not connected"}""")
+        val reply = runCatching { b.dispatch(server, "run_skill", payload.toString(), timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS) }.getOrNull()
+        if (reply == null) json(ex, 504, """{"error":"timeout"}""")
+        else json(ex, if (reply.success) 200 else 502, mapper.createObjectNode().put("result", reply.content).toString())
+    }
+
+    /** 技能 AI 起草：POST {text} → {md: 生成的 SKILL.md}（纯文字技能，人确认后再保存）。 */
+    private fun skillDraftApi(ex: HttpExchange) {
+        val d = draftSkill ?: return json(ex, 400, """{"error":"AI draft unavailable"}""")
+        if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
+        val text = runCatching { mapper.readTree(body(ex))["text"]?.asText() }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: return json(ex, 400, """{"error":"empty text"}""")
+        val out = runCatching { d(text) }.getOrElse { return json(ex, 502, """{"error":${jstr(it.message ?: "draft failed")}}""") }
+        // 去掉可能的 ```markdown 围栏，只留 SKILL.md 正文
+        val md = out.trim().removePrefix("```markdown").removePrefix("```md").removePrefix("```").removeSuffix("```").trim()
+        json(ex, 200, mapper.createObjectNode().put("md", md).toString())
+    }
+
+    /** 同 proxy，但目标 server 由调用方显式给出（POST 时 server 在请求体里，不在 query）。 */
+    private fun dispatchTo(ex: HttpExchange, server: String, action: String, args: String) {
+        val b = bus ?: return json(ex, 503, """{"error":"cross-server bus not enabled"}""")
+        if (server !in connectedServers()) return json(ex, 400, """{"error":"server not connected"}""")
+        val reply = runCatching { b.dispatch(server, action, args, timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS) }.getOrNull()
+        if (reply == null) json(ex, 504, """{"error":"timeout"}""")
+        else if (!reply.success) json(ex, 502, """{"error":${jstr(reply.content)}}""")
+        else json(ex, 200, reply.content)
     }
 
     /** 把请求转成总线动作派发到子服，子服回的就是 JSON，直接透传。 */
