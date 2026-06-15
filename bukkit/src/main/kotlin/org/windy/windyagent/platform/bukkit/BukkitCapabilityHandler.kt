@@ -6,6 +6,9 @@ import org.windy.windyagent.bus.ToolReply
 import org.windy.windyagent.bus.ToolRequest
 import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
+import org.windy.windyagent.platform.bukkit.skill.SkillArgs
+import org.windy.windyagent.platform.bukkit.skill.SkillEngine
+import org.windy.windyagent.platform.bukkit.skill.SkillRegistry
 
 /**
  * 能力提供方（provider 模式）：把中心 Agent 经总线下发的动作映射为本服操作。
@@ -17,7 +20,9 @@ class BukkitCapabilityHandler(
     private val plugin: JavaPlugin,
     private val actions: BukkitActions,
     private val items: ItemService?,
-    private val behavior: BehaviorService? = null
+    private val behavior: BehaviorService? = null,
+    private val skills: SkillRegistry? = null,
+    private val skillEngine: SkillEngine? = null
 ) {
 
     private val mapper = ObjectMapper()
@@ -109,8 +114,55 @@ class BukkitCapabilityHandler(
                 val (ok, msg) = actions.kick(name, reason)
                 ToolReply(req.requestId, ok, msg)
             }
+            // 服主编写的技能（中心已记 audit，命令来自可信总线）：纯文字回正文、脚本则执行
+            "run_skill" -> {
+                val name = args["skill"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 skill 参数")
+                val def = skills?.get(name) ?: return fail(req, "本服无技能「$name」（或未启用技能）")
+                if (!def.isScript) ToolReply(req.requestId, true, def.textOutput())
+                else {
+                    val engine = skillEngine ?: return fail(req, "本服未启用技能引擎")
+                    ToolReply(req.requestId, true, engine.run(def, SkillArgs.toMap(args["args"])))
+                }
+            }
+            // 技能远程文件管理（中心 WebUI 经总线下发；总线可信，handle 已在 SkillRegistry 防穿越）
+            "skill_list" -> ToolReply(req.requestId, true, skillListJson())
+            "skill_get" -> {
+                val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")
+                val c = skills?.read(handle) ?: return fail(req, "技能不存在或未启用技能")
+                ToolReply(req.requestId, true, mapper.createObjectNode()
+                    .put("handle", handle).put("isScript", c.isScript)
+                    .put("md", c.md).put("script", c.script).put("scriptFile", c.scriptFile).toString())
+            }
+            "skill_save" -> {
+                val s = skills ?: return fail(req, "本服未启用技能")
+                val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")
+                val n = s.write(handle, args["md"]?.asText() ?: "", args["script"]?.asText() ?: "", args["isScript"]?.asBoolean() ?: false)
+                if (n < 0) fail(req, "技能名非法") else ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", true).put("count", n).toString())
+            }
+            "skill_delete" -> {
+                val s = skills ?: return fail(req, "本服未启用技能")
+                val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")
+                ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", s.delete(handle)).toString())
+            }
+            "skill_reload" -> {
+                val s = skills ?: return fail(req, "本服未启用技能")
+                ToolReply(req.requestId, true, mapper.createObjectNode().put("count", s.reload()).toString())
+            }
             else -> fail(req, "未知动作：${req.action}")
         }
+    }
+
+    /** 技能清单 JSON（供中心 WebUI 列表）：每项含 name/description/handle/type + 参数声明。 */
+    private fun skillListJson(): String {
+        val arr = mapper.createArrayNode()
+        skills?.all()?.forEach { d ->
+            val o = arr.addObject()
+            o.put("name", d.name).put("description", d.description)
+                .put("handle", d.handle).put("type", if (d.isScript) "script" else "text")
+            val a = o.putArray("args")
+            d.args.forEach { arg -> a.addObject().put("name", arg.name).put("type", arg.type).put("description", arg.description) }
+        }
+        return arr.toString()
     }
 
     /** 本服健康快照（供中心哨兵巡检）：TPS（Paper/Youer 反射取，远古服无则 -1）+ 在线 + JVM 内存。 */

@@ -133,6 +133,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.startReplyListener()
                 extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit, pending)
                 extraTools += RemoteBalanceTool(b, cfg.remoteTimeoutMs())
+                // 服主编写的子服技能（GroovyShell 执行）：人工审过的确定性扩展，不过 guard，记 audit
+                extraTools += org.windy.windyagent.agent.RemoteSkillTool(b, cfg.remoteTimeoutMs(), audit)
                 // 物品估值 / 礼包提案（数据在子服，远端调用）
                 extraTools += RemoteAppraiseTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteProposePackTool(b, cfg.remoteTimeoutMs())
@@ -259,8 +261,15 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 val arr = if (i in 0 until j) raw.substring(i, j + 1) else "[]"
                 runCatching { cmapper.readTree(arr).takeIf { it.isArray }?.toString() }.getOrNull() ?: "[]"
             }
+            // 技能起草：把服主一句话需求 → 一份「纯文字技能」SKILL.md（流程型，给 Agent 照做用）
+            val draftSkillSys = "你帮服主把一段话整理成一个 WindyAgent「纯文字技能」的 SKILL.md。" +
+                "格式：以 --- 开头的 YAML frontmatter，含 name(英文小写下划线) 和 description(一句话说明「何时使用本技能」)，" +
+                "再 --- 结束，之后是 markdown 正文，写清 Agent 应遵循的操作步骤。" +
+                "正文可引用现有工具名，如 get_balance / run_command_on_server / knowledge_search / remember 等，让 Agent 用它们办事而非写代码。" +
+                "只输出 SKILL.md 内容本身，不要解释、不要代码块围栏。"
+            val draftSkill: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
-                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript).also { it.start() }
+                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript, draftSkill).also { it.start() }
         }
 
         // 玩家游戏内聊天触发：!ai <message>（永远只走知识库问答，不进 Agent）

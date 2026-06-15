@@ -1,5 +1,190 @@
 # WindyAgent 开发日志
 
+## 2026-06-15 Groovy 技能（skill）：服主免重编译给 Agent 加新能力
+
+**动机**：Agent 跑在 Java 服务端却没法执行代码去调装过来插件的 API。讨论后明确：要的不是「LLM 现场写代码」（每次现编、不可审、违背确定化哲学），而是**让服主写好脚本、Agent 按名调用**——审一次冻结，等于一条确定性能力，且免重编译即可扩展。
+
+**做法**：服主在子服插件数据目录 `skills/*.groovy` 放脚本，头部注释声明 `name/description/arg`，正文 Groovy。
+- `bukkit/skill/`：`SkillRegistry`（扫目录解析头部）、`SkillEngine`（`GroovyShell` + binding 注入 `server/plugins/actions/args/log`，经 `BukkitActions.onMainGuarded` 在主线程跑、带超时看门狗）、`SkillTool`（包成本地 `AgentTool`）、`SkillDef/SkillArgs`。
+- 嵌入式（standalone/hub）：技能 = 本地工具，LLM 直接可见。
+- provider：无嵌入式 Agent，技能经新增 `run_skill` 动作执行，并随能力目录推回中心（`SkillDef.toCapabilityCommand()`，source=「WindyAgent 技能」）。
+- 中心 / hub：`core/agent/RemoteSkillTool`（`run_skill_on_server`）跨服调；先 `search_capabilities` 查、再调。
+
+**安全**：信任边界 = 文件系统（能放文件的即服主）→ 技能不过 CommandGuard、无人值守也可调，但每次记 audit。看门狗只解除 Agent 等待、不强杀主线程脚本（强 interrupt 主线程有害）；`ThreadInterrupt` AST 给协作式取消。真正兜底是「脚本人工审过」。
+
+**依赖/构建**：`bukkit` 加 `org.codehaus.groovy:groovy:3.0.22`（Java 8 兼容），随 fat jar 打包，**不 relocate**（Bukkit 插件类加载器天然隔离，区别于 Velocity 宿主共享的 jackson）。config 加 `skills.{enabled,dir,timeout-sec}`，示例脚本 `deploy/bukkit/skills/welcome_vip.groovy`。
+
+**参数预校验**：对照「Agent-Skill 标准 6 步」第②步补硬校验——`SkillDef.validate()` 在跳主线程前拦缺参/类型不符，回报 LLM 补参（不进 GroovyShell）；统一收口在 `SkillEngine.run` 入口，本地/跨服两条调用自动覆盖。
+
+**WebUI 技能面板**（侧栏「🧪 技能扩展」）：因技能在子服、控制台在中心，全部经总线远程操作选中子服的 `skills/` 目录——
+- provider 加 `skill_list/get/save/delete/reload` 五个动作（`SkillRegistry` 加文件读写 + `safeFile` 防目录穿越）；
+- 中心 `DashboardServer` 加 `/api/skills*`（GET 列表 / POST 存 / DELETE 删 / content 读 / reload 重载 / run 测试运行）；
+- 前端复用知识库的双栏布局：左列表、右编辑器（文件名 + Groovy 正文 + 保存热重载 + 删除 + 「测试运行」面板填 JSON 参数直接在子服跑）。
+- 信任沿用：能进 token 闸的 WebUI 管理员 = 服主，故允许经总线给任意在线子服写技能文件。
+
+**改对齐 Anthropic Agent Skills（SKILL.md 三态）**：原实现把 skill 等同「可执行 Groovy」，漏了「纯文字技能」一整类。重做 loader 支持三态：
+- **纯文字**（`skills/x.md` 或文件夹 `SKILL.md` 无 script）：正文是操作流程，被调用时工具**只把正文返回进上下文**（记 audit=TEXT），Agent 据此用现有工具办事，不写代码。对应「渐进式披露」。
+- **脚本+文字**（文件夹 `SKILL.md` 含 `script: x.groovy`）：md 正文进工具描述（何时/怎么用），调用即跑脚本。
+- **纯脚本**（扁平 `x.groovy`，旧的 `// name` 头）：保留兼容。
+- `SkillDef` 加 `body/script` 双槽 + `isScript`；loader 解析 YAML frontmatter（name/description/script/args）。`SkillTool.execute`/provider `run_skill` 按 `isScript` 分支：文字回正文、脚本跑引擎。
+- WebUI 改 handle 制（文件夹名）+ 「📄纯文字 / ⚙️脚本+文字」切换，md 与 script 两个编辑框；save 统一落文件夹格式（`<handle>/SKILL.md` + `script.groovy`），扁平技能编辑保存即迁移成文件夹。`skill_get/save/delete` 总线动作参数由 file/content 改 handle/md/script/isScript。
+- 默认示例 `deploy/bukkit/skills/`：`welcome_vip/`(脚本+文字)、`handle_refund/SKILL.md`(纯文字)、`online_report.groovy`(纯脚本)。
+- **AI 起草纯文字技能**：复用知识库 draft 套路，新增 `draftSkill` lambda(Velocity)+`/api/skills/draft`，服主说一句需求 → LLM 生成流程型 SKILL.md，填回编辑框并切到「纯文字」类型；人确认后再保存。
+
+**TODO**：等用户编译验证；实测 Groovy 在 Youer/Mohist 混合端的类加载与对 Vault 等插件的跨插件 API 可见性；WebUI 写文件目前不限制内容（管理员自负），如需可加大小/语法预检。
+
+## 2026-06-14 定时任务加「AI 脚本」：需求 → LLM 编译成步骤 → 确定性执行
+
+用户指出 AI 定时任务不该是纯文本到点让 Agent 现场瞎跑（不可控、每次烧 token）。改成**创建时把需求编译成具体步骤脚本**，到点确定性执行。
+- **模型**：`ScheduledTask` 加 `action="script"` + `script: List<TaskStep>`（TaskStep={action(broadcast/command),target,payload}）。
+- **编译**：`/api/tasks/compile`（DashboardServer + velocity `compileScript` lambda）——LLM 受限 codegen：只准输出 broadcast/command 两种动作的 JSON 数组；velocity 侧截取 `[..]` + jackson 校验，脏输出退 `[]`。
+- **执行**：调度器 `script` 分支逐步跑 `runStep`（确定性 broadcast/run_command，不调 LLM/Agent）。`agent` 实时类型保留给夜间整理这种要读数据决策的。
+- **前端**：动作加「📜 AI 脚本」；选它→需求描述 + 「✨生成脚本」→ 步骤预览（编号/动作/目标/payload）；保存带 script。`tfActionChange` 按动作切换 payload 标签 + AI 按钮（脚本=生成脚本，实时=AI整理，广播/命令=无）。
+- 价值：脚本可见、可确认、可复用，到点零 LLM、确定性、可预测——契合"先确定化再请模型"的取向。
+- 改动：core(TaskScheduler 模型)、web(DashboardServer)、velocity(compile+调度器 runStep/script)、dashboard.html。需编译（/api/tasks/compile 新后端）。
+
+
+## 2026-06-14 运维总览：子服健康卡片 → 服务器列表 + 点开详情
+
+把首页"子服健康"改成**服务器列表**(一行一服:状态点/名/平台/TPS·在线·内存),**点行弹详情**。
+- **bukkit `server_detail` 动作**：`BukkitActions.serverDetail()` 主线程采——概况(uptime/在线·最大/内存/插件数/白名单/正版/视距) + **每个世界**(维度/游戏时间`tickToHM`/天气/实体数/加载区块/人数/难度) + **在线玩家**(名/世界/延迟 getPing 反射/模式)。tps/平台/内存由 handler 预算传入(`currentTps()` 抽出复用，含 NMS 回退)。全 Bukkit 稳定 API + runCatching 降级。
+- **web** `/api/serverdetail` → proxy。**前端**：健康网格→`.slist` 行(点击 openServerDetail)；详情走 infoModal(新增 `showDetail` 渲染 HTML，`showInfo` 维持纯文本)，含概况 dgrid + 世界/玩家 dtbl + (forge系)模组/分维度TPS 按钮(从原卡片移入)。
+- 数据集按用户确认：概况 + 世界 + 玩家(砍了出生点/MOTD/磁盘占用/游戏规则明细)。
+- 改动：bukkit(BukkitActions/handler)、web(DashboardServer)、dashboard.html。需编译(/api/serverdetail 是新后端)。
+
+
+
+## 2026-06-14 玩家聊天触发的 AI 只走知识问答，不进 Agent
+
+安全边界：玩家(不可信)不该能借 AI 踢人/查他人数据/跑命令。改为玩家走**纯知识库问答**。
+- **core `PlayerQa`**（新）：检索知识库(+命中弱时扩词) → LLM 据此作答，**完全不挂工具、不进 ReAct/Plan 循环**。系统提示限定"只依据知识库、查无则让问管理员、不能执行任何操作"。单次调用，省 token。
+- **入口分流**：游戏内 `!ai`（`VelocityChatListener`，永远不可信）→ **永远 PlayerQa**（去掉 agent/sessions 依赖）；`/ai` 命令（`AgentCommand`）→ 按权限：管理员/控制台(TRUSTED)→ 完整 Agent；普通玩家(UNTRUSTED)→ PlayerQa。
+- 元命令(help/clear/history)仍可用；用便宜模型(fastLlm)答玩家问。
+- 改动：core(PlayerQa)、velocity(VelocityChatListener/AgentCommand/装配)。需编译。
+- **子服端对齐（同批补上）**：standalone/hub 的嵌入式 Agent 同样处理——`BukkitChatListener` 玩家永远走 PlayerQa；`BukkitCommand` 按权限分流（管理员→Agent，玩家→PlayerQa）。
+  - 顺带补一处**早先的不一致**：`BukkitAgentRunner` 之前**没接知识库**（只有能力检索）。现补 `KnowledgeManager` + `KnowledgeSearchTool` + `KnowledgeWriteTool` + `PlayerQa`，让单机 Agent 也能查/写知识、玩家也能知识问答，与 Velocity 对等。
+  - 三模式边界厘清：provider(无 agent，玩家经 Velocity 入→VelocityChatListener 的 PlayerQa) / standalone / hub 均覆盖。
+
+## 2026-06-14 WebUI 审批栏目（待审 + 历史，首页面板 + 顶栏角标）
+
+高危操作的审批闸之前只能游戏内/控制台 `/ai-approve` 批，给 WebUI 补上入口。
+- **core `PendingApprovals`**：加结构化 `items()` + **审批历史** `historyItems()`（approve/deny/过期 都在唯一收口 record，故游戏内/控制台/网页批的都进同一份历史）；`Item`/`Decision` 数据类 + `ttl()`。
+- **web `DashboardServer`**：注入 `pending`；`/api/approvals`（待审 + 历史 + 剩余时效一次拉）、`/api/approvals/approve`、`/deny`。
+- **前端**：按用户选的——运维总览**首页顶部**待审面板（红框，单号 + 完整命令描述 + 剩余分钟 + ✅批准/❌驳回）+ **顶栏 🛡️待审角标**（始终更新、点击跳首页）；下方「🗂️ 审批历史」可折叠（✅/❌/⌛ 记录）。30s 轮询。
+- 改动：core(PendingApprovals)、web(DashboardServer)、velocity(传 pending)、dashboard.html。需编译。
+
+## 2026-06-14 检索现状梳理 + embedding 长期主义留坑（不动代码）
+
+复盘当前 RAG 检索，决定 embedding 先留坑、暂不接（长期主义：架构缝留着、推迟到真需要更强语义）。
+- **当前 = 关键词稀疏 + LLM 扩词兜底**：`KeywordKnowledgeStore` 切词无分词库（拉丁 `[a-z0-9]+`≥2 + 中文相邻二元组），打分=字段加权词频（标题×3/标签×2/正文×1）→ 滤0分排序 topK。三处共用：知识库 `KnowledgeSearchTool`、长期记忆 `recall`(+`recallMinScore`阈值+作用域)、能力检索 `CapabilityRegistry`(+`CommandSynonyms`中英同义词表)。命中弱 → `LlmQueryExpander` 用便宜模型扩词再搜（只在需要时烧 token）。
+- **向量+余弦是已建好的坑**：`VectorIndex.cosine` + `OpenAICompatEmbeddingProvider` + `buildEmbeddingProvider` + 配置 `embedding.enabled` 全在；卡点=mimo 无 `/embeddings` 出不了向量 → L3 永远落回关键词。能力检索接了该判断；**知识库还没接 VectorIndex**。
+- **填坑路径（备查）**：配 embedding 即可，免本地——首选硅基流动 `BAAI/bge-m3`（免费/OpenAI兼容/国内直连，base `https://api.siliconflow.cn/v1`），或本地 Ollama bge-m3。开后能力检索即语义；知识库需再补一行接 VectorIndex（增量嵌入+后台线程）。
+- 本条仅梳理+记忆（`project-rag-embedding-parked`），不改代码。
+
+## 2026-06-14 定时任务升级为 Agent 驱动 + 夜间自动整理知识库
+
+把定时任务从"死命令"升级成 **Agent 驱动**，并落地"夜间自动把数据沉淀成知识"。
+- **AI 任务类型**：`ScheduledTask.action` 增 `agent`——payload=自然语言指令，到点交 **Agent 自己执行**（拆解+调工具）。WebUI 任务表单加「🤖 AI 任务」选项 + 「✨ AI整理」按钮（把一句话润成清晰任务描述，`/api/tasks/refine`）。
+- **无人值守安全**：`AgentContext.unattended` + `RequestContext.unattended()`；定时 agent 任务以 TRUSTED + unattended 执行；`RemoteCommandTool` 在 unattended 下把高危命令**直接拦截只记录**（不挂审批单空等）。
+- **给 Agent 补两只手**：`KnowledgeWriteTool`（写/更新知识库，仅 TRUSTED）+ `OpsInsightTool`（velocity，`ops_digest`：汇各子服统计/分群/聊天词/命令词 + 近期告警成摘要）。原始数据仍留 behavior 库，工具只出摘要。
+- **内置夜间任务**：每天 **00:00**，`builtin-nightly-curation`（首次启动且无任务时自动种入）——指令让 Agent：ops_digest 取数 → 聊天/命令热词提炼 FAQ 写知识库 → 告警归纳进滚动「运营日志」条目(id=ops-log) → 玩家结构变化 remember 进管理方记忆。维度=①FAQ②运营摘要进KB、③画像进记忆。
+- 调度器移到 agent 之后构建（agent 任务要用它）；exec 按 action 分流 agent/broadcast/command。
+- 改动：core(AgentContext/RequestContext/AgentRouter/RemoteCommandTool/KnowledgeWriteTool)、velocity(OpsInsightTool + 装配 + 内置任务 + refine)、web(DashboardServer +/api/tasks/refine)、dashboard.html(AI任务选项+整理按钮)。需编译。
+
+## 2026-06-14 定时任务功能（调度器 + CRUD API + WebUI 管理页）
+
+补上"活动管理"占位页 → 改成可用的「⏰ 定时任务」。
+- **core/ops `TaskScheduler`**（新，平台无关）：任务存盘 `tasks.json`，单 daemon 线程每 30s 巡检到点任务，经注入的 `exec` 执行。`ScheduledTask` 模型：action(broadcast/command) + target(子服名 / *=全部已连) + payload + 调度(interval 每 N 分钟 / daily 每天 HH:MM，可限定周几)。CRUD 即时落盘 + 重算 nextRun；支持 runNow 手动触发、toggle 启停。
+- **velocity 装配**：调度器 exec 接总线——到点把 broadcast/run_command 下发到目标子服（* 遍历在线集），回执汇总写 lastResult。
+- **web `DashboardServer`**：`/api/tasks`（GET 列表 / POST 增改 / DELETE 删）+ `/api/tasks/run`、`/api/tasks/toggle`；手工解析 JSON（web 无 jackson-kotlin）。
+- **前端**：导航「活动管理🎉」→「定时任务⏰」；任务列表（状态/动作/调度/下次触发/上次结果 + 立即/启停/编辑/删）+ 动态表单（动作·目标·内容·触发方式·周几）。
+- 需 cross-server 启用（任务下发走总线）。改动：core(TaskScheduler)、web(DashboardServer)、velocity(装配)、dashboard.html。需编译。
+
+## 2026-06-14 Youer 实测修正：TPS 走 NMS、维度 TPS 改捕日志
+
+第二步在 Youer 26.1.2 实测：`server_mods` 反射通了（6 模组）；但发现两点要改：
+- **Youer 无 Bukkit `getTPS()`** → health_query 的 tps=-1（健康卡片空、哨兵 LAG 判定也失效）。修：`getTPS()` 失败时退 **NMS 反射**——`MinecraftServer.getAverageTickTimeNanos()`/`getAverageTickTime()`，回退字段 `tickTimesNanos`/`tickTimes`，推算整体 TPS（Youer 官方映射，方法名直接可用）。
+- **`/neoforge tps` 输出走 log4j 服务器日志、不回命令 sender** → 原 `CommandCapture`（抓 sender.sendMessage）抓不到。改 **`LogCapture`**：反射给 log4j 根 LoggerConfig 临时挂动态代理 Appender，异步派发命令 + 600ms 捕获窗口 + 按 "TPS" 过滤行，完事摘除。全反射、不编译期依赖 log4j-core，失败兜底空。
+- 实测确认输出格式：`Overworld/The Nether/The End/Overall: 20.000 TPS (x ms/tick)`。
+- 改动：bukkit(LogCapture 新 + BukkitActions.dispatchAsync + NeoForgeOps.dimensionTps 改 + handler nmsTps)。`CommandCapture`/`runCapture` 暂留（抓 sender 输出的命令仍可用）。需编译。
+
+## 2026-06-14 NeoForge 专属能力（差异化·第二步，需 Youer 实测）
+
+基于第一步的类型探测，给 forge/neoforge 子服解锁专属能力（按 platform 门控）。
+- **命令输出捕获** `CommandCapture`（新）：动态代理伪造 CommandSender 抓 sendMessage 文本（Bukkit 不回传命令输出，只能旁路捕获）；权限方法全返回 true 让 op 命令得跑，spigot() 等返回同一收集器代理覆盖组件路径。`BukkitActions.runCapture(cmd)` 主线程跑命令 + 收集。
+- **`NeoForgeOps`**（新）：① 模组清单——反射 `ModList.get().getMods()` 取 id/名/版本；② 分维度 TPS——捕获 `/neoforge tps`（NeoForge）或 `/forge tps`（旧 Forge）输出，捕不到给说明兜底。非 forge/neoforge 直接拒。
+- **总线动作**：`server_mods` / `dimension_tps`（handler，按类型门控）。**web**：`/api/mods`、`/api/dimtps`（proxyText 包成 {text}）。**前端**：运维总览健康卡片**仅对 forge/neoforge 子服**显示「🧩 模组 / ⏱️ 维度TPS」按钮 → 结果弹窗。
+- **不确定点（待 Youer 实测）**：命令捕获能否拿到输出，取决于 Youer 是否把 NeoForge 命令桥接进 Bukkit dispatch 并把输出路由回 sender；拿不到则按钮显示"未捕获"说明，整体 TPS 不受影响。
+- 改动：bukkit(CommandCapture + NeoForgeOps + BukkitActions.runCapture + handler 2 动作)、web(DashboardServer 2 路由 + proxyText)、dashboard.html(门控按钮 + 弹窗)。需编译。
+
+## 2026-06-14 子服核心类型探测（差异化能力地基·第一步）
+
+按"不同子服核心类型解锁不同能力"的方向，先做检测 + 上送 + 展示这层（稳、纯反射，不依赖命令捕获）。
+- **bukkit `ServerProfile`**（新）：纯反射/品牌判别探测子服形态——platform（neoforge-hybrid / forge-hybrid / paper / spigot / craftbukkit，靠探 `net.neoforged.fml.*` / `net.minecraftforge.*` / `io.papermc.*` 类）、mcVersion、brand、modCount（forge/neoforge 反射 `ModList.get().getMods().size`）、hasTps。探一次缓存，探不到降级。
+- **上送**：搭 `health_query` 回报带上 platform/mcVersion/brand/modCount → `HealthSnapshot` 加这些字段 → `snapshotsJson` 输出 → `/api/health`。
+- **展示**：运维总览健康卡片加类型徽章（🧩 NeoForge 混合端 · MC1.21 · N 模组）。
+- 这层为「按类型门控工具」铺好数据地基。第二步（NeoForge 专属：`/neoforge tps` 分维度、ModList 模组清单工具，需自定义 CommandSender 捕获命令输出）待 Youer 实测再做。
+- 改动：bukkit(ServerProfile + health_query)、core(HealthSnapshot + snapshotsJson)、velocity(probe 解析)、dashboard.html(徽章)。需编译。
+
+## 2026-06-14 控制台信息架构重排：首页=运维总览，对话独立成页
+
+定位是"主动运维"，故把控制台落地页从「聊天」换成「运维总览」，对话降为侧栏一项。
+- **新首页「🛰️ 运维总览」**（默认页）：① KPI 行(在线子服/在线玩家/活跃告警/哨兵状态) ② 子服健康卡片网格(每服状态点 + TPS/在线/内存%，实时) ③ 运维告警/处置过程时间线(哨兵告警 + LLM 建议)。30s 轮询，可见时刷新。
+- **对话**移到第二项「💬 AI 对话」，不再是落地页。
+- 后端补 `/api/health`：`HealthMonitor.snapshotsJson()` 出当前各子服健康+状态(offline>lag>mem>ok)；`DashboardServer` 加 `health` 供给函数，velocity 传 `{ sentinel?.snapshotsJson() ?: "[]" }`。哨兵关或无数据时前端降级为「连接的子服显示正常」。
+- 改动：core(HealthMonitor +snapshotsJson)、web(DashboardServer +/api/health)、velocity(传 health)、dashboard.html(新页+导航+健康卡片 CSS/JS)。需编译（健康/告警数据来自新 jar）。
+
+## 2026-06-14 主动运维哨兵 MVP（监控→评估→建议→通知 闭环）
+
+把 Agent 从"纯被动响应"推进到"主动运维"的第一个闭环。处置策略=**建议式走人工审批**（哨兵只报警+给建议，不自动执行命令，高危仍走 ai-approve）。
+- **采（子服）**：`BukkitCapabilityHandler` 加 `health_query` 动作 → 回 `{tps,online,memUsedMb,memMaxMb}`。TPS 用反射取（spigot-api 1.12 编译期无 getTPS，Paper/Youer 运行时有，远古服 -1 跳过）。
+- **评（中心，core/ops）**：新 `HealthMonitor`（平台无关，单 daemon 线程）定时巡检在线子服，**边沿触发**（状态翻转才报一次，不刷屏）：掉线/无响应、TPS<阈值、内存>阈值%、在线骤降；恢复报 RECOVERED。`HealthSnapshot`/`Incident`/`IncidentKind` 模型。
+- **触发/建议**：异常调 LLM（便宜模型）出"一句话诊断 + 具体处置建议"（`sentinelAdvise`），不自动执行。
+- **通知（core/ops + web）**：`Notifier` 抽象 + `CompositeNotifier`；`LogNotifier`（控制台）+ `AlertCenter`（web，内存环形缓冲，实现 Notifier）→ `/api/alerts`。前端顶栏 🔔 角标计数 + 下拉告警列表（含建议），30s 轮询。
+- **装配（velocity）**：探测=总线 dispatch `health_query` + 解析（阻塞 get 带超时）；在线集复用 onlineServers()；`AlertCenter` 早建、哨兵与看板共用；shutdown 停哨兵。
+- 配置：新 `sentinel:` 段（enabled/interval-sec/tps-min/mem-pct/player-drop/advise）。deploy/velocity 模板 + 活 VC 配置（已开）。
+- 改动：core(ops 4 文件 + AgentConfig)、bukkit(health_query)、web(AlertCenter + DashboardServer)、velocity(装配)、dashboard.html(🔔)、配置。需编译。
+- 后续（未做）：一键把建议落成 pending-approval（现在是建议→人工手动执行）；QQ/Webhook 通知通道；错误日志/崩溃栈采集；服务器健康落库做趋势。
+
+
+## 2026-06-14 长期记忆：管理方统一域 + 写入信任门槛
+
+针对"非玩家(管理方)输入有没有自动记忆、学的是不是有效记忆"的诊断与加固。现状：召回全自动(每请求注入 top-K，带 recallMinScore=2 过滤弱命中)、写入是 Agent 自主调 `remember`(有去重 + 上限淘汰)。两个缺口补上：
+- **管理方统一记忆域 `admin`**：新增 `LongTermMemory.ADMIN`。所有 TRUSTED 通道(网页控制台 / VC 控制台 / 有 windyagent.admin 的 /ai)写入默认落到 `admin` 域、召回也带上它 → **管理方不管从哪进，学到的互通**（之前各通道按 sessionId 隔离、不互通）。
+  - `recall`/`list` 加 `includeAdmin` 形参，AgentRouter 按 `trust==TRUSTED` 传入；MemoryCommand 同步(可信用户 list 含 admin，标 `[管理]`)。
+- **写入信任门槛**：`RememberTool` 加 `RequestContext.current()!=TRUSTED → 拒写`。普通玩家 `!ai`(UNTRUSTED)不能再往长期记忆写东西，**保证"有效记忆"只来自管理方**，挡污染。默认 scope 从 sessionId 改为 `admin`；显式 `global`=全服、或填玩家名定向。
+- 改动：core(LongTermMemory 接口 + FileLongTermMemory + RememberTool + AgentRouter + BuiltinCommands)。需编译。旧记忆仍按原 scope 保留，不迁移。
+
+## 2026-06-14 控制台命令提示面板 + 路由容忍斜杠
+
+WebUI 聊天加命令提示（用户预期斜杠触发，实际原是裸词）：
+- 后端 `AgentCommandRouter`：token 解析加 `.removePrefix("/")`，`/clear` == `clear`（兼顾 Web/IM 习惯，裸词仍可）。
+- 前端 `dashboard.html`：输入 `/` 弹命令面板（help/clear/history/status/value/memory + 管理员 pending/approve/deny），↑↓选 / Enter·Tab 补全 / Esc 关；命令名+描述+管理员标记。命令清单前端硬编码（小而稳，避免穿透 router→DashboardServer 取列表的管线）。
+- 修坑：选子服时 send() 会加"（默认子服…）"前缀顶掉命令词 → 斜杠命令一律直发路由、不加前缀。
+- 注：面板 UI 前端即时可见；斜杠真正触发 + 前缀豁免需编译。旧 jar 上临时用「裸词 + 总控」触发命令。
+
+## 2026-06-14 控制台打磨：微交互 + 可读性 + 聊天记录持久化
+
+一轮 WebUI 体验打磨（多为 dashboard.html，最后一项含 DashboardServer.kt）：
+- **微交互**：点击涟漪（委托到可点控件、落点扩散）、按压回弹、卡片悬浮抬升、切页淡入 + 面板/KPI 错峰入场、导航选中高亮条；尊重 `prefers-reduced-motion`。
+- **可读性**：AI 回复气泡原用 `--glass2`(白6%)几乎全透、被背景动漫图干扰，改深色实底 `rgba(20,15,40,.72)` + `backdrop-filter:blur(14px)`。
+- **去冗余**：删聊天页右栏底部版本署名卡片。
+- **聊天记录持久化（两层，graceful degradation）**：
+  - 前端 localStorage 按会话存（`wa_chat_<session>`）+ 记住选中子服（`wa_target`），刷新/切子服回灌；
+  - 后端 `DashboardServer` 把对话存盘 `chatlog/<session>.jsonl`，加 `/api/chat/history` 读回——**跨刷新跨设备、重启不丢**；前端 `renderHist` 优先拉后端、404/离线退回 localStorage。
+  - 前端发消息额外带 `display`(去掉"默认子服"前缀的原文)，存档干净；`clear` 指令清后端会话 + 删存档。
+  - 与 AI 上下文独立：SessionManager 仍限 max-history 轮（省 token），存档可更长（读回最近 200 条）。
+- 注：本批后端改动（缓存头 + 聊天存档接口）需编译进 jar 才生效；纯 HTML 改动用 dataDir 预览副本即时可见，视觉定稿后编译并删预览副本。
+
+## 2026-06-14 控制台缓存与“副本优先”踩坑 + 禁缓存头
+
+加词云后用户看不到，排查发现两层障碍：① `DashboardServer.respond()` 没发缓存头，浏览器拿旧页；
+② `page()` 优先读 `dataDir/dashboard.html` 覆盖副本，而数据目录里那份是早上热改留下的旧版（无词云），
+把 jar 内置的新版盖住了——换 jar/重启/清缓存都没用。处理：
+- 给所有响应加 `Cache-Control: no-cache, no-store, must-revalidate`（API 实时数据+HTML 热改即时生效）。
+- 删掉用户数据目录的 `dashboard.html` 覆盖副本，约定**前端跟 jar 走**，不再留热改副本（避免旧副本盖新版）。
+- 改动：DashboardServer.kt（缓存头）。
+
 ## 2026-06-14 词云画进看板（wordcloud2.js，命令/聊天双源）
 
 之前词频数据(`word_freq` 表 + `/api/words?source=cmd|chat`)早备好，只差前端画图。本轮补上：

@@ -54,14 +54,22 @@ class BukkitActions(
         return mainExec
     }
 
-    private fun <T> onMain(block: () -> T): T {
+    private fun <T> onMain(block: () -> T): T = onMain(10, block)
+
+    private fun <T> onMain(timeoutSec: Long, block: () -> T): T {
         if (Bukkit.isPrimaryThread()) return block()
         val future = CompletableFuture<T>()
         val task = Runnable { runCatching { future.complete(block()) }.onFailure { future.completeExceptionally(it) } }
         val exec = mainExecutor()
         if (exec != null) exec.execute(task) else Bukkit.getScheduler().runTask(plugin, task)
-        return future.get(10, TimeUnit.SECONDS)
+        return future.get(timeoutSec, TimeUnit.SECONDS)
     }
+
+    /**
+     * 供 skill 引擎复用：在主线程跑一段逻辑，带超时看门狗（防脚本久占主线程时 Agent 线程无限期阻塞）。
+     * 注意：超时只解除调用方等待，不强杀已在主线程上执行的脚本（强行 interrupt 主服务器线程有损服状态）。
+     */
+    fun <T> onMainGuarded(timeoutSec: Long, block: () -> T): T = onMain(timeoutSec, block)
 
     /** 返回 (是否成功, 文本结果)。执行前过安全护栏（子服侧防御纵深 + 信任分权 + 审批闸）。 */
     fun runCommand(command: String): Pair<Boolean, String> {

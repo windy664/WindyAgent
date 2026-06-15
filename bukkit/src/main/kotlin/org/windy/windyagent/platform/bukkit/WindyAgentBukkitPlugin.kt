@@ -6,6 +6,8 @@ import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
+import org.windy.windyagent.platform.bukkit.skill.SkillEngine
+import org.windy.windyagent.platform.bukkit.skill.SkillRegistry
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.bus.RedisBus
@@ -52,7 +54,13 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         // provider 经 executeCommand 直接执行中心已 gate 的命令，pending 在此模式不参与
         val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")), PendingApprovals())
         val itemService = ItemService.build(this, cfg)?.also { it.warmup() }
-        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior)
+        // 服主编写的 Groovy 技能：provider 无嵌入式 Agent，故技能经 run_skill 动作执行，
+        // 并把技能目录随能力目录推回中心（中心用 search_capabilities 查、run_skill_on_server 调）。
+        val skills = if (cfg.skillsEnabled())
+            SkillRegistry(dataFolder.toPath().resolve(cfg.skillsDir()).toFile(), logger) else null
+        val skillEngine = skills?.let { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
+        skills?.let { logger.info("技能已加载 — ${it.reload()} 个（skills/ 目录）") }
+        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior, skills, skillEngine)
 
         bus = runCatching {
             buildClientBus(cfg, transport).also { it.listen(serverName) { req -> handler.handle(req) } }
@@ -62,8 +70,10 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         }
         bus?.let { b ->
             logger.info("能力提供方已启动 — server-name: $serverName, transport: $transport")
-            // 启动后建能力目录，经总线推回中心（取代中心每次现扫）
-            CapabilitySync(this, actions, serverName) { cat -> b.publishCatalog(CapabilitySync.toJson(cat)) }.start()
+            // 启动后建能力目录（含技能条目），经总线推回中心（取代中心每次现扫）
+            CapabilitySync(this, actions, serverName, { cat -> b.publishCatalog(CapabilitySync.toJson(cat)) },
+                { skills?.let { it.reload(); it.all().map { d -> d.toCapabilityCommand() } } ?: emptyList() }
+            ).start()
         }
     }
 

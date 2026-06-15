@@ -183,6 +183,7 @@
   .kbgroup{font-size:11px;color:var(--mut);font-weight:800;margin:12px 4px 6px}
   .kbitem{padding:10px 12px;border-radius:11px;cursor:pointer;margin-bottom:4px}.kbitem:hover{background:var(--glass2)}
   .kbitem.on{background:linear-gradient(120deg,rgba(255,143,200,.22),rgba(183,155,255,.22));box-shadow:inset 0 0 0 1px var(--bd)}
+  .sktab.on{background:linear-gradient(120deg,rgba(255,143,200,.3),rgba(183,155,255,.3));color:#fff}
   .kbitem .it{font-weight:700;font-size:14px}.kbitem .is{color:var(--mut);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .kbdetail h3{margin:0 0 10px;font-size:19px}.kbdetail .body{white-space:pre-wrap;line-height:1.65;margin-top:12px}
   .build{padding:60px;text-align:center;color:var(--mut)}.build .big{font-size:48px}
@@ -228,6 +229,7 @@
     <div class="nav" data-v="players"><span class="i">🧑</span><span class="tx">玩家管理</span></div>
     <div class="nav" data-v="econ"><span class="i">💰</span><span class="tx">经济分析</span></div>
     <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx">定时任务</span></div>
+    <div class="nav" data-v="skill"><span class="i">🧪</span><span class="tx">技能扩展</span></div>
     <div class="nav" data-v="plugin"><span class="i">🧩</span><span class="tx">插件管理</span></div>
     <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx">设置中心</span></div>
     <div class="grow1"></div>
@@ -358,6 +360,18 @@
         <div id="taskList"></div>
       </div>
     </div>
+    <!-- 技能扩展 -->
+    <div id="page-skill" class="page">
+      <div class="board">
+        <div class="bhead"><div><h2>🧪 技能扩展</h2><p>服主写 Groovy 脚本给 Agent 加能力 · 当前子服 <b id="skSrv">-</b> 的 <code>skills/</code> 目录 · 保存即热重载</p></div>
+          <div class="tools"><button class="btn sm" onclick="newSkill()">+ 新建技能</button><button class="btn ghost sm" onclick="reloadSkills()">↻ 重载目录</button><button class="btn ghost sm" onclick="loadSkills()">刷新</button></div></div>
+        <div class="kbwrap">
+          <div class="kbside glass"><div id="skList"><p class="muted">载入中…</p></div></div>
+          <div class="kbmain"><div id="skEditor" class="panel glass"><p class="muted">← 从左侧选一个技能查看/编辑，或「+ 新建技能」。</p>
+            <p class="muted" style="font-size:12px;margin-top:10px">两类技能：<b>📄 纯文字</b>=一套操作流程，Agent 读懂后用现有工具执行（不写代码）；<b>⚙️ 脚本+文字</b>=SKILL.md 说清何时/怎么用 + Groovy 脚本干现有工具做不到的事（可用 <code>server / plugins / actions / args / log</code>，<code>return</code> 回报 Agent）。技能由你审过、不过命令护栏但记 audit。</p></div></div>
+        </div>
+      </div>
+    </div>
     <div id="page-plugin" class="page"><div class="build"><div class="big">🧩</div><h2>插件管理</h2><p>插件状态 / 配置 —— 建设中。</p></div></div>
     <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2>设置中心</h2><p>令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
   </main>
@@ -385,14 +399,14 @@ async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr
   try{await loadServers();$('gate').style.display='none';onServer();}catch(e){if(e.message!=='unauthorized')$('gateErr').textContent='连不上：'+e.message;}}
 
 /* 导航 */
-const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',plugin:'🧩 插件管理',settings:'⚙️ 设置中心'};
+const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',skill:'🧪 技能扩展',plugin:'🧩 插件管理',settings:'⚙️ 设置中心'};
 function logout(){localStorage.removeItem('wa_token');location.reload();}
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+v));
   const pt=$('pageTitle');if(pt&&PAGES[v])pt.textContent=PAGES[v];
   $('alertPop').style.display='none';   // 切页收起告警下拉，别盖住内容
   animateIn('page-'+v);
-  if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks();}
+  if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks(); if(v==='skill')loadSkills();}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.v));
 
 /* 切页：面板错峰淡入上滑（重置后重放，每次进页都活一下） */
@@ -591,7 +605,8 @@ function renderOpsAlerts(a){const list=a||[];
       ${x.advice?`<div style="font-size:12.5px;color:var(--mut);margin-top:7px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:7px">💡 ${esc(x.advice)}</div>`:''}
     </div>`).join(''):'<div class="ph" style="height:120px">暂无告警 — 服务器一切正常 🎐</div>';}
 function onServer(){const s=$('server').value;$('srvName').textContent=s||'-';loadOverview();
-  if($('page-board').classList.contains('on'))loadBoard();}
+  if($('page-board').classList.contains('on'))loadBoard();
+  if($('page-skill').classList.contains('on'))loadSkills();}
 
 /* 概览（聊天右栏 + 顶栏在线） */
 async function loadOverview(){const s=$('server').value;if(!s)return;
@@ -738,6 +753,112 @@ async function saveKb(){const title=$('kbTitle').value.trim();if(!title){alert('
   try{await api('/api/kb',{method:'POST',body:JSON.stringify({id:$('kbId').value||null,title,content:$('kbContent').value,tags})});await loadKb();const ni=kbEntries.findIndex(x=>x.title===title);if(ni>=0)showDetail(ni);else closeKb();}catch(e){alert('保存失败：'+e.message);}}
 async function delKb(id){if(!confirm('删除这条知识？'))return;try{await api('/api/kb?id='+encodeURIComponent(id),{method:'DELETE'});kbCur=-1;$('kbDetail').innerHTML='<p class="muted">已删除。</p>';closeKb();loadKb();}catch(e){alert(e.message);}}
 async function aiDraft(){const text=$('kbDraft').value.trim();if(!text)return;try{const d=await api('/api/kb/draft',{method:'POST',body:JSON.stringify({text})});$('kbTitle').value=d.title||'';$('kbTags').value=(d.tags||[]).join(', ');$('kbContent').value=d.content||'';}catch(e){alert('起草失败：'+e.message);}}
+
+/* ===== 技能扩展（三态：纯文字 / 脚本+文字 / 纯脚本）===== */
+let skills=[], skHandle=null, skType='script';
+const MD_TEXT_TPL=`---
+name: handle_refund
+description: 处理退款/扣费申诉的标准流程；玩家要求退款时使用
+---
+# 退款处理流程
+1. 用 get_balance 查该玩家余额，确认账目
+2. 用 knowledge_search 查「退款政策」，判断是否符合
+3. 符合 → 用 run_command_on_server 执行 eco take，并私聊告知
+4. 不符合 → 礼貌说明，不执行任何扣减
+⚠️ 单笔 > 1000 必须人工审批。`;
+const MD_SCRIPT_TPL=`---
+name: welcome_vip
+description: 给指定在线玩家发 VIP 礼包并广播；玩家开通会员时使用
+script: script.groovy
+args:
+  - player: string 目标玩家名（须在线）
+  - coins: int 发放金币数
+---
+当腐竹说「给某人开 VIP / 发会员礼包」时调用。发放前确认玩家在线；金额异常先确认。`;
+const SCRIPT_TPL=`import org.bukkit.Material
+import org.bukkit.inventory.ItemStack
+// 可用变量：server(Server) / plugins(PluginManager) / actions / args(Map) / log
+def p = server.getPlayerExact(args.player as String)
+if (p == null) return "玩家 \${args.player} 不在线"
+p.inventory.addItem(new ItemStack(Material.DIAMOND, 5))
+server.broadcastMessage("§e欢迎 VIP §b\${p.name}§e！")
+return "已给 \${p.name} 发放 5 钻石"`;
+
+async function loadSkills(){const s=$('server').value;$('skSrv').textContent=s||'-';
+  if(!s){$('skList').innerHTML='<p class="muted" style="padding:8px">先在右上角选一个子服</p>';return;}
+  try{skills=await api('/api/skills?server='+encodeURIComponent(s));renderSkills();}
+  catch(e){$('skList').innerHTML=`<p class="err" style="padding:8px">${esc(e.message)}</p>`;}}
+function renderSkills(){
+  if(!skills.length){$('skList').innerHTML='<p class="muted" style="padding:8px">该子服暂无技能。点「+ 新建技能」。</p>';return;}
+  $('skList').innerHTML=skills.map((k,i)=>{const ic=k.type==='script'?'⚙️':'📄';
+    return `<div class="kbitem ${k.handle===skHandle?'on':''}" onclick="openSkill(${i})"><div class="it">${ic} ${esc(k.name)}</div><div class="is">${esc((k.description||'').slice(0,44))}</div></div>`;}).join('');}
+async function openSkill(i){const s=$('server').value,k=skills[i];skHandle=k.handle;
+  try{const d=await api('/api/skills/content?server='+encodeURIComponent(s)+'&handle='+encodeURIComponent(k.handle));
+    skType=d.isScript?'script':'text';skForm(k.name,k.handle,d.md||'',d.script||'');}
+  catch(e){alert('读取失败：'+e.message);}renderSkills();}
+function newSkill(){skHandle=null;skType='script';skForm('','',MD_SCRIPT_TPL,SCRIPT_TPL);renderSkills();}
+function setSkType(t){skType=t;
+  // 新建时切类型顺带换模板（仅当内容还是另一个模板，避免覆盖用户编辑）
+  if(!skHandle){const md=$('skMd').value;
+    if(t==='text'&&(md===MD_SCRIPT_TPL||!md.trim()))$('skMd').value=MD_TEXT_TPL;
+    if(t==='script'&&(md===MD_TEXT_TPL||!md.trim()))$('skMd').value=MD_SCRIPT_TPL;}
+  $('skScriptBox').style.display=t==='script'?'block':'none';
+  $('skRunBox').style.display=t==='script'?'block':'none';
+  document.querySelectorAll('.sktab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));}
+function skForm(name,handle,md,script){
+  $('skEditor').innerHTML=`
+    <h3>${handle?'✏️ 编辑技能':'➕ 新建技能'}
+      <span style="float:right;font-size:12px">
+        <button class="btn ghost sm sktab" data-t="text" onclick="setSkType('text')">📄 纯文字</button>
+        <button class="btn ghost sm sktab" data-t="script" onclick="setSkType('script')">⚙️ 脚本+文字</button>
+      </span></h3>
+    <label class="muted" style="font-size:12px">技能名（文件夹名，落在 skills/ 下）</label>
+    <input id="skHandleIn" placeholder="如 welcome_vip" value="${esc(handle)}" ${handle?'readonly style="opacity:.7"':''}>
+    <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--violet);font-weight:700;font-size:13px">🤖 AI 起草 —— 说人话生成流程型 SKILL.md</summary>
+      <textarea id="skDraft" rows="2" placeholder="例：玩家要求退款时，先查余额和退款政策，符合就扣回并告知，单笔超1000要人工审批" style="margin-top:8px"></textarea>
+      <button class="btn sm" style="margin-top:8px" onclick="aiDraftSkill()">生成草稿 ✨</button></details>
+    <label class="muted" style="font-size:12px;display:block;margin-top:8px">SKILL.md（YAML 头 name/description/args + 正文）</label>
+    <textarea id="skMd" rows="9" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:13px">${esc(md)}</textarea>
+    <div id="skScriptBox">
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">script.groovy（脚本正文）</label>
+      <textarea id="skScript" rows="11" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:13px">${esc(script)}</textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn" onclick="saveSkill()">💾 保存并热重载</button>
+      ${handle?`<button class="btn ghost" onclick="delSkill()">🗑️ 删除</button>`:''}
+    </div>
+    <div id="skRunBox" class="panel glass" style="margin-top:16px;background:rgba(255,255,255,.03)">
+      <h3 style="font-size:14px">▶ 测试运行 <span class="tag">直接在子服执行，记 audit</span></h3>
+      <label class="muted" style="font-size:12px">技能名</label>
+      <input id="skRunName" placeholder="技能名" value="${esc(name||'')}">
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">参数（JSON 对象，如 {"player":"Steve"}）</label>
+      <textarea id="skRunArgs" rows="2" spellcheck="false" placeholder="{}"></textarea>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="runSkill()">运行 ✨</button>
+      <pre id="skRunOut" style="margin-top:10px;white-space:pre-wrap;font-size:12px;color:var(--muted)"></pre>
+    </div>`;
+  setSkType(skType);}
+async function saveSkill(){const s=$('server').value;if(!s){alert('先选子服');return;}
+  const handle=($('skHandleIn').value||'').trim();if(!handle){alert('技能名必填');return;}
+  const isScript=skType==='script';
+  try{await api('/api/skills',{method:'POST',body:JSON.stringify({server:s,handle,md:$('skMd').value,script:isScript?$('skScript').value:'',isScript})});
+    skHandle=handle;await loadSkills();
+    const k=skills.find(x=>x.handle===handle);if(k)openSkill(skills.indexOf(k));}
+  catch(e){alert('保存失败：'+e.message);}}
+async function delSkill(){if(!skHandle||!confirm('删除技能 '+skHandle+' ？'))return;const s=$('server').value;
+  try{await api('/api/skills?server='+encodeURIComponent(s)+'&handle='+encodeURIComponent(skHandle),{method:'DELETE'});
+    skHandle=null;$('skEditor').innerHTML='<p class="muted">已删除。</p>';loadSkills();}catch(e){alert(e.message);}}
+async function reloadSkills(){const s=$('server').value;if(!s)return;
+  try{const r=await api('/api/skills/reload?server='+encodeURIComponent(s),{method:'POST'});loadSkills();alert('已重载：'+((r&&r.count!=null)?r.count+' 个技能':'ok'));}catch(e){alert(e.message);}}
+async function aiDraftSkill(){const text=($('skDraft').value||'').trim();if(!text){alert('先写一句需求');return;}
+  try{const d=await api('/api/skills/draft',{method:'POST',body:JSON.stringify({text})});
+    if(d&&d.md){$('skMd').value=d.md;setSkType('text');}}  // 起草的是纯文字技能
+  catch(e){alert('起草失败：'+e.message);}}
+async function runSkill(){const s=$('server').value;const skill=($('skRunName').value||'').trim();if(!skill){alert('填技能名');return;}
+  let args={};const raw=($('skRunArgs').value||'').trim();
+  if(raw){try{args=JSON.parse(raw);}catch(e){alert('参数不是合法 JSON');return;}}
+  $('skRunOut').textContent='执行中…';
+  try{const r=await api('/api/skills/run',{method:'POST',body:JSON.stringify({server:s,skill,args})});$('skRunOut').textContent=(r&&r.result!=null)?r.result:JSON.stringify(r);}
+  catch(e){$('skRunOut').textContent='失败：'+e.message;}}
 
 /* 启动 */
 if(TK()){loadServers().then(()=>{$('gate').style.display='none';onServer();}).catch(()=>showGate('请重新输入令牌'));}else showGate();

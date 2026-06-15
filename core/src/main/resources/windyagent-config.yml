@@ -212,6 +212,25 @@ embedding:
   api-base-url: ""        # 留空=复用 llm.api-base-url
   api-key: ""             # 留空=复用 llm.api-key
 
+# 技能（skill，可选，默认开）：服主在插件数据目录的 skills/ 下放技能，给 Agent 加新能力。
+#   对齐 Anthropic Agent Skills，两类：
+#   ① 纯文字技能 —— 一套操作流程，Agent 读懂后用「现有工具」执行（不写代码）。如审退款的标准步骤。
+#   ② 脚本+文字技能 —— SKILL.md 说清「何时/怎么用」，再配 Groovy 脚本干现有工具做不到的事
+#      （直接调装过来插件的 API）。脚本注入变量：server / plugins / actions / args / log，return 回报 Agent。
+#   文件形态（三选一）：
+#     skills/<名>/SKILL.md (+ 可选脚本，frontmatter 里 script: xxx.groovy 指明)   ← 推荐
+#     skills/<名>.md       （纯文字，YAML frontmatter + 正文）
+#     skills/<名>.groovy   （纯脚本，头部 // name / // description / // arg 声明）
+#   SKILL.md 头部：name / description / script（省略=纯文字）/ args（- 名: 类型 说明）。
+#   安全：能往 skills/ 放文件的就是服主 → 视为「已审过的确定性扩展」，不过命令护栏、无人值守也可调，
+#   但每次执行记 audit。脚本在主线程跑、带 timeout-sec 看门狗。provider 技能随能力目录推回中心，
+#   中心用 search_capabilities 查、run_skill_on_server 调；standalone/hub 本机技能直接成为本地工具。
+#   WebUI「🧪 技能扩展」可直接增删改 + 测试运行（保存即热重载）。
+skills:
+  enabled: true
+  dir: "skills"          # 相对插件数据目录
+  timeout-sec: 5         # 单次技能主线程执行超时（秒），解除 Agent 等待；不强杀脚本
+
 # MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent。
 # 与跨服总线正交——总线调自家子服能力，MCP 接第三方/外部标准化工具。
 # 每项一个 server；headers 可选（如鉴权头）。留空则不接入。
