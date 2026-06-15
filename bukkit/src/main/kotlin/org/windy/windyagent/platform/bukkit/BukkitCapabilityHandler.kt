@@ -8,7 +8,7 @@ import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillArgs
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
-import org.windy.windyagent.platform.bukkit.skill.SkillRegistry
+import org.windy.windyagent.skill.SkillRegistry
 
 /**
  * 能力提供方（provider 模式）：把中心 Agent 经总线下发的动作映射为本服操作。
@@ -26,6 +26,9 @@ class BukkitCapabilityHandler(
 ) {
 
     private val mapper = ObjectMapper()
+
+    /** 技能增删改后回调（中心下发 skill_save/delete/reload 后触发，用于重建能力目录）。 */
+    var onSkillsChanged: () -> Unit = {}
 
     fun handle(req: ToolRequest): ToolReply {
         plugin.logger.info("← 收到中心指令：action=${req.action} args=${req.argsJson.take(200)}")
@@ -137,16 +140,18 @@ class BukkitCapabilityHandler(
                 val s = skills ?: return fail(req, "本服未启用技能")
                 val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")
                 val n = s.write(handle, args["md"]?.asText() ?: "", args["script"]?.asText() ?: "", args["isScript"]?.asBoolean() ?: false)
-                if (n < 0) fail(req, "技能名非法") else ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", true).put("count", n).toString())
+                if (n < 0) fail(req, "技能名非法") else { onSkillsChanged(); ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", true).put("count", n).toString()) }
             }
             "skill_delete" -> {
                 val s = skills ?: return fail(req, "本服未启用技能")
                 val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")
-                ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", s.delete(handle)).toString())
+                val ok = s.delete(handle); onSkillsChanged()
+                ToolReply(req.requestId, true, mapper.createObjectNode().put("ok", ok).toString())
             }
             "skill_reload" -> {
                 val s = skills ?: return fail(req, "本服未启用技能")
-                ToolReply(req.requestId, true, mapper.createObjectNode().put("count", s.reload()).toString())
+                val count = s.reload(); onSkillsChanged()
+                ToolReply(req.requestId, true, mapper.createObjectNode().put("count", count).toString())
             }
             else -> fail(req, "未知动作：${req.action}")
         }

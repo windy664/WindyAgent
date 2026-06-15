@@ -42,6 +42,9 @@ class CapabilitySync(
         schedule(5) // 启动后 ~5s 建初版（等插件加载完）
     }
 
+    /** 外部触发重建目录（如中心下发技能后，让新技能尽快进目录被 search_capabilities 搜到）。 */
+    fun rebuildSoon(delaySec: Long = 3) = schedule(delaySec)
+
     @EventHandler fun onPluginEnable(e: PluginEnableEvent) = schedule(3)
     @EventHandler fun onPluginDisable(e: PluginDisableEvent) = schedule(3)
 

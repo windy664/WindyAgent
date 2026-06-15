@@ -118,6 +118,21 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
         val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander)
 
+        // 技能库（中心权威）：中心持有唯一技能库。**文字技能**（流程型）在中心直接挂为工具执行；
+        // **脚本技能**在中心存源、由 SkillSync 经总线下发到子服执行（脚本需 Bukkit API）。首启释放默认技能。
+        val skills = if (cfg.skillsEnabled()) {
+            val sdir = dataDirectory.resolve(cfg.skillsDir()).toFile()
+            org.windy.windyagent.skill.SkillDefaults.releaseIfEmpty(sdir)
+            org.windy.windyagent.skill.SkillRegistry(sdir).also { it.reload() }
+        } else null
+        skills?.let { reg ->
+            val texts = reg.all().filter { !it.isScript }
+            texts.forEach { extraTools += org.windy.windyagent.agent.TextSkillTool(it, audit) }
+            logger.info("技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服）",
+                reg.all().size, texts.size, reg.all().size - texts.size)
+        }
+        var skillSync: SkillSync? = null
+
         // MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent（与跨服总线正交）
         val mcpTools = McpLoader.load(cfg.mcpServers())
         if (mcpTools.isNotEmpty()) {
@@ -143,7 +158,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 // 配了 embedding 则走语义检索（L3 RAG），否则关键词（L2）。
                 val registry = CapabilityRegistry(buildEmbeddingProvider(cfg), dataDirectory.resolve("capability"))
                 registry.load() // 永久记忆：重启直接从盘载入，不靠子服重推
-                b.onCatalog { json -> registry.accept(json) }
+                // 脚本技能下发器：子服上线（宣告目录）时把命中它的脚本技能推到其 skills/ 目录执行
+                skillSync = skills?.let { SkillSync(b, it, cfg.remoteTimeoutMs()) }
+                b.onCatalog { json -> registry.accept(json); skillSync?.onServerAnnounced(json) }
                 if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
                 // 在线判定：优先用总线的"真实在线"集（Socket 中枢=活动连接）；传输报不了(如 Redis)才退回
@@ -269,7 +286,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "只输出 SKILL.md 内容本身，不要解释、不要代码块围栏。"
             val draftSkill: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
-                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript, draftSkill).also { it.start() }
+                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript, draftSkill,
+                skills, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用，无法下发" }).also { it.start() }
         }
 
         // 玩家游戏内聊天触发：!ai <message>（永远只走知识库问答，不进 Agent）

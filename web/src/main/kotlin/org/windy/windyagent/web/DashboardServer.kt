@@ -9,6 +9,7 @@ import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.ops.ScheduledTask
 import org.windy.windyagent.ops.TaskScheduler
 import org.windy.windyagent.safety.PendingApprovals
+import org.windy.windyagent.skill.SkillRegistry
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -46,7 +47,11 @@ class DashboardServer(
     /** 脚本编译：把需求描述(desc) + 默认子服(server) → LLM 编译成步骤 JSON 数组字符串。 */
     private val compileScript: ((String, String) -> String)? = null,
     /** 技能起草：把服主一句话需求 → LLM 生成一份「纯文字技能」的 SKILL.md 文本。 */
-    private val draftSkill: ((String) -> String)? = null
+    private val draftSkill: ((String) -> String)? = null,
+    /** 中心权威技能库（本地文件管理：list/get/save/delete/reload + 测试文字技能）。 */
+    private val skills: SkillRegistry? = null,
+    /** 脚本技能下发：把中心库脚本技能推到命中的在线子服，返回结果摘要。 */
+    private val syncSkills: (() -> String)? = null
 ) {
     private val log = LoggerFactory.getLogger(DashboardServer::class.java)
     private val mapper = ObjectMapper()
@@ -123,13 +128,22 @@ class DashboardServer(
             "/api/chat/history" -> json(ex, 200, chatHistory(q["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             "/api/kb" -> kbApi(ex, q)
             "/api/kb/draft" -> draftApi(ex)
-            // 技能（Groovy skill）：管理选中子服的 skills/ 目录（经总线远程读写 + 热重载 + 测试运行）
+            // 技能（Groovy skill）：管理**中心权威库**（本地文件读写 + 热重载 + 下发子服 + 测试运行）
             "/api/skills" -> skillsApi(ex, q)
             "/api/skills/content" -> {
                 val handle = q["handle"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
-                proxy(ex, q, "skill_get", mapper.createObjectNode().put("handle", handle).toString())
+                val s = skills ?: return json(ex, 503, """{"error":"skills disabled"}""")
+                val c = s.read(handle) ?: return json(ex, 404, """{"error":"not found"}""")
+                val def = s.all().firstOrNull { it.handle.equals(handle, true) }
+                json(ex, 200, mapper.createObjectNode().put("handle", handle).put("isScript", c.isScript)
+                    .put("md", c.md).put("script", c.script).put("scriptFile", c.scriptFile)
+                    .put("targets", def?.targets?.joinToString(", ") ?: "").toString())
             }
-            "/api/skills/reload" -> proxy(ex, q, "skill_reload", "{}")
+            "/api/skills/reload" -> {
+                val s = skills ?: return json(ex, 503, """{"error":"skills disabled"}""")
+                json(ex, 200, mapper.createObjectNode().put("count", s.reload()).toString())
+            }
+            "/api/skills/sync" -> skillSyncApi(ex)
             "/api/skills/run" -> skillRunApi(ex)
             "/api/skills/draft" -> skillDraftApi(ex)
             else -> json(ex, 404, """{"error":"unknown api"}""")
@@ -222,36 +236,83 @@ class DashboardServer(
         json(ex, 200, if (s >= 0 && e > s) out.substring(s, e + 1) else """{"title":"","content":${jstr(out)},"tags":[]}""")
     }
 
-    // ---- 技能（Groovy skill）管理：list / save / delete（内容读取、reload、run 在 api() 里直接代理）----
+    // ---- 技能（Groovy skill）管理：直接操作**中心权威库**本地文件（list / save / delete）----
     private fun skillsApi(ex: HttpExchange, q: Map<String, String>) {
+        val s = skills ?: return json(ex, 503, """{"error":"skills disabled"}""")
         when (ex.requestMethod) {
-            "GET" -> proxy(ex, q, "skill_list", "{}")   // server 取自 q
+            "GET" -> json(ex, 200, skillListJson())
             "POST" -> {
                 val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
-                val server = n["server"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
                 val handle = n["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
-                val args = mapper.createObjectNode()
-                    .put("handle", handle)
-                    .put("md", n["md"]?.asText() ?: "")
-                    .put("script", n["script"]?.asText() ?: "")
-                    .put("isScript", n["isScript"]?.asBoolean() ?: false).toString()
-                dispatchTo(ex, server, "skill_save", args)
+                val isScript = n["isScript"]?.asBoolean() ?: false
+                var md = n["md"]?.asText() ?: ""
+                // 脚本技能：把「目标子服」写进 frontmatter targets（空=全部）。文字技能无目标。
+                if (isScript) md = withTargets(md, n["targets"]?.asText() ?: "")
+                val count = s.write(handle, md, n["script"]?.asText() ?: "", isScript)
+                if (count < 0) return json(ex, 400, """{"error":"技能名非法"}""")
+                // 存完即下发：脚本技能推到命中的在线子服执行（文字技能不下发，中心本地执行）
+                val pushed = if (isScript) syncSkills?.invoke() else null
+                json(ex, 200, mapper.createObjectNode().put("ok", true).put("count", count)
+                    .put("pushed", pushed ?: "").toString())
             }
             "DELETE" -> {
-                val server = q["server"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
                 val handle = q["handle"]?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing handle"}""")
-                dispatchTo(ex, server, "skill_delete", mapper.createObjectNode().put("handle", handle).toString())
+                json(ex, 200, mapper.createObjectNode().put("ok", s.delete(handle)).toString())
             }
             else -> json(ex, 405, """{"error":"method not allowed"}""")
         }
     }
 
-    /** WebUI 里测试运行一个技能：POST {server, skill, args} → 派发 run_skill。 */
+    /** 中心库技能清单 JSON：每项 name/description/handle/type/targets + 参数声明。 */
+    private fun skillListJson(): String {
+        val arr = mapper.createArrayNode()
+        skills?.all()?.forEach { d ->
+            val o = arr.addObject()
+            o.put("name", d.name).put("description", d.description)
+                .put("handle", d.handle).put("type", if (d.isScript) "script" else "text")
+                .put("targets", if (d.targets.isEmpty()) "all" else d.targets.joinToString(", "))
+            val a = o.putArray("args")
+            d.args.forEach { arg -> a.addObject().put("name", arg.name).put("type", arg.type).put("description", arg.description) }
+        }
+        return arr.toString()
+    }
+
+    /** 把脚本技能下发到所有命中的在线子服（WebUI「立即下发」）。 */
+    private fun skillSyncApi(ex: HttpExchange) {
+        val sync = syncSkills ?: return json(ex, 503, """{"error":"cross-server sync unavailable"}""")
+        json(ex, 200, mapper.createObjectNode().put("result", sync.invoke()).toString())
+    }
+
+    /** 在 SKILL.md 的 frontmatter 中设置 `targets:` 行（csv→列表，空/all/* 则删除该行=全部子服）。 */
+    private fun withTargets(md: String, targetsCsv: String): String {
+        val items = targetsCsv.split(Regex("[,，]")).map { it.trim() }.filter { it.isNotEmpty() && !it.equals("all", true) && it != "*" }
+        val lines = md.replace("\r\n", "\n").split("\n").toMutableList()
+        if (lines.firstOrNull()?.trim() != "---") {
+            // 无 frontmatter：补一段（write 还会补 script 字段）
+            val tline = if (items.isEmpty()) "" else "targets: [${items.joinToString(", ")}]\n"
+            return "---\n$tline---\n$md"
+        }
+        val end = lines.drop(1).indexOfFirst { it.trim() == "---" }.let { if (it < 0) -1 else it + 1 }
+        if (end < 0) return md
+        // 删掉已有 targets 行
+        var i = 1
+        while (i < end) { if (lines[i].trim().startsWith("targets:")) { lines.removeAt(i) } else i++ }
+        if (items.isNotEmpty()) lines.add(1, "targets: [${items.joinToString(", ")}]")
+        return lines.joinToString("\n")
+    }
+
+    /**
+     * WebUI 里测试运行一个技能：POST {server, skill, args}。
+     * 文字技能=中心直接出正文（无需子服）；脚本技能=派发 run_skill 到选中的在线子服。
+     */
     private fun skillRunApi(ex: HttpExchange) {
         if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
         val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
-        val server = n["server"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing server"}""")
         val skill = n["skill"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"missing skill"}""")
+        // 文字（流程）技能：中心本地直接返回正文，不需要子服
+        val def = skills?.get(skill)
+        if (def != null && !def.isScript) return json(ex, 200, mapper.createObjectNode().put("result", def.textOutput()).toString())
+        val server = n["server"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"脚本技能需选择目标子服"}""")
         val payload = mapper.createObjectNode().put("skill", skill)
         payload.replace("args", n["args"]?.takeIf { it.isObject } ?: mapper.createObjectNode())
         // 子服 run_skill 回的是纯文本结果，包成 {result} 给前端

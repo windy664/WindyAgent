@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.AuditLog
+import org.windy.windyagent.skill.SkillDef
 
 /**
  * 把一个 [SkillDef] 包成本地 [AgentTool]，供**嵌入式 Agent（standalone/hub）**直接挂载——

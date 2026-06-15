@@ -8,6 +8,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.codehaus.groovy.control.CompilerConfiguration
 import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer
 import org.windy.windyagent.platform.bukkit.BukkitActions
+import org.windy.windyagent.skill.SkillDef
 
 /**
  * 用内嵌 Groovy 执行 skill 脚本。binding 注入：

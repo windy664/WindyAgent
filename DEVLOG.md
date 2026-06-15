@@ -1,5 +1,24 @@
 # WindyAgent 开发日志
 
+## 2026-06-15（续）技能架构重构：中心权威库 + 下发
+
+**起因**：① 默认技能不会自动出现（配置首启会从 jar 释放，技能没有这套逻辑 → 全新子服 `skills/` 空，面板空白）；② 用户要求技能统一放主控端管。
+
+**物理约束**：脚本技能（Groovy）必须在 bukkit 子服执行（要调该服 Bukkit/Vault API，Velocity 中心没有 Bukkit API）；纯文字技能只是给 Agent 的流程指令，Agent 在中心跑，更该在中心存+用。
+
+**目标形态**：中心持唯一权威技能库统一管 → 文字技能在中心直接挂工具执行；脚本技能在中心存源、连接/保存时下发到目标子服执行。默认技能随 jar 释放到中心库。中心为权威，子服 `skills/` 由下发接管（覆盖同名）。
+
+**改动**（分 4 阶段）：
+- **下沉 core**：`SkillDef`/`SkillArg`/`SkillRegistry` 从 bukkit 移到 `core/skill/`（中心+子服共用解析/文件管理）；`SkillEngine`/`SkillTool`/`SkillArgs` 留 bukkit（Groovy/Bukkit）。`SkillRegistry` 改用 slf4j、去掉构造器 Logger 参数。
+- **默认释放**（Phase 0）：默认技能打进 `core/resources/skills/` + `_manifest.txt`；`SkillDefaults.releaseIfEmpty(dir)` 首启释放。velocity 建库时调；bukkit standalone/hub 启动调（provider 不调，由中心下发）。
+- **中心库 + 文字技能中心执行**（Phase 1）：velocity 在 `dataDirectory/skills` 建 `SkillRegistry`；新增 `core/agent/TextSkillTool`（文字技能包成工具，execute 返回正文，audit=TEXT），中心把库里所有文字技能挂进 extraTools。脚本技能仍由子服上报能力目录（server 绑定正确），中心不发布脚本目录。
+- **脚本下发**（Phase 2）：`SkillDef` 加 `targets`（空=all），frontmatter `targets:` / 扁平头 `// target:` 解析。新增 `velocity/SkillSync`：把命中某子服的脚本技能经总线 `skill_save` 推到其 `skills/`（写文件+reload）。触发：子服上线（`b.onCatalog` 解析 server）+ WebUI 手动。子服侧 `BukkitCapabilityHandler` 加 `onSkillsChanged` 回调 → `CapabilitySync.rebuildSoon()`（下发后重建目录，让脚本技能进目录被搜到）。
+- **WebUI 改管中心库**（Phase 3）：`DashboardServer` 加 `skills`(中心库)+`syncSkills` 注入；`/api/skills*` 改直接操作本地库（list/get/save/delete/reload 不再代理子服）；脚本技能存即下发；新增 `/api/skills/sync`；`withTargets` 把「目标子服」写进 frontmatter。测试运行：文字技能中心直接出正文、脚本技能派发到选中子服。前端面板改为「中心权威库」语义 + 目标子服输入 + ⬇下发按钮。侧栏空白占位 🧩 已删，技能相关只剩「🧪 技能扩展」。`dashboard.html` 已改为只走 jar（`page()=bundled`）。
+
+**部署支持**（按用户口径两种）：Velocity 主导（Velocity 中心库 + bukkit 子服 provider 接收下发）；纯 bukkit 单机（standalone 本地库，文字+脚本都本地执行，无需下发）。
+
+**TODO**：等用户编译验证（[[user-handles-builds]]）；实测下发链路（子服上线 → 收脚本 → 重建目录 → run_skill_on_server）；遗留：子服 legacy 文字技能不会被下发清理（中心已本地执行同名，重复无害）；`DashboardServer` 的 `Files`/`dispatchTo` 可能变未用（仅警告）。
+
 ## 2026-06-15 Groovy 技能（skill）：服主免重编译给 Agent 加新能力
 
 **动机**：Agent 跑在 Java 服务端却没法执行代码去调装过来插件的 API。讨论后明确：要的不是「LLM 现场写代码」（每次现编、不可审、违背确定化哲学），而是**让服主写好脚本、Agent 按名调用**——审一次冻结，等于一条确定性能力，且免重编译即可扩展。
