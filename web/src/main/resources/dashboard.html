@@ -362,8 +362,8 @@
     <!-- 技能扩展 -->
     <div id="page-skill" class="page">
       <div class="board">
-        <div class="bhead"><div><h2>🧪 技能扩展</h2><p>服主写 Groovy 脚本给 Agent 加能力 · 当前子服 <b id="skSrv">-</b> 的 <code>skills/</code> 目录 · 保存即热重载</p></div>
-          <div class="tools"><button class="btn sm" onclick="newSkill()">+ 新建技能</button><button class="btn ghost sm" onclick="reloadSkills()">↻ 重载目录</button><button class="btn ghost sm" onclick="loadSkills()">刷新</button></div></div>
+        <div class="bhead"><div><h2>🧪 技能扩展</h2><p><b>中心权威技能库</b>（统一管理）· 📄文字技能在中心执行 / ⚙️脚本技能下发到目标子服执行 · 保存即热重载</p></div>
+          <div class="tools"><button class="btn sm" onclick="newSkill()">+ 新建技能</button><button class="btn ghost sm" onclick="syncSkills()">⬇ 下发到子服</button><button class="btn ghost sm" onclick="reloadSkills()">↻ 重载库</button><button class="btn ghost sm" onclick="loadSkills()">刷新</button></div></div>
         <div class="kbwrap">
           <div class="kbside glass"><div id="skList"><p class="muted">载入中…</p></div></div>
           <div class="kbmain"><div id="skEditor" class="panel glass"><p class="muted">← 从左侧选一个技能查看/编辑，或「+ 新建技能」。</p>
@@ -782,28 +782,28 @@ p.inventory.addItem(new ItemStack(Material.DIAMOND, 5))
 server.broadcastMessage("§e欢迎 VIP §b\${p.name}§e！")
 return "已给 \${p.name} 发放 5 钻石"`;
 
-async function loadSkills(){const s=$('server').value;$('skSrv').textContent=s||'-';
-  if(!s){$('skList').innerHTML='<p class="muted" style="padding:8px">先在右上角选一个子服</p>';return;}
-  try{skills=await api('/api/skills?server='+encodeURIComponent(s));renderSkills();}
+async function loadSkills(){
+  try{skills=await api('/api/skills');renderSkills();}
   catch(e){$('skList').innerHTML=`<p class="err" style="padding:8px">${esc(e.message)}</p>`;}}
 function renderSkills(){
-  if(!skills.length){$('skList').innerHTML='<p class="muted" style="padding:8px">该子服暂无技能。点「+ 新建技能」。</p>';return;}
+  if(!skills.length){$('skList').innerHTML='<p class="muted" style="padding:8px">中心库暂无技能。点「+ 新建技能」。</p>';return;}
   $('skList').innerHTML=skills.map((k,i)=>{const ic=k.type==='script'?'⚙️':'📄';
-    return `<div class="kbitem ${k.handle===skHandle?'on':''}" onclick="openSkill(${i})"><div class="it">${ic} ${esc(k.name)}</div><div class="is">${esc((k.description||'').slice(0,44))}</div></div>`;}).join('');}
-async function openSkill(i){const s=$('server').value,k=skills[i];skHandle=k.handle;
-  try{const d=await api('/api/skills/content?server='+encodeURIComponent(s)+'&handle='+encodeURIComponent(k.handle));
-    skType=d.isScript?'script':'text';skForm(k.name,k.handle,d.md||'',d.script||'');}
+    const tg=k.type==='script'?`<span class="tag" style="font-size:10px">→ ${esc(k.targets||'all')}</span>`:'';
+    return `<div class="kbitem ${k.handle===skHandle?'on':''}" onclick="openSkill(${i})"><div class="it">${ic} ${esc(k.name)} ${tg}</div><div class="is">${esc((k.description||'').slice(0,44))}</div></div>`;}).join('');}
+async function openSkill(i){const k=skills[i];skHandle=k.handle;
+  try{const d=await api('/api/skills/content?handle='+encodeURIComponent(k.handle));
+    skType=d.isScript?'script':'text';skForm(k.name,k.handle,d.md||'',d.script||'',d.targets||'');}
   catch(e){alert('读取失败：'+e.message);}renderSkills();}
-function newSkill(){skHandle=null;skType='script';skForm('','',MD_SCRIPT_TPL,SCRIPT_TPL);renderSkills();}
+function newSkill(){skHandle=null;skType='script';skForm('','',MD_SCRIPT_TPL,SCRIPT_TPL,'');renderSkills();}
 function setSkType(t){skType=t;
   // 新建时切类型顺带换模板（仅当内容还是另一个模板，避免覆盖用户编辑）
   if(!skHandle){const md=$('skMd').value;
     if(t==='text'&&(md===MD_SCRIPT_TPL||!md.trim()))$('skMd').value=MD_TEXT_TPL;
     if(t==='script'&&(md===MD_TEXT_TPL||!md.trim()))$('skMd').value=MD_SCRIPT_TPL;}
   $('skScriptBox').style.display=t==='script'?'block':'none';
-  $('skRunBox').style.display=t==='script'?'block':'none';
+  const tb=$('skTargetsBox');if(tb)tb.style.display=t==='script'?'block':'none';
   document.querySelectorAll('.sktab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));}
-function skForm(name,handle,md,script){
+function skForm(name,handle,md,script,targets){
   $('skEditor').innerHTML=`
     <h3>${handle?'✏️ 编辑技能':'➕ 新建技能'}
       <span style="float:right;font-size:12px">
@@ -812,6 +812,10 @@ function skForm(name,handle,md,script){
       </span></h3>
     <label class="muted" style="font-size:12px">技能名（文件夹名，落在 skills/ 下）</label>
     <input id="skHandleIn" placeholder="如 welcome_vip" value="${esc(handle)}" ${handle?'readonly style="opacity:.7"':''}>
+    <div id="skTargetsBox">
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">下发到哪些子服（脚本技能；逗号分隔，留空或 all=所有在线子服）</label>
+      <input id="skTargetsIn" placeholder="all（或：survival, lobby）" value="${esc(targets||'')}">
+    </div>
     <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--violet);font-weight:700;font-size:13px">🤖 AI 起草 —— 说人话生成流程型 SKILL.md</summary>
       <textarea id="skDraft" rows="2" placeholder="例：玩家要求退款时，先查余额和退款政策，符合就扣回并告知，单笔超1000要人工审批" style="margin-top:8px"></textarea>
       <button class="btn sm" style="margin-top:8px" onclick="aiDraftSkill()">生成草稿 ✨</button></details>
@@ -826,7 +830,7 @@ function skForm(name,handle,md,script){
       ${handle?`<button class="btn ghost" onclick="delSkill()">🗑️ 删除</button>`:''}
     </div>
     <div id="skRunBox" class="panel glass" style="margin-top:16px;background:rgba(255,255,255,.03)">
-      <h3 style="font-size:14px">▶ 测试运行 <span class="tag">直接在子服执行，记 audit</span></h3>
+      <h3 style="font-size:14px">▶ 测试运行 <span class="tag">脚本→选中子服执行 / 文字→中心出正文，记 audit</span></h3>
       <label class="muted" style="font-size:12px">技能名</label>
       <input id="skRunName" placeholder="技能名" value="${esc(name||'')}">
       <label class="muted" style="font-size:12px;display:block;margin-top:8px">参数（JSON 对象，如 {"player":"Steve"}）</label>
@@ -835,27 +839,33 @@ function skForm(name,handle,md,script){
       <pre id="skRunOut" style="margin-top:10px;white-space:pre-wrap;font-size:12px;color:var(--muted)"></pre>
     </div>`;
   setSkType(skType);}
-async function saveSkill(){const s=$('server').value;if(!s){alert('先选子服');return;}
+async function saveSkill(){
   const handle=($('skHandleIn').value||'').trim();if(!handle){alert('技能名必填');return;}
   const isScript=skType==='script';
-  try{await api('/api/skills',{method:'POST',body:JSON.stringify({server:s,handle,md:$('skMd').value,script:isScript?$('skScript').value:'',isScript})});
+  const targets=isScript?(($('skTargetsIn')||{}).value||'').trim():'';
+  try{const r=await api('/api/skills',{method:'POST',body:JSON.stringify({handle,md:$('skMd').value,script:isScript?$('skScript').value:'',isScript,targets})});
     skHandle=handle;await loadSkills();
-    const k=skills.find(x=>x.handle===handle);if(k)openSkill(skills.indexOf(k));}
+    const k=skills.find(x=>x.handle===handle);if(k)openSkill(skills.indexOf(k));
+    if(isScript&&r&&r.pushed)console.log('已保存并下发：'+r.pushed);}
   catch(e){alert('保存失败：'+e.message);}}
-async function delSkill(){if(!skHandle||!confirm('删除技能 '+skHandle+' ？'))return;const s=$('server').value;
-  try{await api('/api/skills?server='+encodeURIComponent(s)+'&handle='+encodeURIComponent(skHandle),{method:'DELETE'});
+async function delSkill(){if(!skHandle||!confirm('从中心库删除技能 '+skHandle+' ？（已下发的子服副本不会自动清除）'))return;
+  try{await api('/api/skills?handle='+encodeURIComponent(skHandle),{method:'DELETE'});
     skHandle=null;$('skEditor').innerHTML='<p class="muted">已删除。</p>';loadSkills();}catch(e){alert(e.message);}}
-async function reloadSkills(){const s=$('server').value;if(!s)return;
-  try{const r=await api('/api/skills/reload?server='+encodeURIComponent(s),{method:'POST'});loadSkills();alert('已重载：'+((r&&r.count!=null)?r.count+' 个技能':'ok'));}catch(e){alert(e.message);}}
+async function reloadSkills(){
+  try{const r=await api('/api/skills/reload',{method:'POST'});loadSkills();alert('已重载中心库：'+((r&&r.count!=null)?r.count+' 个技能':'ok'));}catch(e){alert(e.message);}}
+async function syncSkills(){
+  try{const r=await api('/api/skills/sync',{method:'POST'});alert('下发结果：'+((r&&r.result)||'ok'));}catch(e){alert('下发失败：'+e.message);}}
 async function aiDraftSkill(){const text=($('skDraft').value||'').trim();if(!text){alert('先写一句需求');return;}
   try{const d=await api('/api/skills/draft',{method:'POST',body:JSON.stringify({text})});
     if(d&&d.md){$('skMd').value=d.md;setSkType('text');}}  // 起草的是纯文字技能
   catch(e){alert('起草失败：'+e.message);}}
-async function runSkill(){const s=$('server').value;const skill=($('skRunName').value||'').trim();if(!skill){alert('填技能名');return;}
+async function runSkill(){const skill=($('skRunName').value||'').trim();if(!skill){alert('填技能名');return;}
   let args={};const raw=($('skRunArgs').value||'').trim();
   if(raw){try{args=JSON.parse(raw);}catch(e){alert('参数不是合法 JSON');return;}}
+  // 脚本技能要在子服上跑，取右上角选中的子服；文字技能在中心直接出正文，无需子服
+  const body={skill,args};if(skType==='script'){const s=$('server').value;if(!s){alert('脚本技能需在右上角选一个目标子服');return;}body.server=s;}
   $('skRunOut').textContent='执行中…';
-  try{const r=await api('/api/skills/run',{method:'POST',body:JSON.stringify({server:s,skill,args})});$('skRunOut').textContent=(r&&r.result!=null)?r.result:JSON.stringify(r);}
+  try{const r=await api('/api/skills/run',{method:'POST',body:JSON.stringify(body)});$('skRunOut').textContent=(r&&r.result!=null)?r.result:JSON.stringify(r);}
   catch(e){$('skRunOut').textContent='失败：'+e.message;}}
 
 /* 启动 */

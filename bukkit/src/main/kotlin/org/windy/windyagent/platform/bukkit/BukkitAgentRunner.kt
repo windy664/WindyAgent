@@ -13,8 +13,8 @@ import org.windy.windyagent.agent.RemoteProposePackTool
 import org.windy.windyagent.agent.RemoteRefreshItemsTool
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
-import org.windy.windyagent.platform.bukkit.skill.SkillRegistry
 import org.windy.windyagent.platform.bukkit.skill.SkillTool
+import org.windy.windyagent.skill.SkillRegistry
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.buildEmbeddingProvider
@@ -94,10 +94,12 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         // MCP 工具接入（可选）
         extraTools += McpLoader.load(cfg.mcpServers())
         // 服主编写的 Groovy 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
-        val skills = if (cfg.skillsEnabled())
-            SkillRegistry(plugin.dataFolder.toPath().resolve(cfg.skillsDir()).toFile(), plugin.logger) else null
+        // standalone/hub 本机即中心，技能库在本地 → 首启释放默认技能（provider 模式不释放，由中心下发）。
+        val skillsDir = plugin.dataFolder.toPath().resolve(cfg.skillsDir()).toFile()
+        val skills = if (cfg.skillsEnabled()) SkillRegistry(skillsDir) else null
         val skillEngine = skills?.let { SkillEngine(plugin, actions, cfg.skillTimeoutSec()) }
         if (skills != null && skillEngine != null) {
+            org.windy.windyagent.skill.SkillDefaults.releaseIfEmpty(skillsDir)
             val n = skills.reload()
             skills.all().forEach { extraTools += SkillTool(it, skillEngine, audit) }
             plugin.logger.info("技能已加载 — $n 个（skills/ 目录）")
