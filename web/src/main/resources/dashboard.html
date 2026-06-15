@@ -230,7 +230,6 @@
     <div class="nav" data-v="econ"><span class="i">💰</span><span class="tx">经济分析</span></div>
     <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx">定时任务</span></div>
     <div class="nav" data-v="skill"><span class="i">🧪</span><span class="tx">技能扩展</span></div>
-    <div class="nav" data-v="plugin"><span class="i">🧩</span><span class="tx">插件管理</span></div>
     <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx">设置中心</span></div>
     <div class="grow1"></div>
     <div class="srvpanel glass">
@@ -372,7 +371,6 @@
         </div>
       </div>
     </div>
-    <div id="page-plugin" class="page"><div class="build"><div class="big">🧩</div><h2>插件管理</h2><p>插件状态 / 配置 —— 建设中。</p></div></div>
     <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2>设置中心</h2><p>令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
   </main>
 </div>
@@ -399,7 +397,7 @@ async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr
   try{await loadServers();$('gate').style.display='none';onServer();}catch(e){if(e.message!=='unauthorized')$('gateErr').textContent='连不上：'+e.message;}}
 
 /* 导航 */
-const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',skill:'🧪 技能扩展',plugin:'🧩 插件管理',settings:'⚙️ 设置中心'};
+const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',skill:'🧪 技能扩展',settings:'⚙️ 设置中心'};
 function logout(){localStorage.removeItem('wa_token');location.reload();}
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+v));

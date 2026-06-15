@@ -54,12 +54,8 @@ class DashboardServer(
     private val bundled: ByteArray by lazy {
         javaClass.getResourceAsStream("/dashboard.html")?.use { it.readBytes() } ?: "<h1>dashboard.html missing</h1>".toByteArray()
     }
-    /** 优先读数据目录下的 dashboard.html（可热改、刷新即生效），没有才用 jar 内打包的那份。 */
-    private fun page(): ByteArray {
-        val override = dataDir.resolve("dashboard.html")
-        if (Files.exists(override)) return runCatching { Files.readAllBytes(override) }.getOrDefault(bundled)
-        return bundled
-    }
+    /** 前端只认 jar 内打包的那份（换 jar 即更新）；不再读数据目录覆盖文件，避免旧覆盖文件盖掉新 jar。 */
+    private fun page(): ByteArray = bundled
 
     fun start() {
         val s = HttpServer.create(InetSocketAddress(host, port), 0)
