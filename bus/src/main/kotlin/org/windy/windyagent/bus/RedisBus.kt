@@ -92,6 +92,16 @@ class RedisBus(
         startSubscriber(BusChannels.CATALOG) { message -> runCatching { handler(message) } }
     }
 
+    /** 子服侧：把日志异常发到 error 频道。 */
+    override fun publishError(errorJson: String) {
+        publish(BusChannels.ERROR, errorJson)
+    }
+
+    /** 中心侧：订阅 error 频道，收到任一子服异常即回调。 */
+    override fun onError(handler: (String) -> Unit) {
+        startSubscriber(BusChannels.ERROR) { message -> runCatching { handler(message) } }
+    }
+
     private fun publish(channel: String, message: String) {
         runCatching { pool.resource.use { it.publish(channel, message) } }
             .onFailure { log.warning("Redis publish 失败($channel): ${it.message}") }

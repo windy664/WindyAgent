@@ -44,6 +44,7 @@ class SocketHubBus(
     private val connections = ConcurrentHashMap<String, Conn>()
     private val pending = ConcurrentHashMap<String, CompletableFuture<ToolReply>>()
     @Volatile private var catalogHandler: ((String) -> Unit)? = null
+    @Volatile private var errorHandler: ((String) -> Unit)? = null
     private val timeoutExec = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "windyagent-sockethub-timeout").apply { isDaemon = true }
     }
@@ -108,6 +109,8 @@ class SocketHubBus(
                         pending.remove(frame.reply.requestId)?.complete(frame.reply)
                     frame.type == FrameType.CATALOG && frame.catalogJson != null ->
                         runCatching { catalogHandler?.invoke(frame.catalogJson) }
+                    frame.type == FrameType.ERROR && frame.errorJson != null ->
+                        runCatching { errorHandler?.invoke(frame.errorJson) }
                             .onFailure { log.warning("处理子服「${conn.server}」目录失败: ${it.message}") }
                 }
             }
@@ -150,6 +153,11 @@ class SocketHubBus(
     /** 中枢侧：注册目录接收回调（各子服 CATALOG 帧到达时触发）。 */
     override fun onCatalog(handler: (String) -> Unit) {
         catalogHandler = handler
+    }
+
+    /** 中枢侧：注册日志异常接收回调（各子服 ERROR 帧到达时触发）。 */
+    override fun onError(handler: (String) -> Unit) {
+        errorHandler = handler
     }
 
     /** 当前真实在线 = 此刻持有活动连接的子服（REGISTER 时入、断开即移除）。权威在线来源。 */

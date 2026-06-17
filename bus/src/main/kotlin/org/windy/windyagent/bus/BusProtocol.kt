@@ -29,4 +29,6 @@ object BusChannels {
     const val REPLY: String = "windyagent:reply"
     /** 子服 → 中心 推送能力目录的频道 */
     const val CATALOG: String = "windyagent:catalog"
+    /** 子服 → 中心 推送日志异常的频道 */
+    const val ERROR: String = "windyagent:error"
 }

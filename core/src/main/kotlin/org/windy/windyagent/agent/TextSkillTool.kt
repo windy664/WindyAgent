@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.skill.*
+import java.io.File
 
 /**
  * 把中心 Agent 的技能包成本地工具。
@@ -19,7 +20,9 @@ class TextSkillTool(
     /** 当前 Platform 注册的所有工具（工作流 step 调用用）。 */
     private val allTools: () -> List<AgentTool> = { emptyList() },
     /** 技能注册表（工作流 step 调用其他 skill 用）。 */
-    private val skillRegistry: SkillRegistry? = null
+    private val skillRegistry: SkillRegistry? = null,
+    /** 技能库根目录（用于 SkillState 持久化）。 */
+    private val skillsDir: File? = null
 ) : AgentTool {
 
     private val mapper = ObjectMapper()
@@ -50,10 +53,12 @@ class TextSkillTool(
                     map
                 }.getOrDefault(emptyMap())
 
+                val state = skillsDir?.let { SkillState(def.name, it) }
                 val engine = WorkflowEngine(
                     toolFinder = { findTool(it) },
                     skillRegistry = skillRegistry,
-                    groovyClassLoader = javaClass.classLoader
+                    groovyClassLoader = javaClass.classLoader,
+                    skillState = state
                 )
                 val result = engine.execute(def, argsMap)
                 audit.record("center", "run_skill", def.name, if (result.success) "WF_OK" else "WF_ERR")

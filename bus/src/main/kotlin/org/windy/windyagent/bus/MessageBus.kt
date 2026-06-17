@@ -33,6 +33,15 @@ interface MessageBus : AutoCloseable {
     fun onCatalog(handler: (String) -> Unit) {}
 
     /**
+     * 子服 → 中心 主动推送日志异常（单向广播，与 publishCatalog 同模式）。
+     * 默认空实现：不支持的传输无需改动。
+     */
+    fun publishError(errorJson: String) {}
+
+    /** 中心侧：注册日志异常接收回调。默认空实现。 */
+    fun onError(handler: (String) -> Unit) {}
+
+    /**
      * 中心侧：**当前真实在线**（此刻已连接到中枢）的子服名集——权威的"在线"来源。
      * 与能力注册表（持久化目录=曾见过、含离线）区分开：选子服对话 / 校验可派发要用这个，
      * 否则会派到离线子服白等超时（"假在线"）。
