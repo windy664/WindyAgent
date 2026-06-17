@@ -9,6 +9,7 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory
 import com.velocitypowered.api.proxy.ProxyServer
 import org.slf4j.Logger
 import org.windy.windyagent.AgentConfig
+import org.windy.windyagent.Messages
 import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.agent.PlanExecuteAgent
@@ -83,6 +84,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             logger.error("Failed to load windyagent-config.yml: {}", it.message)
             return
         }
+        Messages.init(cfg.language())
 
         val llm = runCatching { buildProvider(cfg) }.getOrElse {
             logger.error(it.message)

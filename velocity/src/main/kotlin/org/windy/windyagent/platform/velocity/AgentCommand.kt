@@ -4,6 +4,7 @@ import com.velocitypowered.api.command.RawCommand
 import com.velocitypowered.api.proxy.Player
 import net.kyori.adventure.text.Component
 import org.slf4j.Logger
+import org.windy.windyagent.Messages
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.command.AgentCommandRouter
@@ -32,15 +33,13 @@ class AgentCommand(
         val source = invocation.source()
         val input = invocation.arguments().trim()
         if (input.isEmpty()) {
-            source.sendMessage(Component.text("[WindyAgent] 用法：/ai <消息>"))
+            source.sendMessage(Component.text(Messages.t("cmd.usage")))
             return
         }
 
-        // 控制台没有玩家名，用固定会话 id 维持其上下文
         val sessionId = if (source is Player) source.username else "console"
-        // 控制台或有权限玩家 = 可信（高危走审批）；其余不可信（高危直接拒）
         val trust = if (source.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
-        source.sendMessage(Component.text("[WindyAgent] 正在处理……"))
+        source.sendMessage(Component.text(Messages.t("cmd.processing")))
 
         CompletableFuture.runAsync {
             runCatching {
@@ -58,7 +57,7 @@ class AgentCommand(
                 source.sendMessage(Component.text("[WindyAgent] $reply"))
             }.onFailure {
                 logger.error("Agent error for {}", sessionId, it)
-                source.sendMessage(Component.text("[WindyAgent] 处理出错，请稍后重试。"))
+                source.sendMessage(Component.text(Messages.t("cmd.error")))
             }
         }
     }

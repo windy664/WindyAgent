@@ -39,7 +39,7 @@ class PendingApprovals(private val ttlMs: Long = 10 * 60 * 1000) {
     fun approve(id: String): String? {
         purge()
         val p = map.remove(id) ?: return null
-        val result = runCatching { p.execute() }.getOrElse { "执行失败：${it.message}" }
+        val result = runCatching { p.execute() }.getOrElse { org.windy.windyagent.Messages.t("approval.exec_failed", it.message ?: "") }
         record(Decision(id, p.desc, "approved", result, System.currentTimeMillis()))
         return result
     }
