@@ -7,3 +7,4 @@ welcome_vip/SKILL.md
 welcome_vip/script.groovy
 setup_spawn/SKILL.md
 backup_world/SKILL.md
+cmi_player_lookup/SKILL.md

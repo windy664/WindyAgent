@@ -6,6 +6,7 @@ import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
+import org.windy.windyagent.Messages
 import org.windy.windyagent.agent.Agent
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.command.AgentCommandRouter
@@ -31,27 +32,25 @@ class BukkitCommand(
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         val input = args.joinToString(" ").trim()
         if (input.isEmpty()) {
-            sender.sendMessage("[WindyAgent] 用法：/ai <消息>")
+            sender.sendMessage(Messages.t("cmd.usage"))
             return true
         }
         val sessionId = if (sender is Player) sender.name else "console"
-        // 控制台或有权限玩家 = 可信（高危走审批）；其余不可信（高危直接拒）
         val trust = if (sender.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
-        sender.sendMessage("[WindyAgent] 正在处理……")
+        sender.sendMessage(Messages.t("cmd.processing"))
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
             runCatching {
                 val meta = router.dispatch(input, sessionId, trust)
                 if (meta != null) { reply(sender, meta); return@Runnable }
-                // 可信(管理员/控制台) → 完整 Agent；普通玩家 → 只答疑的知识库问答（不碰工具）
                 val out = if (trust == TrustLevel.TRUSTED) {
                     val resp = agent.run(AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust))
                     sessions.trimHistory(sessionId); resp.message
                 } else playerQa.answer(input)
                 reply(sender, out)
             }.onFailure {
-                plugin.logger.severe("Agent 处理出错（$sessionId）：${it.message}")
-                reply(sender, "处理出错，请稍后重试。")
+                plugin.logger.severe("Agent error ($sessionId): ${it.message}")
+                reply(sender, Messages.t("cmd.error"))
             }
         })
         return true

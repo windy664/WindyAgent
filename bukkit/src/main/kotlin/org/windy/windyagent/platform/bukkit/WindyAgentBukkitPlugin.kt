@@ -2,6 +2,7 @@ package org.windy.windyagent.platform.bukkit
 
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.AgentConfig
+import org.windy.windyagent.Messages
 import org.windy.windyagent.buildCommandGuard
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
@@ -33,6 +34,7 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             logger.severe("加载 windyagent-config.yml 失败，插件未启用：${it.message}")
             return
         }
+        Messages.init(cfg.language())
         // 行为采集与部署形态无关：事件都在本子服发生，三种模式都跑
         behavior = runCatching { BehaviorService.build(this, cfg)?.also { it.start() } }
             .getOrElse { logger.warning("行为采集启动失败：${it.message}"); null }

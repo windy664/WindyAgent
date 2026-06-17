@@ -24,6 +24,7 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
         }
     }
 
+    fun language() = getString("language", "zh_cn")
     fun provider() = getString("llm.provider", "claude")
     fun apiKey() = getString("llm.api-key", "")
     fun apiBaseUrl() = getString("llm.api-base-url", "")

@@ -1,6 +1,9 @@
 # WindyAgent 配置文件
 # 修改后重启服务器生效
 
+# 语言 / Language: zh_cn (中文) | en (English)
+language: zh_cn
+
 llm:
   # 供应商: claude | openai | ollama
   #   claude  — 使用 Anthropic 官方 SDK（或兼容代理）

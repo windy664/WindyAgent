@@ -197,9 +197,9 @@
 <body>
 <div id="bg"></div><div id="scrim"></div>
 <div id="gate"><div class="box glass"><div style="font-size:34px">🌸</div>
-  <h2 style="margin:8px 0 2px">WindyAgent 控制台</h2><p class="muted" style="font-size:13px;margin:0 0 18px">输入访问令牌进入</p>
-  <input id="gateToken" type="password" placeholder="访问令牌" onkeydown="if(event.key==='Enter')enterGate()">
-  <button class="btn" style="width:100%;margin-top:12px" onclick="enterGate()">进入 ✨</button>
+  <h2 style="margin:8px 0 2px" data-i18n="login.title">WindyAgent 控制台</h2><p class="muted" style="font-size:13px;margin:0 0 18px" data-i18n="login.hint">输入访问令牌进入</p>
+  <input id="gateToken" type="password" data-i18n-ph="login.placeholder" placeholder="访问令牌" onkeydown="if(event.key==='Enter')enterGate()">
+  <button class="btn" style="width:100%;margin-top:12px" onclick="enterGate()" data-i18n="login.btn">进入 ✨</button>
   <p id="gateErr" class="err" style="font-size:13px;margin-top:10px"></p></div></div>
 
 <div id="infoModal" style="position:fixed;inset:0;z-index:60;display:none;place-items:center;background:rgba(8,6,16,.55)" onclick="if(event.target===this)hideInfo()">
@@ -209,33 +209,34 @@
   </div></div>
 
 <div class="topbar">
-  <div class="tbtitle" id="pageTitle">🛰️ 运维总览</div>
+  <div class="tbtitle" id="pageTitle">🛰️ <span data-i18n="sidebar.ops">运维总览</span></div>
   <div class="grow"></div>
   <div class="pill" title="当前操作的子服"><span style="opacity:.7">🌐</span> <select id="server" onchange="onServer()"></select></div>
-  <div class="pill" title="活跃玩家"><span class="dot"></span><span id="onlineLbl">在线</span></div>
-  <div id="apprBadge" class="pill" style="display:none;cursor:pointer;border-color:rgba(255,122,152,.6);color:#fff" onclick="go('ops')">🛡️ 待审 <b id="apprCount">0</b></div>
-  <div class="ticon" id="bell" title="运维告警" onclick="toggleAlerts()">🔔<span id="bellDot" class="bdot" style="display:none">0</span></div>
-  <div class="ticon" title="退出登录" onclick="logout()">🚪</div>
+  <div class="pill" title="活跃玩家"><span class="dot"></span><span id="onlineLbl" data-i18n="topbar.online">在线</span></div>
+  <div id="apprBadge" class="pill" style="display:none;cursor:pointer;border-color:rgba(255,122,152,.6);color:#fff" onclick="go('ops')">🛡️ <span data-i18n="topbar.pending">待审</span> <b id="apprCount">0</b></div>
+  <div class="ticon" id="bell" data-i18n-ph="topbar.alerts" title="运维告警" onclick="toggleAlerts()">🔔<span id="bellDot" class="bdot" style="display:none">0</span></div>
+  <div class="ticon" style="font-size:13px;font-weight:700;cursor:pointer" onclick="setLang(lang==='zh-CN'?'en':'zh-CN')" data-i18n="topbar.lang">🌐 中/EN</div>
+  <div class="ticon" data-i18n-ph="topbar.logout" title="退出登录" onclick="logout()">🚪</div>
   <div id="alertPop" class="alertpop glass" style="display:none"></div>
 </div>
 
 <div class="shell">
   <aside class="sidebar">
-    <div class="logo"><div class="lg">🌸</div><div><div class="lt tx">WindyAgent</div><div class="ls tx">MC服务器智能助手</div></div></div>
-    <div class="nav on" data-v="ops"><span class="i">🛰️</span><span class="tx">运维总览</span></div>
-    <div class="nav" data-v="chat"><span class="i">💬</span><span class="tx">AI 对话</span></div>
-    <div class="nav" data-v="board"><span class="i">📊</span><span class="tx">行为看板</span></div>
-    <div class="nav" data-v="kb"><span class="i">📚</span><span class="tx">知识库</span></div>
-    <div class="nav" data-v="players"><span class="i">🧑</span><span class="tx">玩家管理</span></div>
-    <div class="nav" data-v="econ"><span class="i">💰</span><span class="tx">经济分析</span></div>
-    <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx">定时任务</span></div>
-    <div class="nav" data-v="skill"><span class="i">🧪</span><span class="tx">技能扩展</span></div>
-    <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx">设置中心</span></div>
+    <div class="logo"><div class="lg">🌸</div><div><div class="lt tx">WindyAgent</div><div class="ls tx" data-i18n="sidebar.subtitle">MC服务器智能助手</div></div></div>
+    <div class="nav on" data-v="ops"><span class="i">🛰️</span><span class="tx" data-i18n="sidebar.ops">运维总览</span></div>
+    <div class="nav" data-v="chat"><span class="i">💬</span><span class="tx" data-i18n="sidebar.chat">AI 对话</span></div>
+    <div class="nav" data-v="board"><span class="i">📊</span><span class="tx" data-i18n="sidebar.board">行为看板</span></div>
+    <div class="nav" data-v="kb"><span class="i">📚</span><span class="tx" data-i18n="sidebar.kb">知识库</span></div>
+    <div class="nav" data-v="players"><span class="i">🧑</span><span class="tx" data-i18n="sidebar.players">玩家管理</span></div>
+    <div class="nav" data-v="econ"><span class="i">💰</span><span class="tx" data-i18n="sidebar.econ">经济分析</span></div>
+    <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx" data-i18n="sidebar.event">定时任务</span></div>
+    <div class="nav" data-v="skill"><span class="i">🧪</span><span class="tx" data-i18n="sidebar.skill">技能扩展</span></div>
+    <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx" data-i18n="sidebar.settings">设置中心</span></div>
     <div class="grow1"></div>
     <div class="srvpanel glass">
       <div class="nm">🟢 <span id="srvName">earth</span></div>
-      <div class="rw"><span>运行状态</span><span id="srvState">运行中</span></div>
-      <div class="rw"><span>服务端</span><span>MC 1.21 · Youer</span></div>
+      <div class="rw"><span data-i18n="sidebar.state">运行状态</span><span id="srvState" data-i18n="sidebar.running">运行中</span></div>
+      <div class="rw"><span data-i18n="sidebar.platform">服务端</span><span>MC 1.21 · Youer</span></div>
     </div>
   </aside>
 
@@ -243,12 +244,12 @@
     <!-- 运维总览（首页） -->
     <div id="page-ops" class="page on">
       <div class="board">
-        <div class="bhead"><div><h2>🛰️ 运维总览</h2><p>主动运维哨兵实时巡检 · 异常自动告警与处置建议</p></div>
-          <div class="tools"><span class="pill" id="sentinelState"><span class="dot"></span>哨兵</span><button class="btn ghost sm" onclick="loadOps()">刷新</button></div></div>
+        <div class="bhead"><div><h2 data-i18n="ops.title">🛰️ 运维总览</h2><p data-i18n="ops.subtitle">主动运维哨兵实时巡检 · 异常自动告警与处置建议</p></div>
+          <div class="tools"><span class="pill" id="sentinelState"><span class="dot"></span><span data-i18n="ops.sentinel">哨兵</span></span><button class="btn ghost sm" onclick="loadOps()" data-i18n="ops.btn_refresh">刷新</button></div></div>
         <div id="apprBox"></div>
         <div class="kpis" id="opsKpis"></div>
-        <div class="panel glass"><h3>🖥️ 服务器 <span class="tag">点击卡片看详情</span></h3><div id="healthGrid" class="hgrid"></div></div>
-        <div class="panel glass" style="margin-top:16px"><h3>🚨 运维告警 / 处置过程 <span class="tag">哨兵自动</span></h3><div id="opsAlerts"></div></div>
+        <div class="panel glass"><h3>🖥️ <span data-i18n="ops.servers_title">服务器</span> <span class="tag" data-i18n="ops.servers_tag">点击卡片看详情</span></h3><div id="healthGrid" class="hgrid"></div></div>
+        <div class="panel glass" style="margin-top:16px"><h3>🚨 <span data-i18n="ops.alerts_title">运维告警 / 处置过程</span> <span class="tag" data-i18n="ops.alerts_tag">哨兵自动</span></h3><div id="opsAlerts"></div></div>
       </div>
     </div>
 
@@ -257,12 +258,12 @@
       <div class="chatmain">
         <div class="msgs" id="msgs">
           <div class="welcome">
-            <div class="wbot"><div class="av">🤖</div><div class="tx"><h3>你好，腐竹 🌸</h3><p>我是 WindyAgent，能帮你管理玩家、查信息、记知识、下指令。支持多轮对话。</p></div></div>
+            <div class="wbot"><div class="av">🤖</div><div class="tx"><h3 data-i18n="chat.welcome_title">你好，腐竹 🌸</h3><p data-i18n="chat.welcome_desc">我是 WindyAgent，能帮你管理玩家、查信息、记知识、下指令。支持多轮对话。</p></div></div>
             <div class="wgrid">
-              <div class="wcat glass"><h5>🧑 玩家管理</h5><ul><li>查在线 / 踢人 / 查余额</li><li>看玩家画像与行为</li></ul></div>
-              <div class="wcat glass"><h5>🛒 商店与物品</h5><ul><li>物品估值 / 组礼包</li><li>价格与商品建议</li></ul></div>
-              <div class="wcat glass"><h5>🔎 信息查询</h5><ul><li>服务器状态 / 子服切换</li><li>知识库问答</li></ul></div>
-              <div class="wcat glass"><h5>🧠 记忆功能</h5><ul><li>记住偏好与服务器约定</li><li>跨会话长期记忆</li></ul></div>
+              <div class="wcat glass"><h5 data-i18n="chat.cat_player">🧑 玩家管理</h5><ul><li data-i18n="chat.cat_player_l1">查在线 / 踢人 / 查余额</li><li data-i18n="chat.cat_player_l2">看玩家画像与行为</li></ul></div>
+              <div class="wcat glass"><h5 data-i18n="chat.cat_shop">🛒 商店与物品</h5><ul><li data-i18n="chat.cat_shop_l1">物品估值 / 组礼包</li><li data-i18n="chat.cat_shop_l2">价格与商品建议</li></ul></div>
+              <div class="wcat glass"><h5 data-i18n="chat.cat_info">🔎 信息查询</h5><ul><li data-i18n="chat.cat_info_l1">服务器状态 / 子服切换</li><li data-i18n="chat.cat_info_l2">知识库问答</li></ul></div>
+              <div class="wcat glass"><h5 data-i18n="chat.cat_memory">🧠 记忆功能</h5><ul><li data-i18n="chat.cat_memory_l1">记住偏好与服务器约定</li><li data-i18n="chat.cat_memory_l2">跨会话长期记忆</li></ul></div>
             </div>
             <div class="chips" id="chips"></div>
           </div>
@@ -270,55 +271,55 @@
         <div class="composer" style="position:relative">
           <div id="cmdPop" class="cmdpop glass" style="display:none"></div>
           <select id="chatTarget" onchange="targetNote()" title="对谁说：总控=代理全局；选子服=本轮默认操作该服" style="width:auto;min-width:120px;flex-shrink:0"></select>
-          <textarea id="chatIn" rows="1" placeholder="说点什么…（输入 / 看命令，Enter 发送，Shift+Enter 换行）"></textarea>
-          <button class="btn ghost sm" onclick="newChat()">新对话</button>
-          <button class="btn" onclick="send()">发送 ✨</button>
+          <textarea id="chatIn" rows="1" data-i18n-ph="chat.placeholder" placeholder="说点什么…（输入 / 看命令，Enter 发送，Shift+Enter 换行）"></textarea>
+          <button class="btn ghost sm" onclick="newChat()" data-i18n="chat.btn_new">新对话</button>
+          <button class="btn" onclick="send()" data-i18n="chat.btn_send">发送 ✨</button>
         </div>
       </div>
       <aside class="rightbar">
-        <div class="card glass"><h4>📈 服务器概览 <a onclick="go('board')">更多数据</a></h4>
+        <div class="card glass"><h4>📈 <span data-i18n="right.overview">服务器概览</span> <a onclick="go('board')" data-i18n="right.more">更多数据</a></h4>
           <div class="mini" id="ovMini"></div></div>
-        <div class="card glass"><h4>⚡ 快捷操作</h4>
+        <div class="card glass"><h4 data-i18n="right.actions">⚡ 快捷操作</h4>
           <div class="qa">
-            <button class="btn ghost sm" onclick="quick('广播：')">📢 广播消息</button>
-            <button class="btn ghost sm" onclick="quick('在 earth 执行 kill @e[type=item]')">🧹 清理掉落物</button>
-            <button class="btn ghost sm" onclick="quick('备份 earth 存档')">💾 备份存档</button>
-            <button class="btn ghost sm" onclick="quick('重启 earth 服务器')">🔄 重启服务器</button>
+            <button class="btn ghost sm" onclick="quick(T('quick.broadcast_cmd'))" data-i18n="quick.broadcast">📢 广播消息</button>
+            <button class="btn ghost sm" onclick="quick(T('quick.cleanup_cmd'))" data-i18n="quick.cleanup">🧹 清理掉落物</button>
+            <button class="btn ghost sm" onclick="quick(T('quick.backup_cmd'))" data-i18n="quick.backup">💾 备份存档</button>
+            <button class="btn ghost sm" onclick="quick(T('quick.restart_cmd'))" data-i18n="quick.restart">🔄 重启服务器</button>
           </div></div>
-        <div class="card glass"><h4>📜 最近日志 <a onclick="go('board')">查看全部</a></h4>
-          <div class="log" id="recentLog"><span class="muted">暂无（需接入服务器事件日志）</span></div></div>
+        <div class="card glass"><h4>📜 <span data-i18n="right.recent_log">最近日志</span> <a onclick="go('board')" data-i18n="right.view_all">查看全部</a></h4>
+          <div class="log" id="recentLog"><span class="muted" data-i18n="right.no_log">暂无（需接入服务器事件日志）</span></div></div>
       </aside>
     </div>
 
     <!-- 行为看板 -->
     <div id="page-board" class="page">
       <div class="board">
-        <div class="bhead"><div><h2>📊 行为看板</h2><p>玩家行为与活跃度总览（数据来自子服实时采集）</p></div>
-          <div class="tools"><span class="pill">📅 最近 7 天</span><button class="btn ghost sm" onclick="exportData()">⬇️ 导出</button><button class="btn ghost sm" onclick="loadBoard()">刷新</button></div></div>
+        <div class="bhead"><div><h2 data-i18n="board.title">📊 行为看板</h2><p data-i18n="board.subtitle">玩家行为与活跃度总览（数据来自子服实时采集）</p></div>
+          <div class="tools"><span class="pill" data-i18n="board.recent7">📅 最近 7 天</span><button class="btn ghost sm" onclick="exportData()" data-i18n="board.btn_export">⬇️ 导出</button><button class="btn ghost sm" onclick="loadBoard()" data-i18n="board.btn_refresh">刷新</button></div></div>
         <div class="kpis" id="kpis"></div>
         <div class="g2">
-          <div class="panel glass"><h3>📈 在线人数趋势 <span class="tag">近7天峰值</span></h3><canvas id="trendChart" height="180"></canvas></div>
-          <div class="panel glass"><h3>🔥 在线时段分布 <span class="tag">周 × 小时</span></h3><div id="heat" class="heat"></div></div>
+          <div class="panel glass"><h3>📈 <span data-i18n="board.trend_title">在线人数趋势</span> <span class="tag" data-i18n="board.trend_tag">近7天峰值</span></h3><canvas id="trendChart" height="180"></canvas></div>
+          <div class="panel glass"><h3>🔥 <span data-i18n="board.heat_title">在线时段分布</span> <span class="tag" data-i18n="board.heat_tag">周 × 小时</span></h3><div id="heat" class="heat"></div></div>
         </div>
         <div class="g3">
-          <div class="panel glass"><h3>🎮 玩家行为分布</h3><canvas id="behPie" height="190"></canvas></div>
-          <div class="panel glass"><h3>📉 玩家留存</h3><div class="ph">待接入按日留存计算</div></div>
-          <div class="panel glass"><h3>🪜 活跃度分层</h3><canvas id="segBar" height="190"></canvas></div>
+          <div class="panel glass"><h3 data-i18n="board.beh_title">🎮 玩家行为分布</h3><canvas id="behPie" height="190"></canvas></div>
+          <div class="panel glass"><h3 data-i18n="board.retain_title">📉 玩家留存</h3><div class="ph" data-i18n="board.retain_ph">待接入按日留存计算</div></div>
+          <div class="panel glass"><h3 data-i18n="board.seg_title">🪜 活跃度分层</h3><canvas id="segBar" height="190"></canvas></div>
         </div>
         <div class="g2">
-          <div class="panel glass"><h3>⌨️ 热门命令 <span class="tag">词频</span></h3><canvas id="cmdBar" height="200"></canvas></div>
-          <div class="panel glass"><h3>🏆 在线时长 Top5</h3><canvas id="topChart" height="200"></canvas></div>
+          <div class="panel glass"><h3>⌨️ <span data-i18n="board.cmd_title">热门命令</span> <span class="tag" data-i18n="board.cmd_tag">词频</span></h3><canvas id="cmdBar" height="200"></canvas></div>
+          <div class="panel glass"><h3 data-i18n="board.top_title">🏆 在线时长 Top5</h3><canvas id="topChart" height="200"></canvas></div>
         </div>
-        <div class="panel glass" style="margin-top:16px"><h3>☁️ 词云
-            <button class="btn ghost sm wcbtn" id="wcCmd" onclick="switchWords('cmd')">命令</button>
-            <button class="btn ghost sm wcbtn" id="wcChat" onclick="switchWords('chat')">聊天</button>
-            <span class="tag">高频词</span></h3>
+        <div class="panel glass" style="margin-top:16px"><h3>☁️ <span data-i18n="board.wordcloud">词云</span>
+            <button class="btn ghost sm wcbtn" id="wcCmd" onclick="switchWords('cmd')" data-i18n="board.wc_cmd">命令</button>
+            <button class="btn ghost sm wcbtn" id="wcChat" onclick="switchWords('chat')" data-i18n="board.wc_chat">聊天</button>
+            <span class="tag" data-i18n="board.wc_tag">高频词</span></h3>
           <div id="wcWrap" style="position:relative;min-height:300px;display:flex;align-items:center;justify-content:center">
             <canvas id="wordCloud" height="300"></canvas>
-            <p id="wcEmpty" class="ph" style="display:none">暂无词频数据（命令词云始终采集；聊天词云需子服 track-chat 开启）</p></div></div>
-        <div class="panel glass" style="margin-top:16px"><h3>🕒 行为时间线 <span class="tag">最近</span></h3><div id="feed"></div></div>
-        <div class="panel glass" style="margin-top:16px"><h3>🔮 玩家画像查询</h3>
-          <div style="display:flex;gap:9px;margin-bottom:10px"><input id="pname" placeholder="玩家名…" style="width:220px"><button class="btn ghost sm" onclick="searchPlayer()">查询</button></div>
+            <p id="wcEmpty" class="ph" style="display:none" data-i18n="board.wc_empty">暂无词频数据（命令词云始终采集；聊天词云需子服 track-chat 开启）</p></div></div>
+        <div class="panel glass" style="margin-top:16px"><h3>🕒 <span data-i18n="board.timeline">行为时间线</span> <span class="tag" data-i18n="board.timeline_tag">最近</span></h3><div id="feed"></div></div>
+        <div class="panel glass" style="margin-top:16px"><h3 data-i18n="board.profile">🔮 玩家画像查询</h3>
+          <div style="display:flex;gap:9px;margin-bottom:10px"><input id="pname" data-i18n-ph="board.player_ph" placeholder="玩家名…" style="width:220px"><button class="btn ghost sm" onclick="searchPlayer()" data-i18n="board.btn_search">查询</button></div>
           <div id="player"></div></div>
       </div>
     </div>
@@ -327,34 +328,34 @@
     <div id="page-kb" class="page">
       <div class="kbwrap">
         <div class="kbside glass">
-          <input id="kbSearch" placeholder="🔍 搜索标题 / 标签 / 内容" oninput="renderList()" style="margin-bottom:10px">
+          <input id="kbSearch" data-i18n-ph="kb.search_ph" placeholder="🔍 搜索标题 / 标签 / 内容" oninput="renderList()" style="margin-bottom:10px">
           <div id="kbList"></div>
-          <button class="btn sm" style="width:100%;margin-top:8px" onclick="openForm()">+ 新建条目</button>
+          <button class="btn sm" style="width:100%;margin-top:8px" onclick="openForm()" data-i18n="kb.btn_new">+ 新建条目</button>
         </div>
         <div class="kbmain">
-          <div id="kbDetail" class="panel glass"><p class="muted">← 从左侧目录选一条查看；或「+ 新建」添加（支持 AI 起草）。</p></div>
+          <div id="kbDetail" class="panel glass"><p class="muted" data-i18n="kb.hint">← 从左侧目录选一条查看；或「+ 新建」添加（支持 AI 起草）。</p></div>
           <div id="kbForm" class="panel glass" style="display:none">
-            <h3 id="kbFormTitle">新建条目</h3>
-            <details style="margin-bottom:12px"><summary style="cursor:pointer;color:var(--violet);font-weight:700">🤖 AI 起草 —— 说人话自动整理</summary>
-              <textarea id="kbDraft" rows="2" placeholder="例：会员 VIP 每月 30 元，享每日 3 次传送、专属称号" style="margin-top:8px"></textarea>
-              <button class="btn sm" style="margin-top:8px" onclick="aiDraft()">生成草稿 ✨</button></details>
+            <h3 id="kbFormTitle" data-i18n="kb.form_new">新建条目</h3>
+            <details style="margin-bottom:12px"><summary style="cursor:pointer;color:var(--violet);font-weight:700" data-i18n="kb.ai_draft">🤖 AI 起草 —— 说人话自动整理</summary>
+              <textarea id="kbDraft" rows="2" data-i18n-ph="kb.ai_ph" placeholder="例：会员 VIP 每月 30 元，享每日 3 次传送、专属称号" style="margin-top:8px"></textarea>
+              <button class="btn sm" style="margin-top:8px" onclick="aiDraft()" data-i18n="kb.ai_btn">生成草稿 ✨</button></details>
             <input type="hidden" id="kbId">
-            <label class="muted" style="font-size:12px">标题</label><input id="kbTitle" placeholder="如：会员权益">
-            <label class="muted" style="font-size:12px;display:block;margin-top:8px">标签（逗号分隔，第一个作分类）</label><input id="kbTags" placeholder="会员, 价格, vip">
-            <label class="muted" style="font-size:12px;display:block;margin-top:8px">正文</label><textarea id="kbContent" rows="8"></textarea>
-            <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" onclick="saveKb()">保存</button><button class="btn ghost" onclick="closeKb()">取消</button></div>
+            <label class="muted" style="font-size:12px" data-i18n="kb.label_title">标题</label><input id="kbTitle" data-i18n-ph="kb.title_ph" placeholder="如：会员权益">
+            <label class="muted" style="font-size:12px;display:block;margin-top:8px" data-i18n="kb.label_tags">标签（逗号分隔，第一个作分类）</label><input id="kbTags" data-i18n-ph="kb.tags_ph" placeholder="会员, 价格, vip">
+            <label class="muted" style="font-size:12px;display:block;margin-top:8px" data-i18n="kb.label_content">正文</label><textarea id="kbContent" rows="8"></textarea>
+            <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" onclick="saveKb()" data-i18n="kb.btn_save">保存</button><button class="btn ghost" onclick="closeKb()" data-i18n="kb.btn_cancel">取消</button></div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 建设中页 -->
-    <div id="page-players" class="page"><div class="build"><div class="big">🧑</div><h2>玩家管理</h2><p>在线列表 / 踢人 / 封禁 / 权限 —— 建设中，暂可在「聊天」里用自然语言操作。</p></div></div>
-    <div id="page-econ" class="page"><div class="build"><div class="big">💰</div><h2>经济分析</h2><p>收支 / 通胀 / 商品销量 —— 需接入经济与成交数据，建设中。</p></div></div>
+    <div id="page-players" class="page"><div class="build"><div class="big">🧑</div><h2 data-i18n="wip.players">玩家管理</h2><p data-i18n="wip.players_desc">在线列表 / 踢人 / 封禁 / 权限 —— 建设中，暂可在「聊天」里用自然语言操作。</p></div></div>
+    <div id="page-econ" class="page"><div class="build"><div class="big">💰</div><h2 data-i18n="wip.econ">经济分析</h2><p data-i18n="wip.econ_desc">收支 / 通胀 / 商品销量 —— 需接入经济与成交数据，建设中。</p></div></div>
     <div id="page-event" class="page">
       <div class="board">
-        <div class="bhead"><div><h2>⏰ 定时任务</h2><p>定时广播 / 执行命令 —— 到点自动跑（每隔 N 分钟，或每天定时）</p></div>
-          <div class="tools"><button class="btn sm" onclick="openTask()">+ 新建任务</button><button class="btn ghost sm" onclick="loadTasks()">刷新</button></div></div>
+        <div class="bhead"><div><h2 data-i18n="event.title">⏰ 定时任务</h2><p data-i18n="event.subtitle">定时广播 / 执行命令 —— 到点自动跑（每隔 N 分钟，或每天定时）</p></div>
+          <div class="tools"><button class="btn sm" onclick="openTask()" data-i18n="event.btn_new">+ 新建任务</button><button class="btn ghost sm" onclick="loadTasks()" data-i18n="event.btn_refresh">刷新</button></div></div>
         <div id="taskForm" class="panel glass" style="display:none;margin-bottom:16px"></div>
         <div id="taskList"></div>
       </div>
@@ -362,24 +363,141 @@
     <!-- 技能扩展 -->
     <div id="page-skill" class="page">
       <div class="board">
-        <div class="bhead"><div><h2>🧪 技能扩展</h2><p><b>中心权威技能库</b>（统一管理）· 📄文字技能在中心执行 / ⚙️脚本技能下发到目标子服执行 · 保存即热重载</p></div>
-          <div class="tools"><button class="btn sm" onclick="newSkill()">+ 新建技能</button><button class="btn ghost sm" onclick="syncSkills()">⬇ 下发到子服</button><button class="btn ghost sm" onclick="reloadSkills()">↻ 重载库</button><button class="btn ghost sm" onclick="loadSkills()">刷新</button></div></div>
+        <div class="bhead"><div><h2 data-i18n="skill.title">🧪 技能扩展</h2><p data-i18n-html="skill.subtitle_html"><b>中心权威技能库</b>（统一管理）· 📄文字技能在中心执行 / ⚙️脚本技能下发到目标子服执行 · 保存即热重载</p></div>
+          <div class="tools"><button class="btn sm" onclick="newSkill()" data-i18n="skill.btn_new">+ 新建技能</button><button class="btn ghost sm" onclick="syncSkills()" data-i18n="skill.btn_sync">⬇ 下发到子服</button><button class="btn ghost sm" onclick="reloadSkills()" data-i18n="skill.btn_reload">↻ 重载库</button><button class="btn ghost sm" onclick="loadSkills()" data-i18n="skill.btn_refresh">刷新</button></div></div>
         <div class="kbwrap">
-          <div class="kbside glass"><div id="skList"><p class="muted">载入中…</p></div></div>
-          <div class="kbmain"><div id="skEditor" class="panel glass"><p class="muted">← 从左侧选一个技能查看/编辑，或「+ 新建技能」。</p>
-            <p class="muted" style="font-size:12px;margin-top:10px">两类技能：<b>📄 纯文字</b>=一套操作流程，Agent 读懂后用现有工具执行（不写代码）；<b>⚙️ 脚本+文字</b>=SKILL.md 说清何时/怎么用 + Groovy 脚本干现有工具做不到的事（可用 <code>server / plugins / actions / args / log</code>，<code>return</code> 回报 Agent）。技能由你审过、不过命令护栏但记 audit。</p></div></div>
+          <div class="kbside glass"><div id="skList"><p class="muted" data-i18n="skill.loading">载入中…</p></div></div>
+          <div class="kbmain"><div id="skEditor" class="panel glass"><p class="muted" data-i18n="skill.hint">← 从左侧选一个技能查看/编辑，或「+ 新建技能」。</p>
+            <p class="muted" style="font-size:12px;margin-top:10px" data-i18n-html="skill.types_desc_html">两类技能：<b>📄 纯文字</b>=一套操作流程，Agent 读懂后用现有工具执行（不写代码）；<b>⚙️ 脚本+文字</b>=SKILL.md 说清何时/怎么用 + Groovy 脚本干现有工具做不到的事（可用 <code>server / plugins / actions / args / log</code>，<code>return</code> 回报 Agent）。技能由你审过、不过命令护栏但记 audit。</p></div></div>
         </div>
       </div>
     </div>
-    <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2>设置中心</h2><p>令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
+    <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2 data-i18n="wip.settings">设置中心</h2><p data-i18n="wip.settings_desc">令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
   </main>
 </div>
 
 <script>
+/* ===== i18n 语言包 ===== */
+const LANGS={
+'zh-CN':{
+  // 元信息
+  'html.lang':'zh-CN','title':'WindyAgent · MC服务器智能助手',
+  // 登录闸
+  'login.title':'WindyAgent 控制台','login.hint':'输入访问令牌进入','login.placeholder':'访问令牌','login.btn':'进入 ✨','login.err_empty':'请输入令牌','login.err_connect':'连不上：','login.err_token':'令牌无效，请重新输入','login.err_reenter':'请重新输入令牌',
+  // 顶部栏
+  'topbar.online':'在线','topbar.pending':'待审','topbar.alerts':'运维告警','topbar.logout':'退出登录','topbar.lang':'🌐 中/EN',
+  // 侧边栏
+  'sidebar.subtitle':'MC服务器智能助手','sidebar.ops':'运维总览','sidebar.chat':'AI 对话','sidebar.board':'行为看板','sidebar.kb':'知识库','sidebar.players':'玩家管理','sidebar.econ':'经济分析','sidebar.event':'定时任务','sidebar.skill':'技能扩展','sidebar.settings':'设置中心','sidebar.state':'运行状态','sidebar.running':'运行中','sidebar.platform':'服务端',
+  // 运维总览
+  'ops.title':'🛰️ 运维总览','ops.subtitle':'主动运维哨兵实时巡检 · 异常自动告警与处置建议','ops.sentinel':'哨兵','ops.btn_refresh':'刷新','ops.servers_title':'🖥️ 服务器','ops.servers_tag':'点击卡片看详情','ops.no_server':'暂无已连接子服','ops.alerts_title':'🚨 运维告警 / 处置过程','ops.alerts_tag':'哨兵自动','ops.no_alert':'暂无告警 — 服务器一切正常 🎐','ops.kpi_servers':'在线子服','ops.kpi_players':'在线玩家','ops.kpi_alarms':'活跃告警','ops.kpi_sentinel':'哨兵','ops.kpi_running':'运行中',
+  // 聊天页
+  'chat.welcome_title':'你好，腐竹 🌸','chat.welcome_desc':'我是 WindyAgent，能帮你管理玩家、查信息、记知识、下指令。支持多轮对话。','chat.cat_player':'🧑 玩家管理','chat.cat_player_l1':'查在线 / 踢人 / 查余额','chat.cat_player_l2':'看玩家画像与行为','chat.cat_shop':'🛒 商店与物品','chat.cat_shop_l1':'物品估值 / 组礼包','chat.cat_shop_l2':'价格与商品建议','chat.cat_info':'🔎 信息查询','chat.cat_info_l1':'服务器状态 / 子服切换','chat.cat_info_l2':'知识库问答','chat.cat_memory':'🧠 记忆功能','chat.cat_memory_l1':'记住偏好与服务器约定','chat.cat_memory_l2':'跨会话长期记忆','chat.placeholder':'说点什么…（输入 / 看命令，Enter 发送，Shift+Enter 换行）','chat.btn_new':'新对话','chat.btn_send':'发送 ✨','chat.thinking':'思考中…','chat.err':'出错：','chat.empty':'(空)','chat.target_all':'🌐 总控(VC)',
+  // 快捷操作
+  'quick.broadcast':'📢 广播消息','quick.cleanup':'🧹 清理掉落物','quick.backup':'💾 备份存档','quick.restart':'🔄 重启服务器','quick.broadcast_cmd':'广播：','quick.cleanup_cmd':'在 earth 执行 kill @e[type=item]','quick.backup_cmd':'备份 earth 存档','quick.restart_cmd':'重启 earth 服务器',
+  // 右栏
+  'right.overview':'📈 服务器概览','right.more':'更多数据','right.actions':'⚡ 快捷操作','right.recent_log':'📜 最近日志','right.view_all':'查看全部','right.no_log':'暂无（需接入服务器事件日志）',
+  // 行为看板
+  'board.title':'📊 行为看板','board.subtitle':'玩家行为与活跃度总览（数据来自子服实时采集）','board.recent7':'📅 最近 7 天','board.btn_export':'⬇️ 导出','board.btn_refresh':'刷新','board.trend_title':'📈 在线人数趋势','board.trend_tag':'近7天峰值','board.heat_title':'🔥 在线时段分布','board.heat_tag':'周 × 小时','board.beh_title':'🎮 玩家行为分布','board.retain_title':'📉 玩家留存','board.retain_ph':'待接入按日留存计算','board.seg_title':'🪜 活跃度分层','board.cmd_title':'⌨️ 热门命令','board.cmd_tag':'词频','board.top_title':'🏆 在线时长 Top5','board.wordcloud':'☁️ 词云','board.wc_cmd':'命令','board.wc_chat':'聊天','board.wc_tag':'高频词','board.wc_empty':'暂无词频数据（命令词云始终采集；聊天词云需子服 track-chat 开启）','board.timeline':'🕒 行为时间线','board.timeline_tag':'最近','board.profile':'🔮 玩家画像查询','board.no_event':'暂无事件',
+  // 知识库
+  'kb.search_ph':'🔍 搜索标题 / 标签 / 内容','kb.btn_new':'+ 新建条目','kb.hint':'← 从左侧目录选一条查看；或「+ 新建」添加（支持 AI 起草）。','kb.form_new':'新建条目','kb.form_edit':'编辑条目','kb.ai_draft':'🤖 AI 起草 —— 说人话自动整理','kb.ai_ph':'例：会员 VIP 每月 30 元，享每日 3 次传送、专属称号','kb.ai_btn':'生成草稿 ✨','kb.label_title':'标题','kb.title_ph':'如：会员权益','kb.label_tags':'标签（逗号分隔，第一个作分类）','kb.tags_ph':'会员, 价格, vip','kb.label_content':'正文','kb.btn_save':'保存','kb.btn_cancel':'取消','kb.no_match':'无匹配','kb.no_entries':'还没有条目','kb.btn_edit':'✏️ 编辑','kb.btn_delete':'🗑️ 删除','kb.deleted':'已删除。','kb.err_save':'保存失败：','kb.err_draft':'起草失败：','kb.confirm_delete':'删除这条知识？','kb.uncategorized':'未分类',
+  // 建设中页
+  'wip.players':'玩家管理','wip.players_desc':'在线列表 / 踢人 / 封禁 / 权限 —— 建设中，暂可在「聊天」里用自然语言操作。','wip.econ':'经济分析','wip.econ_desc':'收支 / 通胀 / 商品销量 —— 需接入经济与成交数据，建设中。','wip.settings':'设置中心','wip.settings_desc':'令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。',
+  // 定时任务
+  'event.title':'⏰ 定时任务','event.subtitle':'定时广播 / 执行命令 —— 到点自动跑（每隔 N 分钟，或每天定时）','event.btn_new':'+ 新建任务','event.btn_refresh':'刷新','event.form_new':'新建定时任务','event.form_edit':'编辑定时任务','event.label_name':'名称','event.name_ph':'如：整点广播','event.label_action':'动作','event.act_broadcast':'广播消息','event.act_command':'执行命令','event.act_script':'📜 AI 脚本（说需求→编译成步骤）','event.act_agent':'🤖 AI 实时（现场判断执行）','event.label_target':'目标子服（脚本/AI 可留全部）','event.target_all':'全部子服','event.label_pay_broadcast':'广播文案','event.label_pay_command':'控制台命令（不带斜杠）','event.label_pay_script':'需求描述（说人话）','event.label_pay_agent':'任务指令（说人话）','event.ph_broadcast':'如：欢迎来玩！今晚8点开活动','event.ph_command':'如：save-all','event.ph_script':'如：先广播提醒今晚维护，再在 earth 执行 save-all','event.ph_agent':'如：看看哪些玩家快流失了并广播召回','event.label_script':'待执行步骤（到点按序确定性执行；先点上面「✨生成脚本」）','event.no_steps':'还没有步骤——填好需求点「✨生成脚本」','event.label_trigger':'触发方式','event.trigger_interval':'每隔 N 分钟','event.trigger_daily':'每天定时','event.label_interval':'间隔（分钟）','event.label_time':'时间','event.label_days':'周几（不选=每天）','event.btn_save':'保存','event.btn_cancel':'取消','event.btn_run':'▶ 立即','event.btn_edit':'编辑','event.no_tasks':'还没有定时任务 — 点「+ 新建任务」加一个','event.err_name':'请填名称和内容/需求','event.err_compile':'没编译出步骤，换个说法再试','event.err_compile_fail':'编译失败：','event.err_save':'保存失败：','event.confirm_delete':'删除这个定时任务？','event.ai_gen':'✨ 生成脚本','event.ai_refine':'✨ AI整理','event.compiling':'编译中…','event.refining':'整理中…','event.err_refine':'整理失败：','event.err_refine_hint':'先写点内容，AI 帮你整理成清晰任务',
+  // 技能扩展
+  'skill.title':'🧪 技能扩展','skill.subtitle_html':'<b>中心权威技能库</b>（统一管理）· 📄文字技能在中心执行 / ⚙️脚本技能下发到目标子服执行 · 保存即热重载','skill.btn_new':'+ 新建技能','skill.btn_sync':'⬇ 下发到子服','skill.btn_reload':'↻ 重载库','skill.btn_refresh':'刷新','skill.loading':'载入中…','skill.hint':'← 从左侧选一个技能查看/编辑，或「+ 新建技能」。','skill.types_desc_html':'两类技能：<b>📄 纯文字</b>=一套操作流程，Agent 读懂后用现有工具执行（不写代码）；<b>⚙️ 脚本+文字</b>=SKILL.md 说清何时/怎么用 + Groovy 脚本干现有工具做不到的事（可用 <code>server / plugins / actions / args / log</code>，<code>return</code> 回报 Agent）。技能由你审过、不过命令护栏但记 audit。','skill.no_skills':'中心库暂无技能。点「+ 新建技能」。','skill.form_edit':'✏️ 编辑技能','skill.form_new':'➕ 新建技能','skill.tab_text':'📄 纯文字','skill.tab_script':'⚙️ 脚本+文字','skill.label_name':'技能名（文件夹名，落在 skills/ 下）','skill.name_ph':'如 welcome_vip','skill.label_targets':'下发到哪些子服（脚本技能；逗号分隔，留空或 all=所有在线子服）','skill.targets_ph':'all（或：survival, lobby）','skill.ai_draft':'🤖 AI 起草 —— 说人话生成流程型 SKILL.md','skill.ai_ph':'例：玩家要求退款时，先查余额和退款政策，符合就扣回并告知，单笔超1000要人工审批','skill.ai_btn':'生成草稿 ✨','skill.label_md':'SKILL.md（YAML 头 name/description/args + 正文）','skill.label_script':'script.groovy（脚本正文）','skill.btn_save_reload':'💾 保存并热重载','skill.btn_delete':'🗑️ 删除','skill.test_title':'▶ 测试运行','skill.test_tag':'脚本→选中子服执行 / 文字→中心出正文，记 audit','skill.label_skill_name':'技能名','skill.label_args':'参数（JSON 对象，如 {"player":"Steve"}）','skill.btn_run':'运行 ✨','skill.err_name':'技能名必填','skill.err_save':'保存失败：','skill.confirm_delete':'从中心库删除技能 %s ？（已下发的子服副本不会自动清除）','skill.err_read':'读取失败：','skill.err_draft':'起草失败：','skill.err_draft_hint':'先写一句需求','skill.err_run':'脚本技能需在右上角选一个目标子服','skill.err_json':'参数不是合法 JSON','skill.executing':'执行中…','skill.err_run_fail':'失败：','skill.reload_done':'已重载中心库：','skill.sync_done':'下发结果：','skill.sync_fail':'下发失败：','skill.fill_name':'填技能名','skill.fill_desc':'先写需求描述',
+  // 设置中心
+  'settings.title':'⚙️ 设置中心',
+  // 命令面板
+  'cmd.help':'显示所有可用命令','cmd.clear':'清空当前会话上下文，重新开始','cmd.history':'查看本会话最近对话','cmd.status':'查看 Agent 运行状态','cmd.value':'物品估值，如 /value get <子服> <物品>','cmd.memory':'查看/管理长期记忆','cmd.pending':'列出待审批的高危操作','cmd.approve':'批准待审操作：/approve <单号>','cmd.deny':'驳回待审操作：/deny <单号>','cmd.admin':'管理员',
+  // 审批
+  'appr.title':'🛡️ 待审批','appr.tag':'项 · 高危需你确认','appr.remain':'剩 %s 分钟','appr.btn_approve':'✅ 批准并执行','appr.btn_deny':'❌ 驳回','appr.history':'🗂️ 审批历史','appr.no_history':'暂无审批记录','appr.confirm_approve':'批准并执行 #%s ？','appr.result':'✅ 批准结果',
+  // 告警
+  'alert.OFFLINE':'掉线','alert.LAG':'卡顿','alert.MEMORY':'内存吃紧','alert.PLAYER_DROP':'在线骤降','alert.RECOVERED':'已恢复','alert.no':'暂无告警 🎐 服务器一切正常',
+  // 服务器状态
+  'status.offline':'掉线','status.lag':'卡顿','status.mem':'内存吃紧','status.ok':'正常',
+  // 平台
+  'platform.neoforge':'NeoForge 混合端','platform.forge':'Forge 混合端','platform.paper':'Paper','platform.spigot':'Spigot','platform.craftbukkit':'CraftBukkit',
+  // 服务器详情
+  'detail.platform':'平台','detail.version':'版本','detail.uptime':'运行','detail.online':'在线','detail.memory':'内存','detail.tps':'TPS','detail.mods':'模组','detail.plugins':'插件','detail.whitelist':'白名单','detail.onlinemode':'正版','detail.viewdist':'视距','detail.worlds':'🗺️ 世界','detail.players':'👥 在线玩家','detail.no_world':'无世界','detail.no_player':'无在线玩家','detail.btn_mods':'🧩 模组清单','detail.btn_dimtps':'⏱️ 分维度TPS','detail.loading':'加载中…','detail.error':'出错：',
+  // 概览
+  'overview.active':'在线/活跃','overview.total':'玩家总数','overview.today':'今日新增','overview.avgtime':'人均时长(分)',
+  // 看板 KPI
+  'kpi.active7d':'活跃玩家','kpi.recent7':'近7天','kpi.new_today':'今日新增','kpi.today':'今日','kpi.avgtime':'人均时长','kpi.deaths':'玩家死亡','kpi.cumulative':'累计','kpi.blocks':'破坏方块','kpi.advancements':'成就达成',
+  // 行为分布
+  'behav.build':'建造','behav.explore':'探索','behav.combat':'战斗','behav.craft':'合成',
+  // 事件
+  'event.join':'加入了游戏','event.quit':'离开了','event.death':'死亡','event.advancement':'解锁成就 ',
+  // 时间
+  'time.just_now':'刚刚','time.min_ago':'分前','time.hour_ago':'小时前','time.day_ago':'天前','time.d':'天','time.h':'时','time.m':'分',
+  // 其他
+  'common.loading':'加载中…','common.error':'出错：','common.none':'无','common.confirm':'确认','common.cancel':'取消','common.save':'保存','common.delete':'删除','common.edit':'编辑',
+  // 聊天快捷
+  'quick.q1':'服务器现在什么情况？','quick.q2':'earth 上终极精华值多少？','quick.q3':'给我组个 36 块的礼包','quick.q4':'最近哪些玩家快流失了？','quick.q5':'广播：今晚 8 点开活动',
+  'event.next_run':'下次','event.last_result':'上次',
+  'board.btn_search':'查询','board.player_ph':'玩家名…','board.heat_empty':'暂无会话数据','board.heat_logins':'次登入',
+  'profile.player':'玩家','profile.style':'主玩法','profile.active_period':'活跃时段','profile.playtime':'在线时长','profile.sessions':'会话','profile.death_rate':'死亡率','profile.blocks':'破坏','profile.advancements':'成就','profile.age':'账号年龄','profile.last_seen':'最近在线',
+  'th.world':'世界','th.time':'时间','th.weather':'天气','th.people':'人','th.entities':'实体','th.chunks':'区块','th.difficulty':'难度','th.player':'玩家','th.ping':'延迟','th.mode':'模式',
+  'weather.clear':'晴','weather.rain':'雨','weather.thunder':'雷暴',
+  'diff.PEACEFUL':'和平','diff.EASY':'简单','diff.NORMAL':'普通','diff.HARD':'困难',
+  'gm.SURVIVAL':'生存','gm.CREATIVE':'创造','gm.ADVENTURE':'冒险','gm.SPECTATOR':'旁观',
+  'env.NORMAL':'🌍','env.NETHER':'🔥','env.THE_END':'🌑',
+},
+'en':{
+  'html.lang':'en','title':'WindyAgent · MC Server Assistant',
+  'login.title':'WindyAgent Console','login.hint':'Enter access token to continue','login.placeholder':'Access token','login.btn':'Enter ✨','login.err_empty':'Please enter a token','login.err_connect':'Connection failed: ','login.err_token':'Invalid token, please re-enter','login.err_reenter':'Please re-enter your token',
+  'topbar.online':'Online','topbar.pending':'Pending','topbar.alerts':'Alerts','topbar.logout':'Logout','topbar.lang':'🌐 EN/中',
+  'sidebar.subtitle':'MC Server Assistant','sidebar.ops':'Dashboard','sidebar.chat':'AI Chat','sidebar.board':'Analytics','sidebar.kb':'Knowledge Base','sidebar.players':'Players','sidebar.econ':'Economy','sidebar.event':'Scheduled Tasks','sidebar.skill':'Skills','sidebar.settings':'Settings','sidebar.state':'Status','sidebar.running':'Running','sidebar.platform':'Platform',
+  'ops.title':'🛰️ Dashboard','ops.subtitle':'Proactive sentinel monitoring · Auto alerts & response suggestions','ops.sentinel':'Sentinel','ops.btn_refresh':'Refresh','ops.servers_title':'🖥️ Servers','ops.servers_tag':'Click card for details','ops.no_server':'No connected servers','ops.alerts_title':'🚨 Alerts & Response','ops.alerts_tag':'Auto sentinel','ops.no_alert':'No alerts — all servers healthy 🎐','ops.kpi_servers':'Online Servers','ops.kpi_players':'Online Players','ops.kpi_alarms':'Active Alerts','ops.kpi_sentinel':'Sentinel','ops.kpi_running':'Running',
+  'chat.welcome_title':'Hello, Admin 🌸','chat.welcome_desc':'I\'m WindyAgent. I can manage players, search info, store knowledge, and follow commands. Multi-turn conversations supported.','chat.cat_player':'🧑 Player Mgmt','chat.cat_player_l1':'Online / Kick / Balance','chat.cat_player_l2':'Player profiles & behavior','chat.cat_shop':'🛒 Shop & Items','chat.cat_shop_l1':'Item valuation / Bundles','chat.cat_shop_l2':'Price & product suggestions','chat.cat_info':'🔎 Info Query','chat.cat_info_l1':'Server status / Switch server','chat.cat_info_l2':'Knowledge base Q&A','chat.cat_memory':'🧠 Memory','chat.cat_memory_l1':'Remember preferences & rules','chat.cat_memory_l2':'Cross-session long-term memory','chat.placeholder':'Say something… (type / for commands, Enter to send, Shift+Enter for newline)','chat.btn_new':'New Chat','chat.btn_send':'Send ✨','chat.thinking':'Thinking…','chat.err':'Error: ','chat.empty':'(empty)','chat.target_all':'🌐 Main (VC)',
+  'quick.broadcast':'📢 Broadcast','quick.cleanup':'🧹 Clear Drops','quick.backup':'💾 Backup','quick.restart':'🔄 Restart Server','quick.broadcast_cmd':'broadcast ','quick.cleanup_cmd':'run kill @e[type=item] on earth','quick.backup_cmd':'backup earth','quick.restart_cmd':'restart earth',
+  'right.overview':'📈 Server Overview','right.more':'More Data','right.actions':'⚡ Quick Actions','right.recent_log':'📜 Recent Log','right.view_all':'View All','right.no_log':'No log (server event log not connected)',
+  'board.title':'📊 Analytics','board.subtitle':'Player behavior & activity overview (data from real-time server collection)','board.recent7':'📅 Last 7 Days','board.btn_export':'⬇️ Export','board.btn_refresh':'Refresh','board.trend_title':'📈 Online Trend','board.trend_tag':'7-day peak','board.heat_title':'🔥 Activity Heatmap','board.heat_tag':'Week × Hour','board.beh_title':'🎮 Behavior Distribution','board.retain_title':'📉 Retention','board.retain_ph':'Daily retention calculation pending','board.seg_title':'🪜 Activity Tiers','board.cmd_title':'⌨️ Top Commands','board.cmd_tag':'Word Freq','board.top_title':'🏆 Top 5 Playtime','board.wordcloud':'☁️ Word Cloud','board.wc_cmd':'Commands','board.wc_chat':'Chat','board.wc_tag':'High Freq','board.wc_empty':'No word frequency data (command cloud always collected; chat cloud needs track-chat enabled on server)','board.timeline':'🕒 Activity Timeline','board.timeline_tag':'Recent','board.profile':'🔮 Player Profile Lookup','board.no_event':'No events',
+  'kb.search_ph':'🔍 Search title / tags / content','kb.btn_new':'+ New Entry','kb.hint':'← Select an entry from left to view; or "+ New" to add (AI drafting supported).','kb.form_new':'New Entry','kb.form_edit':'Edit Entry','kb.ai_draft':'🤖 AI Draft — speak naturally, auto-organized','kb.ai_ph':'e.g. VIP membership 30 yuan/month, 3 daily teleports, exclusive title','kb.ai_btn':'Generate Draft ✨','kb.label_title':'Title','kb.title_ph':'e.g. VIP Benefits','kb.label_tags':'Tags (comma separated, first = category)','kb.tags_ph':'membership, price, vip','kb.label_content':'Content','kb.btn_save':'Save','kb.btn_cancel':'Cancel','kb.no_match':'No matches','kb.no_entries':'No entries yet','kb.btn_edit':'✏️ Edit','kb.btn_delete':'🗑️ Delete','kb.deleted':'Deleted.','kb.err_save':'Save failed: ','kb.err_draft':'Draft failed: ','kb.confirm_delete':'Delete this entry?','kb.uncategorized':'Uncategorized',
+  'wip.players':'Player Management','wip.players_desc':'Online list / Kick / Ban / Permissions — under construction, use AI Chat for natural language operations.','wip.econ':'Economy Analysis','wip.econ_desc':'Income / Inflation / Sales — needs economy & transaction data, under construction.','wip.settings':'Settings','wip.settings_desc':'Token / Background / Theme — under construction (token in web.token config, background in dashboard.html BG).',
+  'event.title':'⏰ Scheduled Tasks','event.subtitle':'Timed broadcast / command execution — runs automatically (every N min, or daily)','event.btn_new':'+ New Task','event.btn_refresh':'Refresh','event.form_new':'New Scheduled Task','event.form_edit':'Edit Scheduled Task','event.label_name':'Name','event.name_ph':'e.g. Hourly broadcast','event.label_action':'Action','event.act_broadcast':'Broadcast Message','event.act_command':'Run Command','event.act_script':'📜 AI Script (describe → compile to steps)','event.act_agent':'🤖 AI Realtime (decide & execute live)','event.label_target':'Target Server (script/AI can leave as all)','event.target_all':'All Servers','event.label_pay_broadcast':'Broadcast Text','event.label_pay_command':'Console Command (without /)','event.label_pay_script':'Description (plain language)','event.label_pay_agent':'Task Instruction (plain language)','event.ph_broadcast':'e.g. Welcome! Event tonight at 8pm','event.ph_command':'e.g. save-all','event.ph_script':'e.g. Broadcast maintenance reminder, then save-all on earth','event.ph_agent':'e.g. Check which players are about to churn and broadcast a recall','event.label_script':'Execution steps (run in order at trigger time; click "✨ Generate Script" first)','event.no_steps':'No steps yet — fill in description and click "✨ Generate Script"','event.label_trigger':'Trigger','event.trigger_interval':'Every N Minutes','event.trigger_daily':'Daily','event.label_interval':'Interval (minutes)','event.label_time':'Time','event.label_days':'Days of Week (empty = every day)','event.btn_save':'Save','event.btn_cancel':'Cancel','event.btn_run':'▶ Run Now','event.btn_edit':'Edit','event.no_tasks':'No scheduled tasks — click "+ New Task" to add one','event.err_name':'Please fill in name and content','event.err_compile':'No steps compiled, try rephrasing','event.err_compile_fail':'Compile failed: ','event.err_save':'Save failed: ','event.confirm_delete':'Delete this task?','event.ai_gen':'✨ Generate Script','event.ai_refine':'✨ AI Refine','event.compiling':'Compiling…','event.refining':'Refining…','event.err_refine':'Refine failed: ','event.err_refine_hint':'Write some content first, AI will help organize it',
+  'skill.title':'🧪 Skills','skill.subtitle_html':'<b>Central Skill Library</b> (unified) · 📄 Text skills run centrally / ⚙️ Script skills deploy to target servers · Hot-reload on save','skill.btn_new':'+ New Skill','skill.btn_sync':'⬇ Deploy to Servers','skill.btn_reload':'↻ Reload Library','skill.btn_refresh':'Refresh','skill.loading':'Loading…','skill.hint':'← Select a skill from left to view/edit, or "+ New Skill".','skill.types_desc_html':'Two types: <b>📄 Text</b> = a set of procedures, Agent reads and executes with existing tools (no code); <b>⚙️ Script+Text</b> = SKILL.md describes when/how + Groovy script does what tools can\'t (use <code>server / plugins / actions / args / log</code>, <code>return</code> to report). Skills are reviewed, bypass command guardrails but logged.','skill.no_skills':'No skills in library. Click "+ New Skill".','skill.form_edit':'✏️ Edit Skill','skill.form_new':'➕ New Skill','skill.tab_text':'📄 Text Only','skill.tab_script':'⚙️ Script + Text','skill.label_name':'Skill name (folder under skills/)','skill.name_ph':'e.g. welcome_vip','skill.label_targets':'Deploy to which servers (script skills; comma separated, empty or all = all online)','skill.targets_ph':'all (or: survival, lobby)','skill.ai_draft':'🤖 AI Draft — speak naturally, generate SKILL.md','skill.ai_ph':'e.g. When player asks for refund, check balance and policy, deduct if valid, notify; >1000 needs manual approval','skill.ai_btn':'Generate Draft ✨','skill.label_md':'SKILL.md (YAML front matter name/description/args + body)','skill.label_script':'script.groovy (script body)','skill.btn_save_reload':'💾 Save & Hot-reload','skill.btn_delete':'🗑️ Delete','skill.test_title':'▶ Test Run','skill.test_tag':'Script → run on selected server / Text → output centrally, logged','skill.label_skill_name':'Skill Name','skill.label_args':'Args (JSON object, e.g. {"player":"Steve"})','skill.btn_run':'Run ✨','skill.err_name':'Skill name required','skill.err_save':'Save failed: ','skill.confirm_delete':'Delete skill %s from central library? (Deployed copies on servers won\'t be auto-removed)','skill.err_read':'Read failed: ','skill.err_draft':'Draft failed: ','skill.err_draft_hint':'Write a requirement first','skill.err_run':'Script skill needs a target server selected in top-right','skill.err_json':'Invalid JSON','skill.executing':'Executing…','skill.err_run_fail':'Failed: ','skill.reload_done':'Library reloaded: ','skill.sync_done':'Deploy result: ','skill.sync_fail':'Deploy failed: ','skill.fill_name':'Enter skill name','skill.fill_desc':'Enter description first',
+  'settings.title':'⚙️ Settings',
+  'cmd.help':'Show all available commands','cmd.clear':'Clear session context and restart','cmd.history':'View recent conversation','cmd.status':'View Agent status','cmd.value':'Item valuation, e.g. /value get <server> <item>','cmd.memory':'View/manage long-term memory','cmd.pending':'List pending high-risk operations','cmd.approve':'Approve pending op: /approve <id>','cmd.deny':'Deny pending op: /deny <id>','cmd.admin':'Admin',
+  'appr.title':'🛡️ Pending Approval','appr.tag':'items · high risk, needs your confirmation','appr.remain':'%s min remaining','appr.btn_approve':'✅ Approve & Execute','appr.btn_deny':'❌ Deny','appr.history':'🗂️ Approval History','appr.no_history':'No approval records','appr.confirm_approve':'Approve & execute #%s?','appr.result':'✅ Approval Result',
+  'alert.OFFLINE':'Offline','alert.LAG':'Lag','alert.MEMORY':'Memory High','alert.PLAYER_DROP':'Player Drop','alert.RECOVERED':'Recovered','alert.no':'No alerts 🎐 All servers healthy',
+  'status.offline':'Offline','status.lag':'Lagging','status.mem':'Memory High','status.ok':'Healthy',
+  'platform.neoforge':'NeoForge Hybrid','platform.forge':'Forge Hybrid','platform.paper':'Paper','platform.spigot':'Spigot','platform.craftbukkit':'CraftBukkit',
+  'detail.platform':'Platform','detail.version':'Version','detail.uptime':'Uptime','detail.online':'Online','detail.memory':'Memory','detail.tps':'TPS','detail.mods':'Mods','detail.plugins':'Plugins','detail.whitelist':'Whitelist','detail.onlinemode':'Online Mode','detail.viewdist':'View Dist','detail.worlds':'🗺️ Worlds','detail.players':'👥 Online Players','detail.no_world':'No worlds','detail.no_player':'No online players','detail.btn_mods':'🧩 Mod List','detail.btn_dimtps':'⏱️ Per-Dim TPS','detail.loading':'Loading…','detail.error':'Error: ',
+  'overview.active':'Online/Active','overview.total':'Total Players','overview.today':'New Today','overview.avgtime':'Avg Playtime(min)',
+  'kpi.active7d':'Active Players','kpi.recent7':'7 days','kpi.new_today':'New Today','kpi.today':'Today','kpi.avgtime':'Avg Playtime','kpi.deaths':'Deaths','kpi.cumulative':'Total','kpi.blocks':'Blocks Broken','kpi.advancements':'Advancements',
+  'behav.build':'Build','behav.explore':'Explore','behav.combat':'Combat','behav.craft':'Craft',
+  'event.join':'joined the game','event.quit':'left the game','event.death':'died','event.advancement':'unlocked advancement ',
+  'time.just_now':'just now','time.min_ago':'m ago','time.hour_ago':'h ago','time.day_ago':'d ago','time.d':'d ','time.h':'h ','time.m':'m',
+  'common.loading':'Loading…','common.error':'Error: ','common.none':'None','common.confirm':'Confirm','common.cancel':'Cancel','common.save':'Save','common.delete':'Delete','common.edit':'Edit',
+  'quick.q1':'What\'s the server status?','quick.q2':'How much is Ultimate Essence on earth?','quick.q3':'Make me a 36-yuan gift bundle','quick.q4':'Which players are about to churn?','quick.q5':'Broadcast: Event tonight at 8pm',
+  'event.next_run':'Next','event.last_result':'Last',
+  'board.btn_search':'Search','board.player_ph':'Player name…','board.heat_empty':'No session data','board.heat_logins':'logins',
+  'profile.player':'Player','profile.style':'Playstyle','profile.active_period':'Active Period','profile.playtime':'Playtime','profile.sessions':'Sessions','profile.death_rate':'Death Rate','profile.blocks':'Blocks','profile.advancements':'Advancements','profile.age':'Account Age','profile.last_seen':'Last Seen',
+  'th.world':'World','th.time':'Time','th.weather':'Weather','th.people':'Players','th.entities':'Entities','th.chunks':'Chunks','th.difficulty':'Difficulty','th.player':'Player','th.ping':'Ping','th.mode':'Mode',
+  'weather.clear':'Clear','weather.rain':'Rain','weather.thunder':'Thunder',
+  'diff.PEACEFUL':'Peaceful','diff.EASY':'Easy','diff.NORMAL':'Normal','diff.HARD':'Hard',
+  'gm.SURVIVAL':'Survival','gm.CREATIVE':'Creative','gm.ADVENTURE':'Adventure','gm.SPECTATOR':'Spectator',
+  'env.NORMAL':'🌍','env.NETHER':'🔥','env.THE_END':'🌑',
+}};
+
+let lang=localStorage.getItem('wa_lang')||'zh-CN';
+const T=k=>{const t=(LANGS[lang]||LANGS['zh-CN'])[k];return t!=null?t:k;};
+const Tf=(k,...a)=>{let s=T(k);a.forEach((v,i)=>{s=s.replace('%s',v)});return s;};
+function setLang(l){lang=l;localStorage.setItem('wa_lang',l);document.documentElement.lang=T('html.lang');document.title=T('title');applyLang();}
+function applyLang(){
+  // 静态 data-i18n 元素
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(el.tagName==='INPUT'&&el.type!=='button'){el.placeholder=T(k);}else{el.textContent=T(k);}});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=T(el.dataset.i18nPh);});
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{el.innerHTML=T(el.dataset.i18nHtml);});
+  // 动态区域重渲染
+  renderNavLabels();renderChatQuick();
+}
+
 const $=id=>document.getElementById(id);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const fmt=n=>(n==null?'0':Number(n).toLocaleString());
-const ago=ts=>{if(!ts)return'-';const d=Date.now()-ts,m=6e4,h=36e5,day=864e5;return d<m?'刚刚':d<h?Math.floor(d/m)+'分前':d<day?Math.floor(d/h)+'小时前':Math.floor(d/day)+'天前';};
+const ago=ts=>{if(!ts)return'-';const d=Date.now()-ts,m=6e4,h=36e5,day=864e5;return d<m?T('time.just_now'):d<h?Math.floor(d/m)+T('time.min_ago'):d<day?Math.floor(d/h)+T('time.hour_ago'):Math.floor(d/day)+T('time.day_ago');};
 function md(t){let s=esc(t);s=s.replace(/```([\s\S]*?)```/g,(m,c)=>`<pre><code>${c.trim()}</code></pre>`);s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');s=s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm,'<b>$1</b>');s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');s=s.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<i>$2</i>');s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank">$1</a>');s=s.replace(/^\s*[-*]\s+(.+)$/gm,'• $1');return s.replace(/\n/g,'<br>');}
 const PAL=['#ff8fc8','#b79bff','#7fd7ff','#86efc6','#ffd98a','#ff7a98'];
 Chart.defaults.color='#bdb6da';Chart.defaults.font.family='"M PLUS Rounded 1c",sans-serif';
@@ -388,21 +506,23 @@ $('bg').style.backgroundImage=`url('${BG}?_=${Date.now()}')`;
 
 const TK=()=>localStorage.getItem('wa_token')||'';
 async function api(p,opt={}){const r=await fetch(p,{...opt,headers:{'X-Token':TK(),'Content-Type':'application/json',...(opt.headers||{})}});
-  if(r.status===401){showGate('令牌无效，请重新输入');throw new Error('unauthorized');}
+  if(r.status===401){showGate(T('login.err_token'));throw new Error('unauthorized');}
   if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||('HTTP '+r.status));return r.json();}
 
 /* 登录闸 */
 function showGate(m){$('gate').style.display='grid';$('gateErr').textContent=m||'';setTimeout(()=>$('gateToken').focus(),50);}
-async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr').textContent='请输入令牌';return;}localStorage.setItem('wa_token',t);
-  try{await loadServers();$('gate').style.display='none';onServer();}catch(e){if(e.message!=='unauthorized')$('gateErr').textContent='连不上：'+e.message;}}
+async function enterGate(){const t=$('gateToken').value.trim();if(!t){$('gateErr').textContent=T('login.err_empty');return;}localStorage.setItem('wa_token',t);
+  try{await loadServers();$('gate').style.display='none';onServer();}catch(e){if(e.message!=='unauthorized')$('gateErr').textContent=T('login.err_connect')+e.message;}}
 
 /* 导航 */
-const PAGES={ops:'🛰️ 运维总览',chat:'💬 AI 对话',board:'📊 行为看板',kb:'📚 知识库',players:'🧑 玩家管理',econ:'💰 经济分析',event:'⏰ 定时任务',skill:'🧪 技能扩展',settings:'⚙️ 设置中心'};
+const PAGE_KEYS={ops:'sidebar.ops',chat:'sidebar.chat',board:'sidebar.board',kb:'sidebar.kb',players:'sidebar.players',econ:'sidebar.econ',event:'sidebar.event',skill:'sidebar.skill',settings:'sidebar.settings'};
+const PAGE_ICONS={ops:'🛰️',chat:'💬',board:'📊',kb:'📚',players:'🧑',econ:'💰',event:'⏰',skill:'🧪',settings:'⚙️'};
+function renderNavLabels(){document.querySelectorAll('.nav .tx').forEach(el=>{const p=el.closest('.nav');if(p&&p.dataset.v)el.textContent=T(PAGE_KEYS[p.dataset.v]);});}
 function logout(){localStorage.removeItem('wa_token');location.reload();}
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+v));
-  const pt=$('pageTitle');if(pt&&PAGES[v])pt.textContent=PAGES[v];
-  $('alertPop').style.display='none';   // 切页收起告警下拉，别盖住内容
+  const pt=$('pageTitle');if(pt&&PAGE_KEYS[v])pt.textContent=PAGE_ICONS[v]+' '+T(PAGE_KEYS[v]);
+  $('alertPop').style.display='none';
   animateIn('page-'+v);
   if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks(); if(v==='skill')loadSkills();}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.v));
@@ -425,8 +545,8 @@ document.addEventListener('click',e=>{
 
 /* 服务器 */
 async function loadServers(){const sv=await api('/api/servers');
-  $('server').innerHTML=sv.length?sv.map(s=>`<option>${s}</option>`).join(''):'<option value="">（无子服）</option>';
-  $('chatTarget').innerHTML='<option value="">🌐 总控(VC)</option>'+sv.map(s=>`<option value="${s}">🖥️ ${s}</option>`).join('');
+  $('server').innerHTML=sv.length?sv.map(s=>`<option>${s}</option>`).join(''):`<option value="">${T('common.none')}</option>`;
+  $('chatTarget').innerHTML=`<option value="">${T('chat.target_all')}</option>`+sv.map(s=>`<option value="${s}">🖥️ ${s}</option>`).join('');
   const savT=localStorage.getItem('wa_target');   // 恢复上次选中的子服，再回灌对应会话记录
   if(savT&&[...$('chatTarget').options].some(o=>o.value===savT))$('chatTarget').value=savT;
   renderHist();
@@ -436,7 +556,7 @@ async function loadServers(){const sv=await api('/api/servers');
 
 /* 运维告警：轮询 /api/alerts（哨兵推来的），铃铛角标计数 + 下拉列表 */
 let lastAlerts=[];
-function kindLabel(k){return({OFFLINE:'掉线',LAG:'卡顿',MEMORY:'内存吃紧',PLAYER_DROP:'在线骤降',RECOVERED:'已恢复'})[k]||k;}
+function kindLabel(k){return T('alert.'+k)||k;}
 function sevColor(s){return s==='critical'?'var(--red)':(s==='warn'?'var(--gold)':'var(--mint)');}
 async function pollAlerts(){try{renderAlerts(await api('/api/alerts'));}catch(e){}}
 function renderAlerts(a){lastAlerts=a||[];const dot=$('bellDot'),n=lastAlerts.length;
@@ -445,16 +565,16 @@ function renderAlerts(a){lastAlerts=a||[];const dot=$('bellDot'),n=lastAlerts.le
       <div style="display:flex;justify-content:space-between;gap:8px"><b>${kindLabel(x.kind)} · ${esc(x.server)}</b><span class="muted" style="font-size:11px">${ago(x.ts)}</span></div>
       <div style="font-size:12.5px;margin-top:2px">${esc(x.detail)}</div>
       ${x.advice?`<div style="font-size:12px;color:var(--mut);margin-top:5px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:5px">💡 ${esc(x.advice)}</div>`:''}
-    </div>`).join(''):'<div class="muted" style="padding:16px;text-align:center">暂无告警 🎐 服务器一切正常</div>';}
+    </div>`).join(''):`<div class="muted" style="padding:16px;text-align:center">${T('alert.no')}</div>`;}
 function toggleAlerts(){const p=$('alertPop');const show=p.style.display==='none';p.style.display=show?'':'none';if(show)pollAlerts();}
 /* 告警下拉：点铃铛外的任何地方都收起，避免浮层盖住下方内容 */
 document.addEventListener('click',e=>{const p=$('alertPop');if(p&&p.style.display!=='none'&&!e.target.closest('#alertPop')&&!e.target.closest('#bell'))p.style.display='none';});
 
 /* 运维总览首页：子服健康卡片 + 哨兵告警/处置过程 */
 function stColor(s){return s==='offline'?'var(--red)':(s==='lag'||s==='mem')?'var(--gold)':'var(--mint)';}
-function stLabel(s){return({offline:'掉线',lag:'卡顿',mem:'内存吃紧',ok:'正常'})[s]||'正常';}
-function platLabel(p){return({'neoforge-hybrid':'NeoForge 混合端','forge-hybrid':'Forge 混合端','paper':'Paper','spigot':'Spigot','craftbukkit':'CraftBukkit'})[p]||p||'';}
-function platBadge(x){if(!x.platform)return'';const bits=[platLabel(x.platform)];if(x.mcVersion)bits.push('MC'+x.mcVersion);if(x.modCount>0)bits.push(x.modCount+' 模组');
+function stLabel(s){return T('status.'+s)||T('status.ok');}
+function platLabel(p){const m={'neoforge-hybrid':'platform.neoforge','forge-hybrid':'platform.forge','paper':'platform.paper','spigot':'platform.spigot','craftbukkit':'platform.craftbukkit'};return T(m[p]||p)||p||'';}
+function platBadge(x){if(!x.platform)return'';const bits=[platLabel(x.platform)];if(x.mcVersion)bits.push('MC'+x.mcVersion);if(x.modCount>0)bits.push(x.modCount+' '+T('detail.mods'));
   return `<div class="muted" style="font-size:11px;margin-top:7px;display:flex;align-items:center;gap:5px"><span>🧩</span>${esc(bits.join(' · '))}</div>`;}
 async function loadOps(){
   const [health,alerts,servers]=await Promise.all([api('/api/health').catch(()=>[]),api('/api/alerts').catch(()=>[]),api('/api/servers').catch(()=>[])]);
@@ -464,120 +584,120 @@ function renderHealth(h,servers){
   $('healthGrid').innerHTML=list.length?list.map(x=>`<div class="hcard" style="cursor:pointer" onclick="openServerDetail('${x.server}')">
       <div class="hn"><span class="sdot" style="background:${stColor(x.status)};box-shadow:0 0 8px ${stColor(x.status)}"></span>${esc(x.server)}<span class="muted" style="font-size:12px;margin-left:auto">${stLabel(x.status)} ›</span></div>
       <div class="hs"><div><div class="v">${x.tps!=null?x.tps:'—'}</div><div class="k">TPS</div></div>
-        <div><div class="v">${x.players!=null?x.players:'—'}</div><div class="k">在线</div></div>
-        <div><div class="v">${x.memPct!=null?x.memPct+'%':'—'}</div><div class="k">内存</div></div></div>
+        <div><div class="v">${x.players!=null?x.players:'—'}</div><div class="k">${T('topbar.online')}</div></div>
+        <div><div class="v">${x.memPct!=null?x.memPct+'%':'—'}</div><div class="k">${T('detail.memory')}</div></div></div>
       ${platBadge(x)}
-    </div>`).join(''):'<div class="muted" style="padding:6px">暂无已连接子服</div>';}
+    </div>`).join(''):`<div class="muted" style="padding:6px">${T('ops.no_server')}</div>`;}
 /* 服务器详情：点开列表某行 → 拉 /api/serverdetail → 弹窗(概况+世界+玩家) */
-function envIcon(e){return({NORMAL:'🌍',NETHER:'🔥',THE_END:'🌑'})[e]||'🗺️';}
-function weatherTxt(w){return({clear:'☀️晴',rain:'🌧️雨',thunder:'⛈️雷暴'})[w]||w||'-';}
-function diffTxt(d){return({PEACEFUL:'和平',EASY:'简单',NORMAL:'普通',HARD:'困难'})[d]||d||'-';}
-function gmTxt(g){return({SURVIVAL:'生存',CREATIVE:'创造',ADVENTURE:'冒险',SPECTATOR:'旁观'})[g]||g||'-';}
-function fmtUp(s){s=s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+'天':'')+(h||d?h+'时':'')+m+'分';}
+function envIcon(e){return T('env.'+e)||'🗺️';}
+function weatherTxt(w){return({clear:'☀️'+T('weather.clear'),rain:'🌧️'+T('weather.rain'),thunder:'⛈️'+T('weather.thunder')})[w]||w||'-';}
+function diffTxt(d){return T('diff.'+d)||d||'-';}
+function gmTxt(g){return T('gm.'+g)||g||'-';}
+function fmtUp(s){s=s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+T('time.d'):'')+(h||d?h+T('time.h'):'')+m+T('time.m');}
 function dcell(k,v){return `<div class="dcell"><div class="dk">${k}</div><div class="dv">${esc(''+v)}</div></div>`;}
-async function openServerDetail(server){showModalHtml('🖥️ '+server,'加载中…');
+async function openServerDetail(server){showModalHtml('🖥️ '+server,T('detail.loading'));
   try{renderServerDetail(server,await api('/api/serverdetail?server='+encodeURIComponent(server)));}
-  catch(e){showModalHtml('🖥️ '+server,'出错：'+esc(e.message));}}
+  catch(e){showModalHtml('🖥️ '+server,T('detail.error')+esc(e.message));}}
 function renderServerDetail(server,d){
   const isF=/forge/.test(d.platform||'');
   const ov=`<div class="dgrid">
-    ${dcell('平台',platLabel(d.platform)||'-')}${dcell('版本','MC'+(d.mcVersion||'?'))}
-    ${dcell('运行',fmtUp(d.uptimeSec))}${dcell('在线',(d.online||0)+'/'+(d.maxPlayers||0))}
-    ${dcell('内存',d.memMaxMb?Math.round(d.memUsedMb*100/d.memMaxMb)+'%':'-')}${dcell('TPS',(d.tps!=null&&d.tps>=0)?d.tps:'-')}
-    ${dcell('模组',d.modCount>0?d.modCount:'-')}${dcell('插件',d.pluginCount||'-')}
-    ${dcell('白名单',d.whitelist?'开':'关')}${dcell('正版',d.onlineMode?'开':'关')}${d.viewDistance?dcell('视距',d.viewDistance):''}
+    ${dcell(T('detail.platform'),platLabel(d.platform)||'-')}${dcell(T('detail.version'),'MC'+(d.mcVersion||'?'))}
+    ${dcell(T('detail.uptime'),fmtUp(d.uptimeSec))}${dcell(T('detail.online'),(d.online||0)+'/'+(d.maxPlayers||0))}
+    ${dcell(T('detail.memory'),d.memMaxMb?Math.round(d.memUsedMb*100/d.memMaxMb)+'%':'-')}${dcell('TPS',(d.tps!=null&&d.tps>=0)?d.tps:'-')}
+    ${dcell(T('detail.mods'),d.modCount>0?d.modCount:'-')}${dcell(T('detail.plugins'),d.pluginCount||'-')}
+    ${dcell(T('detail.whitelist'),d.whitelist?T('status.ok'):T('status.offline'))}${dcell(T('detail.onlinemode'),d.onlineMode?T('status.ok'):T('status.offline'))}${d.viewDistance?dcell(T('detail.viewdist'),d.viewDistance):''}
   </div>`;
-  const worlds=(d.worlds||[]).map(w=>`<tr><td>${envIcon(w.env)} ${esc(w.name)}</td><td>${w.timeHM||'-'} ${w.day?'☀️':'🌙'}</td><td>${weatherTxt(w.weather)}</td><td>${w.players||0}</td><td>${w.entities>=0?w.entities:'-'}</td><td>${w.chunks>=0?w.chunks:'-'}</td><td>${diffTxt(w.difficulty)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">无世界</td></tr>';
-  const players=(d.players&&d.players.length)?d.players.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.world)}</td><td>${p.ping>=0?p.ping+'ms':'-'}</td><td>${gmTxt(p.gamemode)}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">无在线玩家</td></tr>';
+  const worlds=(d.worlds||[]).map(w=>`<tr><td>${envIcon(w.env)} ${esc(w.name)}</td><td>${w.timeHM||'-'} ${w.day?'☀️':'🌙'}</td><td>${weatherTxt(w.weather)}</td><td>${w.players||0}</td><td>${w.entities>=0?w.entities:'-'}</td><td>${w.chunks>=0?w.chunks:'-'}</td><td>${diffTxt(w.difficulty)}</td></tr>`).join('')||`<tr><td colspan="7" class="muted">${T('detail.no_world')}</td></tr>`;
+  const players=(d.players&&d.players.length)?d.players.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.world)}</td><td>${p.ping>=0?p.ping+'ms':'-'}</td><td>${gmTxt(p.gamemode)}</td></tr>`).join(''):`<tr><td colspan="4" class="muted">${T('detail.no_player')}</td></tr>`;
   const html=`${ov}
-    <h4 style="margin:16px 0 8px">🗺️ 世界</h4>
-    <table class="dtbl"><thead><tr><th>世界</th><th>时间</th><th>天气</th><th>人</th><th>实体</th><th>区块</th><th>难度</th></tr></thead><tbody>${worlds}</tbody></table>
-    <h4 style="margin:16px 0 8px">👥 在线玩家 (${(d.players||[]).length})</h4>
-    <table class="dtbl"><thead><tr><th>玩家</th><th>世界</th><th>延迟</th><th>模式</th></tr></thead><tbody>${players}</tbody></table>
-    ${isF?`<div style="display:flex;gap:8px;margin-top:14px"><button class="btn ghost sm" onclick="srvInfo('${server}','mods','🧩 ${server} · 模组清单')">🧩 模组清单</button><button class="btn ghost sm" onclick="srvInfo('${server}','dimtps','⏱️ ${server} · 分维度TPS')">⏱️ 分维度TPS</button></div>`:''}`;
+    <h4 style="margin:16px 0 8px">${T('detail.worlds')}</h4>
+    <table class="dtbl"><thead><tr><th>${T('th.world')}</th><th>${T('th.time')}</th><th>${T('th.weather')}</th><th>${T('th.people')}</th><th>${T('th.entities')}</th><th>${T('th.chunks')}</th><th>${T('th.difficulty')}</th></tr></thead><tbody>${worlds}</tbody></table>
+    <h4 style="margin:16px 0 8px">${T('detail.players')} (${(d.players||[]).length})</h4>
+    <table class="dtbl"><thead><tr><th>${T('th.player')}</th><th>${T('th.world')}</th><th>${T('th.ping')}</th><th>${T('th.mode')}</th></tr></thead><tbody>${players}</tbody></table>
+    ${isF?`<div style="display:flex;gap:8px;margin-top:14px"><button class="btn ghost sm" onclick="srvInfo('${server}','mods','🧩 ${server} · ${T('detail.mods')}')">${T('detail.btn_mods')}</button><button class="btn ghost sm" onclick="srvInfo('${server}','dimtps','⏱️ ${server} · ${T('detail.btn_dimtps')}')">${T('detail.btn_dimtps')}</button></div>`:''}`;
   showModalHtml('🖥️ '+server+' · 详情',html);}
 async function srvInfo(server,kind,title){showInfo(title,'加载中…');
-  try{const r=await api('/api/'+kind+'?server='+encodeURIComponent(server));showInfo(title,r.text||'(空)');}
-  catch(e){showInfo(title,'出错：'+e.message);}}
+  try{const r=await api('/api/'+kind+'?server='+encodeURIComponent(server));showInfo(title,r.text||'(empty)');}
+  catch(e){showInfo(title,T('common.error')+e.message);}}
 function showInfo(t,b){$('infoTitle').textContent=t;$('infoBody').style.whiteSpace='pre-wrap';$('infoBody').textContent=b;$('infoModal').style.display='grid';}
 function showModalHtml(t,html){$('infoTitle').textContent=t;$('infoBody').style.whiteSpace='normal';$('infoBody').innerHTML=html;$('infoModal').style.display='grid';}
 function hideInfo(){$('infoModal').style.display='none';}
 
 /* 定时任务 */
 let tasks=[];
-const WK='一二三四五六日';
+const getWK=()=>lang==='en'?['Mon','Tue','Wed','Thu','Fri','Sat','Sun']:'一二三四五六日';
 function fmtTime(ms){const d=new Date(ms),p=n=>(''+n).padStart(2,'0');return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
-function schedText(t){return t.type==='daily'?('每天 '+t.time+(t.days&&t.days.length?' ('+t.days.map(d=>WK[d-1]).join('')+')':'')):('每 '+t.intervalMin+' 分钟');}
-function actText(t){const a={broadcast:'广播',command:'命令',agent:'🤖 AI实时',script:'📜 AI脚本('+(t.script?t.script.length:0)+'步)'}[t.action]||t.action;return (t.action==='agent'||t.action==='script')?a:(a+' → '+(t.target==='*'||!t.target?'全部子服':t.target));}
+function schedText(t){const wk=getWK();return t.type==='daily'?(T('event.trigger_daily')+' '+t.time+(t.days&&t.days.length?' ('+t.days.map(d=>wk[d-1]).join('')+')':'')):(T('event.trigger_interval').replace('N',t.intervalMin));}
+function actText(t){const a={broadcast:T('event.act_broadcast'),command:T('event.act_command'),agent:T('event.act_agent'),script:'📜 AI ('+(t.script?t.script.length:0)+')'}[t.action]||t.action;return (t.action==='agent'||t.action==='script')?a:(a+' → '+(t.target==='*'||!t.target?T('event.target_all'):t.target));}
 async function loadTasks(){try{tasks=await api('/api/tasks');renderTasks();}catch(e){$('taskList').innerHTML='<span class="err">'+esc(e.message)+'</span>';}}
 function renderTasks(){
   $('taskList').innerHTML=tasks.length?tasks.map(t=>`<div class="panel glass" style="margin-bottom:12px;display:flex;align-items:center;gap:14px">
     <div style="flex:1;min-width:0">
       <div style="font-weight:800;font-size:15px">${t.enabled?'🟢':'⚪'} ${esc(t.name)}</div>
-      <div class="muted" style="font-size:12.5px;margin-top:4px">${esc(actText(t))} · ${esc(schedText(t))}${t.enabled&&t.nextRun>0?' · 下次 '+fmtTime(t.nextRun):''}</div>
-      <div class="muted" style="font-size:12px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">「${esc(t.payload)}」${t.lastResult?' · 上次：'+esc(t.lastResult):''}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px">${esc(actText(t))} · ${esc(schedText(t))}${t.enabled&&t.nextRun>0?' · '+T('event.next_run')+' '+fmtTime(t.nextRun):''}</div>
+      <div class="muted" style="font-size:12px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">「${esc(t.payload)}」${t.lastResult?' · '+T('event.last_result')+'：'+esc(t.lastResult):''}</div>
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0">
-      <button class="btn ghost sm" onclick="runTask('${t.id}')">▶ 立即</button>
+      <button class="btn ghost sm" onclick="runTask('${t.id}')">▶ ${T('event.btn_run')}</button>
       <button class="btn ghost sm" onclick="toggleTask('${t.id}')">${t.enabled?'⏸':'▶'}</button>
-      <button class="btn ghost sm" onclick="editTask('${t.id}')">编辑</button>
+      <button class="btn ghost sm" onclick="editTask('${t.id}')">${T('event.btn_edit')}</button>
       <button class="btn ghost sm" onclick="delTask('${t.id}')">🗑</button>
-    </div></div>`).join(''):'<div class="ph" style="height:120px">还没有定时任务 — 点「+ 新建任务」加一个</div>';}
+    </div></div>`).join(''):`<div class="ph" style="height:120px">${T('event.no_tasks')}</div>`;}
 let tfScriptData=[];
 function openTask(t){t=t||{};const isE=!!t.id,days=t.days||[];tfScriptData=t.script||[];
-  const srvOpts='<option value="*"'+(t.target==='*'||!t.target?' selected':'')+'>全部子服</option>'+[...$('server').options].map(o=>o.value).filter(v=>v).map(v=>`<option ${t.target===v?'selected':''}>${v}</option>`).join('');
+  const srvOpts=`<option value="*"${(t.target==='*'||!t.target?' selected':'')}>${T('event.target_all')}</option>`+[...$('server').options].map(o=>o.value).filter(v=>v).map(v=>`<option ${t.target===v?'selected':''}>${v}</option>`).join('');
   const A=t.action||'broadcast';
-  $('taskForm').innerHTML=`<h3>${isE?'编辑':'新建'}定时任务</h3>
-    <div class="tf"><label>名称</label><input id="tfName" value="${esc(t.name||'')}" placeholder="如：整点广播"></div>
-    <div class="tf2"><div><label>动作</label><select id="tfAction" onchange="tfActionChange()">
-        <option value="broadcast" ${A==='broadcast'?'selected':''}>广播消息</option>
-        <option value="command" ${A==='command'?'selected':''}>执行命令</option>
-        <option value="script" ${A==='script'?'selected':''}>📜 AI 脚本（说需求→编译成步骤）</option>
-        <option value="agent" ${A==='agent'?'selected':''}>🤖 AI 实时（现场判断执行）</option></select></div>
-      <div><label>目标子服（脚本/AI 可留全部）</label><select id="tfTarget">${srvOpts}</select></div></div>
-    <div class="tf"><label id="tfPayLabel">内容<span id="tfAiBtn" style="float:right;color:var(--violet);cursor:pointer;font-weight:700;font-size:12px"></span></label><input id="tfPayload" value="${esc(t.payload||'')}" placeholder=""></div>
-    <div id="tfScriptWrap" class="tf" style="display:none"><label>待执行步骤（到点按序确定性执行；先点上面「✨生成脚本」）</label><div id="tfScriptBox" style="font-size:12.5px"></div></div>
-    <div class="tf2"><div><label>触发方式</label><select id="tfType" onchange="tfTypeChange()"><option value="interval" ${t.type!=='daily'?'selected':''}>每隔 N 分钟</option><option value="daily" ${t.type==='daily'?'selected':''}>每天定时</option></select></div>
-      <div id="tfIntWrap" style="${t.type==='daily'?'display:none':''}"><label>间隔（分钟）</label><input id="tfInterval" type="number" min="1" value="${t.intervalMin||60}"></div>
-      <div id="tfTimeWrap" style="${t.type==='daily'?'':'display:none'}"><label>时间</label><input id="tfTime" type="time" value="${t.time||'12:00'}"></div></div>
-    <div id="tfDaysWrap" class="tf" style="${t.type==='daily'?'':'display:none'}"><label>周几（不选=每天）</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${[1,2,3,4,5,6,7].map(d=>`<label class="dchk"><input type="checkbox" class="tfDay" value="${d}" ${days.includes(d)?'checked':''}>${WK[d-1]}</label>`).join('')}</div></div>
+  $('taskForm').innerHTML=`<h3>${isE?T('event.form_edit'):T('event.form_new')}</h3>
+    <div class="tf"><label>${T('event.label_name')}</label><input id="tfName" value="${esc(t.name||'')}" placeholder="${T('event.name_ph')}"></div>
+    <div class="tf2"><div><label>${T('event.label_action')}</label><select id="tfAction" onchange="tfActionChange()">
+        <option value="broadcast" ${A==='broadcast'?'selected':''}>${T('event.act_broadcast')}</option>
+        <option value="command" ${A==='command'?'selected':''}>${T('event.act_command')}</option>
+        <option value="script" ${A==='script'?'selected':''}>${T('event.act_script')}</option>
+        <option value="agent" ${A==='agent'?'selected':''}>${T('event.act_agent')}</option></select></div>
+      <div><label>${T('event.label_target')}</label><select id="tfTarget">${srvOpts}</select></div></div>
+    <div class="tf"><label id="tfPayLabel">${T('event.label_pay_broadcast')}<span id="tfAiBtn" style="float:right;color:var(--violet);cursor:pointer;font-weight:700;font-size:12px"></span></label><input id="tfPayload" value="${esc(t.payload||'')}" placeholder=""></div>
+    <div id="tfScriptWrap" class="tf" style="display:none"><label>${T('event.label_script')}</label><div id="tfScriptBox" style="font-size:12.5px"></div></div>
+    <div class="tf2"><div><label>${T('event.label_trigger')}</label><select id="tfType" onchange="tfTypeChange()"><option value="interval" ${t.type!=='daily'?'selected':''}>${T('event.trigger_interval')}</option><option value="daily" ${t.type==='daily'?'selected':''}>${T('event.trigger_daily')}</option></select></div>
+      <div id="tfIntWrap" style="${t.type==='daily'?'display:none':''}"><label>${T('event.label_interval')}</label><input id="tfInterval" type="number" min="1" value="${t.intervalMin||60}"></div>
+      <div id="tfTimeWrap" style="${t.type==='daily'?'':'display:none'}"><label>${T('event.label_time')}</label><input id="tfTime" type="time" value="${t.time||'12:00'}"></div></div>
+    <div id="tfDaysWrap" class="tf" style="${t.type==='daily'?'':'display:none'}"><label>${T('event.label_days')}</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${[1,2,3,4,5,6,7].map(d=>{const wk=getWK();return `<label class="dchk"><input type="checkbox" class="tfDay" value="${d}" ${days.includes(d)?'checked':''}>${wk[d-1]}</label>`;}).join('')}</div></div>
     <input type="hidden" id="tfId" value="${t.id||''}">
-    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn sm" onclick="saveTask()">保存</button><button class="btn ghost sm" onclick="$('taskForm').style.display='none'">取消</button></div>`;
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn sm" onclick="saveTask()">${T('event.btn_save')}</button><button class="btn ghost sm" onclick="$('taskForm').style.display='none'">${T('event.btn_cancel')}</button></div>`;
   tfActionChange();renderScriptBox();
   $('taskForm').style.display='';$('taskForm').scrollIntoView({behavior:'smooth',block:'nearest'});}
 function tfActionChange(){const a=$('tfAction').value,isS=a==='script';
   $('tfScriptWrap').style.display=isS?'':'none';
   const lab=$('tfPayLabel'),btn=$('tfAiBtn'),inp=$('tfPayload');
-  if(a==='broadcast'){lab.childNodes[0].nodeValue='广播文案';btn.textContent='';btn.onclick=null;inp.placeholder='如：欢迎来玩！今晚8点开活动';}
-  else if(a==='command'){lab.childNodes[0].nodeValue='控制台命令（不带斜杠）';btn.textContent='';btn.onclick=null;inp.placeholder='如：save-all';}
-  else if(a==='script'){lab.childNodes[0].nodeValue='需求描述（说人话）';btn.textContent='✨ 生成脚本';btn.onclick=genScript;inp.placeholder='如：先广播提醒今晚维护，再在 earth 执行 save-all';}
-  else{lab.childNodes[0].nodeValue='任务指令（说人话）';btn.textContent='✨ AI整理';btn.onclick=refineTask;inp.placeholder='如：看看哪些玩家快流失了并广播召回';}}
+  if(a==='broadcast'){lab.childNodes[0].nodeValue=T('event.label_pay_broadcast');btn.textContent='';btn.onclick=null;inp.placeholder=T('event.ph_broadcast');}
+  else if(a==='command'){lab.childNodes[0].nodeValue=T('event.label_pay_command');btn.textContent='';btn.onclick=null;inp.placeholder=T('event.ph_command');}
+  else if(a==='script'){lab.childNodes[0].nodeValue=T('event.label_pay_script');btn.textContent=T('event.ai_gen');btn.onclick=genScript;inp.placeholder=T('event.ph_script');}
+  else{lab.childNodes[0].nodeValue=T('event.label_pay_agent');btn.textContent=T('event.ai_refine');btn.onclick=refineTask;inp.placeholder=T('event.ph_agent');}}
 function renderScriptBox(){const box=$('tfScriptBox');if(!box)return;
-  box.innerHTML=tfScriptData.length?tfScriptData.map((s,i)=>`<div style="background:var(--glass2);border-radius:8px;padding:7px 10px;margin-bottom:5px"><b>${i+1}. ${s.action==='command'?'⌨️命令':'📢广播'}</b> → ${esc(s.target||'*')}<div style="color:var(--mut);margin-top:2px">${esc(s.payload||'')}</div></div>`).join(''):'<span class="muted">还没有步骤——填好需求点「✨生成脚本」</span>';}
-async function genScript(){const desc=$('tfPayload').value.trim();if(!desc){alert('先写需求描述');return;}
-  const box=$('tfScriptBox');box.innerHTML='<span class="muted">编译中…</span>';
+  box.innerHTML=tfScriptData.length?tfScriptData.map((s,i)=>`<div style="background:var(--glass2);border-radius:8px;padding:7px 10px;margin-bottom:5px"><b>${i+1}. ${s.action==='command'?'⌨️':'📢'}</b> → ${esc(s.target||'*')}<div style="color:var(--mut);margin-top:2px">${esc(s.payload||'')}</div></div>`).join(''):`<span class="muted">${T('event.no_steps')}</span>`;}
+async function genScript(){const desc=$('tfPayload').value.trim();if(!desc){alert(T('skill.fill_desc'));return;}
+  const box=$('tfScriptBox');box.innerHTML=`<span class="muted">${T('event.compiling')}</span>`;
   try{const steps=await api('/api/tasks/compile',{method:'POST',body:JSON.stringify({description:desc,server:$('tfTarget').value})});
-    tfScriptData=Array.isArray(steps)?steps:[];renderScriptBox();if(!tfScriptData.length)box.innerHTML='<span class="err">没编译出步骤，换个说法再试</span>';}
-  catch(e){box.innerHTML='<span class="err">编译失败：'+esc(e.message)+'</span>';}}
+    tfScriptData=Array.isArray(steps)?steps:[];renderScriptBox();if(!tfScriptData.length)box.innerHTML=`<span class="err">${T('event.err_compile')}</span>`;}
+  catch(e){box.innerHTML=`<span class="err">${T('event.err_compile_fail')}${esc(e.message)}</span>`;}}
 function tfTypeChange(){const d=$('tfType').value==='daily';$('tfIntWrap').style.display=d?'none':'';$('tfTimeWrap').style.display=d?'':'none';$('tfDaysWrap').style.display=d?'':'none';}
 function editTask(id){openTask(tasks.find(t=>t.id===id));}
 async function saveTask(){const a=$('tfAction').value;
   const body={id:$('tfId').value,name:$('tfName').value.trim(),action:a,target:$('tfTarget').value,payload:$('tfPayload').value.trim(),
     type:$('tfType').value,intervalMin:parseInt($('tfInterval').value)||60,time:$('tfTime').value,days:[...document.querySelectorAll('.tfDay:checked')].map(c=>parseInt(c.value))};
-  if(!body.name||!body.payload){alert('请填名称和内容/需求');return;}
-  if(a==='script'){if(!tfScriptData.length){alert('请先「✨生成脚本」并确认步骤');return;}body.script=tfScriptData;}
-  try{await api('/api/tasks',{method:'POST',body:JSON.stringify(body)});$('taskForm').style.display='none';loadTasks();}catch(e){alert('保存失败：'+e.message);}}
-async function delTask(id){if(!confirm('删除这个定时任务？'))return;try{await api('/api/tasks?id='+id,{method:'DELETE'});loadTasks();}catch(e){alert(e.message);}}
+  if(!body.name||!body.payload){alert(T('event.err_name'));return;}
+  if(a==='script'){if(!tfScriptData.length){alert(T('event.no_steps'));return;}body.script=tfScriptData;}
+  try{await api('/api/tasks',{method:'POST',body:JSON.stringify(body)});$('taskForm').style.display='none';loadTasks();}catch(e){alert(T('event.err_save')+e.message);}}
+async function delTask(id){if(!confirm(T('event.confirm_delete')))return;try{await api('/api/tasks?id='+id,{method:'DELETE'});loadTasks();}catch(e){alert(e.message);}}
 async function toggleTask(id){try{await api('/api/tasks/toggle?id='+id,{method:'POST'});loadTasks();}catch(e){alert(e.message);}}
-async function runTask(id){try{const r=await api('/api/tasks/run?id='+id,{method:'POST'});showInfo('▶ 手动触发结果',r.result||'(完成)');loadTasks();}catch(e){alert(e.message);}}
-async function refineTask(){const inp=$('tfPayload'),t=inp.value.trim();if(!t){alert('先写点内容，AI 帮你整理成清晰任务');return;}
-  const old=inp.value;inp.value='整理中…';try{const r=await api('/api/tasks/refine',{method:'POST',body:JSON.stringify({text:t})});inp.value=r.text||old;}catch(e){inp.value=old;alert('整理失败：'+e.message);}}
+async function runTask(id){try{const r=await api('/api/tasks/run?id='+id,{method:'POST'});showInfo('▶ '+T('event.btn_run'),r.result||'(OK)');loadTasks();}catch(e){alert(e.message);}}
+async function refineTask(){const inp=$('tfPayload'),t=inp.value.trim();if(!t){alert(T('event.err_refine_hint'));return;}
+  const old=inp.value;inp.value=T('event.refining');try{const r=await api('/api/tasks/refine',{method:'POST',body:JSON.stringify({text:t})});inp.value=r.text||old;}catch(e){inp.value=old;alert(T('event.err_refine')+e.message);}}
 function renderOpsKpis(h,a){
   const arr=h||[],on=arr.filter(x=>x.status!=='offline').length;
   const players=arr.reduce((s,x)=>s+(x.players||0),0);
   const alarms=(a||[]).filter(x=>x.kind!=='RECOVERED').length;
-  const it=[['🖥️','在线子服',on],['👥','在线玩家',players],['🚨','活跃告警',alarms],['🛰️','哨兵','运行中']];
+  const it=[['🖥️',T('ops.kpi_servers'),on],['👥',T('ops.kpi_players'),players],['🚨',T('ops.kpi_alarms'),alarms],['🛰️',T('ops.kpi_sentinel'),T('ops.kpi_running')]];
   $('opsKpis').innerHTML=it.map(([i,k,v],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join('');}
 /* 审批：待审 + 历史。topbar 角标始终更新；首页面板仅 ops 页渲染 */
 async function pollApprovals(){try{renderApprovals(await api('/api/approvals'));}catch(e){}}
@@ -585,23 +705,23 @@ function renderApprovals(d){const pend=d.pending||[],hist=d.history||[];
   const b=$('apprBadge');if(b){if(pend.length){b.style.display='';$('apprCount').textContent=pend.length;}else b.style.display='none';}
   const box=$('apprBox');if(!box)return;
   let html='';
-  if(pend.length){html+=`<div class="panel glass" style="margin-bottom:16px;border:1px solid rgba(255,122,152,.55)"><h3>🛡️ 待审批 <span class="tag" style="color:var(--red);border-color:rgba(255,122,152,.5)">${pend.length} 项 · 高危需你确认</span></h3>`
+  if(pend.length){html+=`<div class="panel glass" style="margin-bottom:16px;border:1px solid rgba(255,122,152,.55)"><h3>${T('appr.title')} <span class="tag" style="color:var(--red);border-color:rgba(255,122,152,.5)">${pend.length} ${T('appr.tag')}</span></h3>`
     +pend.map(p=>`<div style="background:var(--glass2);border-radius:10px;padding:11px 13px;margin-bottom:9px;border-left:3px solid var(--red)">
-        <div style="display:flex;justify-content:space-between;gap:8px"><b>#${esc(p.id)}</b><span class="muted" style="font-size:11px">剩 ${Math.max(0,Math.round(p.remainMs/60000))} 分钟</span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px"><b>#${esc(p.id)}</b><span class="muted" style="font-size:11px">${Tf('appr.remain',Math.max(0,Math.round(p.remainMs/60000)))}</span></div>
         <div style="font-size:13px;margin:5px 0;white-space:pre-wrap">${esc(p.desc)}</div>
-        <div style="display:flex;gap:7px"><button class="btn sm" onclick="approveItem('${p.id}')">✅ 批准并执行</button><button class="btn ghost sm" onclick="denyItem('${p.id}')">❌ 驳回</button></div>
+        <div style="display:flex;gap:7px"><button class="btn sm" onclick="approveItem('${p.id}')">${T('appr.btn_approve')}</button><button class="btn ghost sm" onclick="denyItem('${p.id}')">${T('appr.btn_deny')}</button></div>
       </div>`).join('')+`</div>`;}
-  html+=`<details class="panel glass" style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:800;font-size:14px">🗂️ 审批历史 <span class="muted" style="font-weight:400;font-size:12px">(${hist.length})</span></summary>`
-    +(hist.length?'<div style="margin-top:10px">'+hist.map(h=>`<div style="display:flex;gap:9px;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)"><span>${h.decision==='approved'?'✅':h.decision==='denied'?'❌':'⌛'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#${esc(h.id)} ${esc(h.desc)}</span><span class="muted" style="font-size:11px;flex-shrink:0">${ago(h.at)}</span></div>`).join('')+'</div>':'<div class="muted" style="margin-top:10px">暂无审批记录</div>')+`</details>`;
+  html+=`<details class="panel glass" style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:800;font-size:14px">${T('appr.history')} <span class="muted" style="font-weight:400;font-size:12px">(${hist.length})</span></summary>`
+    +(hist.length?'<div style="margin-top:10px">'+hist.map(h=>`<div style="display:flex;gap:9px;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)"><span>${h.decision==='approved'?'✅':h.decision==='denied'?'❌':'⌛'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#${esc(h.id)} ${esc(h.desc)}</span><span class="muted" style="font-size:11px;flex-shrink:0">${ago(h.at)}</span></div>`).join('')+'</div>':`<div class="muted" style="margin-top:10px">${T('appr.no_history')}</div>`)+`</details>`;
   box.innerHTML=html;}
-async function approveItem(id){if(!confirm('批准并执行 #'+id+' ？'))return;try{const r=await api('/api/approvals/approve?id='+id,{method:'POST'});showInfo('✅ 批准结果',r.result||'(完成)');pollApprovals();}catch(e){alert(e.message);}}
+async function approveItem(id){if(!confirm(Tf('appr.confirm_approve',id)))return;try{const r=await api('/api/approvals/approve?id='+id,{method:'POST'});showInfo(T('appr.result'),r.result||'(OK)');pollApprovals();}catch(e){alert(e.message);}}
 async function denyItem(id){try{await api('/api/approvals/deny?id='+id,{method:'POST'});pollApprovals();}catch(e){alert(e.message);}}
 function renderOpsAlerts(a){const list=a||[];
   $('opsAlerts').innerHTML=list.length?list.map(x=>`<div class="ai" style="border-left:3px solid ${sevColor(x.severity)};background:var(--glass2);border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;gap:8px"><b>${kindLabel(x.kind)} · ${esc(x.server)}</b><span class="muted" style="font-size:11px">${ago(x.ts)}</span></div>
       <div style="font-size:13px;margin-top:3px">${esc(x.detail)}</div>
       ${x.advice?`<div style="font-size:12.5px;color:var(--mut);margin-top:7px;white-space:pre-wrap;border-top:1px dashed var(--bd);padding-top:7px">💡 ${esc(x.advice)}</div>`:''}
-    </div>`).join(''):'<div class="ph" style="height:120px">暂无告警 — 服务器一切正常 🎐</div>';}
+    </div>`).join(''):`<div class="ph" style="height:120px">${T('ops.no_alert')}</div>`;}
 function onServer(){const s=$('server').value;$('srvName').textContent=s||'-';loadOverview();
   if($('page-board').classList.contains('on'))loadBoard();
   if($('page-skill').classList.contains('on'))loadSkills();}
@@ -609,15 +729,16 @@ function onServer(){const s=$('server').value;$('srvName').textContent=s||'-';lo
 /* 概览（聊天右栏 + 顶栏在线） */
 async function loadOverview(){const s=$('server').value;if(!s)return;
   try{const d=await api('/api/stats?server='+s);
-    $('ovMini').innerHTML=[['在线/活跃',d.active1d],['玩家总数',d.totalPlayers],['今日新增',d.newToday],['人均时长(分)',d.avgPlaytimeMin]]
+    $('ovMini').innerHTML=[[T('overview.active'),d.active1d],[T('overview.total'),d.totalPlayers],[T('overview.today'),d.newToday],[T('overview.avgtime'),d.avgPlaytimeMin]]
       .map(([k,v])=>`<div class="b"><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join('');
-    $('onlineLbl').textContent='活跃 '+fmt(d.active1d);
+    $('onlineLbl').textContent=T('topbar.online')+' '+fmt(d.active1d);
     api('/api/board?server='+s).then(b=>renderFeed(b.feed)).catch(()=>{});
   }catch(e){$('ovMini').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
 
 /* 聊天 */
-const QUICK=['服务器现在什么情况？','earth 上终极精华值多少？','给我组个 36 块的礼包','最近哪些玩家快流失了？','广播：今晚 8 点开活动'];
-$('chips').innerHTML=QUICK.map(q=>`<div class="chip" onclick="quick('${esc(q).replace(/'/g,"\\'")}')">${esc(q)}</div>`).join('');
+const QUICK_KEYS=['quick.q1','quick.q2','quick.q3','quick.q4','quick.q5'];
+function renderChatQuick(){$('chips').innerHTML=QUICK_KEYS.map(k=>{const q=T(k);return `<div class="chip" onclick="quick('${esc(q).replace(/'/g,"\\'")}')">${esc(q)}</div>`;}).join('');}
+renderChatQuick();
 function quick(t){go('chat');$('chatIn').value=t;$('chatIn').focus();}
 let chatStarted=false;
 function bubble(c,t){const m=$('msgs');if(!chatStarted){m.innerHTML='';chatStarted=true;}const d=document.createElement('div');d.className='msg '+c;d.textContent=t;m.appendChild(d);m.scrollTop=m.scrollHeight;return d;}
@@ -640,22 +761,22 @@ async function send(){const inp=$('chatIn'),msg=inp.value.trim();if(!msg)return;
   const tgt=$('chatTarget').value,isCmd=msg.startsWith('/');
   // 斜杠命令直发路由（不加"默认子服"前缀，否则前缀会顶掉命令词）；自然语言才按子服加前缀
   const apiMsg=(tgt&&!isCmd)?`（默认子服:${tgt}，涉及子服的操作就用它）${msg}`:msg;
-  bubble('u',msg);pushHist('u',msg);const t=bubble('a','思考中…');
-  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({message:apiMsg,display:msg,session:chatSession()})});t.innerHTML=md(r.reply||'(空)');pushHist('a',r.reply||'(空)');}
-  catch(e){t.textContent='出错：'+e.message;t.classList.add('err');}$('msgs').scrollTop=$('msgs').scrollHeight;}
+  bubble('u',msg);pushHist('u',msg);const t=bubble('a',T('chat.thinking'));
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({message:apiMsg,display:msg,session:chatSession()})});t.innerHTML=md(r.reply||T('chat.empty'));pushHist('a',r.reply||T('chat.empty'));}
+  catch(e){t.textContent=T('chat.err')+e.message;t.classList.add('err');}$('msgs').scrollTop=$('msgs').scrollHeight;}
 function newChat(){api('/api/chat',{method:'POST',body:JSON.stringify({message:'clear',session:chatSession()})}).catch(()=>{});localStorage.removeItem(chatKey());chatStarted=false;location.reload();}
 
 /* 命令提示面板：输入 / 弹出可用命令，↑↓选 / Enter·Tab 补全 / Esc 关。命令裸词或 / 前缀均可。 */
 const CMDS=[
-  {n:'help',d:'显示所有可用命令'},
-  {n:'clear',d:'清空当前会话上下文，重新开始'},
-  {n:'history',d:'查看本会话最近对话'},
-  {n:'status',d:'查看 Agent 运行状态'},
-  {n:'value',d:'物品估值，如 /value get <子服> <物品>'},
-  {n:'memory',d:'查看/管理长期记忆'},
-  {n:'pending',d:'列出待审批的高危操作',admin:true},
-  {n:'approve',d:'批准待审操作：/approve <单号>',admin:true},
-  {n:'deny',d:'驳回待审操作：/deny <单号>',admin:true}
+  {n:'help',d:'cmd.help'},
+  {n:'clear',d:'cmd.clear'},
+  {n:'history',d:'cmd.history'},
+  {n:'status',d:'cmd.status'},
+  {n:'value',d:'cmd.value'},
+  {n:'memory',d:'cmd.memory'},
+  {n:'pending',d:'cmd.pending',admin:true},
+  {n:'approve',d:'cmd.approve',admin:true},
+  {n:'deny',d:'cmd.deny',admin:true}
 ];
 let cmdSel=-1,cmdList=[];
 function updateCmdPop(){const v=$('chatIn').value,pop=$('cmdPop');
@@ -663,7 +784,7 @@ function updateCmdPop(){const v=$('chatIn').value,pop=$('cmdPop');
   const q=v.slice(1).toLowerCase();cmdList=CMDS.filter(c=>c.n.startsWith(q));
   if(!cmdList.length){pop.style.display='none';cmdSel=-1;return;}
   if(cmdSel<0)cmdSel=0; if(cmdSel>=cmdList.length)cmdSel=cmdList.length-1;
-  pop.innerHTML=cmdList.map((c,i)=>`<div class="ci ${i===cmdSel?'sel':''}" onmousedown="event.preventDefault();pickCmd(${i})"><span class="cn">/${c.n}</span><span class="cd">${esc(c.d)}</span>${c.admin?'<span class="cadmin">管理员</span>':''}</div>`).join('');
+  pop.innerHTML=cmdList.map((c,i)=>`<div class="ci ${i===cmdSel?'sel':''}" onmousedown="event.preventDefault();pickCmd(${i})"><span class="cn">/${c.n}</span><span class="cd">${esc(T(c.d))}</span>${c.admin?`<span class="cadmin">${T('cmd.admin')}</span>`:''}</div>`).join('');
   pop.style.display='';}
 function pickCmd(i){const c=cmdList[i];if(!c)return;const inp=$('chatIn');inp.value='/'+c.n+' ';$('cmdPop').style.display='none';cmdSel=-1;inp.focus();inp.dispatchEvent(new Event('input'));}
 $('chatIn').addEventListener('keydown',e=>{const pop=$('cmdPop'),open=pop.style.display!=='none';
@@ -678,7 +799,7 @@ $('chatIn').addEventListener('input',e=>{e.target.style.height='auto';e.target.s
 
 /* 看板 */
 let behPie,segBar,cmdBar,topChart,trendChart;
-const DOW=['一','二','三','四','五','六','日'];
+const getDOW=()=>lang==='en'?['Mon','Tue','Wed','Thu','Fri','Sat','Sun']:['一','二','三','四','五','六','日'];
 async function loadBoard(){const s=$('server').value;if(!s)return;
   try{const[st,seg,words,board]=await Promise.all([api('/api/stats?server='+s),api('/api/segments?server='+s),
       api('/api/words?server='+s+'&source=cmd&limit=12').catch(()=>[]),api('/api/board?server='+s).catch(()=>null)]);
@@ -703,20 +824,21 @@ function renderWordCloud(w){const cv=$('wordCloud');const list=(w||[]).filter(x=
     minSize:11,shuffle:true,drawOutOfBound:false,color:()=>PALW[Math.floor(Math.random()*PALW.length)]});}
 function renderTrend(tr){if(trendChart)trendChart.destroy();if(!tr||!tr.length){$('trendChart').style.display='none';return;}
   $('trendChart').style.display='';trendChart=new Chart($('trendChart'),{type:'line',data:{labels:tr.map(x=>x.day),datasets:[{data:tr.map(x=>x.peak),borderColor:'#b79bff',backgroundColor:'rgba(183,155,255,.16)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#ff8fc8'}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.06)'},border:{display:false}},y:{grid:{color:'rgba(255,255,255,.06)'},border:{display:false},beginAtZero:true}}}});}
-function renderHeat(hm){const el=$('heat');if(!hm||!hm.length){el.innerHTML='<span class="muted">暂无会话数据</span>';return;}
+function renderHeat(hm){const el=$('heat');if(!hm||!hm.length){el.innerHTML=`<span class="muted">${T('board.heat_empty')}</span>`;return;}
+  const dow=getDOW();
   let max=1;hm.forEach(r=>r.forEach(v=>{if(v>max)max=v;}));
   let h='<div class="hl"></div>';for(let c=0;c<24;c++)h+=`<div class="hl">${c%6===0?c:''}</div>`;
-  for(let d=0;d<7;d++){h+=`<div class="hl">${DOW[d]}</div>`;for(let c=0;c<24;c++){const v=hm[d][c]||0;h+=`<div class="hc" title="周${DOW[d]} ${c}时 · ${v} 次登入" style="background:rgba(255,143,200,${(0.06+v/max*0.86).toFixed(2)})"></div>`;}}
+  for(let d=0;d<7;d++){h+=`<div class="hl">${dow[d]}</div>`;for(let c=0;c<24;c++){const v=hm[d][c]||0;h+=`<div class="hc" title="${dow[d]} ${c}:00 · ${v} ${T('board.heat_logins')}" style="background:rgba(255,143,200,${(0.06+v/max*0.86).toFixed(2)})"></div>`;}}
   el.innerHTML=h;}
 function feedIcon(t){return({join:'🟢',quit:'⚪',death:'💀',advancement:'🏆'})[t]||'•';}
-function feedText(r){const nm=esc(r.name);return({join:nm+' 加入了游戏',quit:nm+' 离开了',death:nm+' 死亡',advancement:nm+' 解锁成就 '+esc((r.detail||'').replace(/^.*[:\/]/,''))})[r.type]||(nm+' '+esc(r.type));}
+function feedText(r){const nm=esc(r.name);return({join:nm+' '+T('event.join'),quit:nm+' '+T('event.quit'),death:nm+' '+T('event.death'),advancement:nm+' '+T('event.advancement')+esc((r.detail||'').replace(/^.*[:\/]/,''))})[r.type]||(nm+' '+esc(r.type));}
 function renderFeed(feed){const list=feed||[];
-  $('feed').innerHTML=list.length?'<div class="feedlist">'+list.map(r=>`<div class="e"><span class="ic">${feedIcon(r.type)}</span><span>${feedText(r)}</span><span class="t">${ago(r.ts)}</span></div>`).join('')+'</div>':'<span class="muted">暂无事件</span>';
-  if($('recentLog'))$('recentLog').innerHTML=list.length?list.slice(0,6).map(r=>`<div class="e"><span class="t">${ago(r.ts)}</span><span>${feedText(r)}</span></div>`).join(''):'<span class="muted">暂无</span>';}
-function renderKpis(s){const it=[['🟢','活跃玩家',s.active7d,'近7天'],['✨','今日新增',s.newToday,'今日'],['⏱️','人均时长',s.avgPlaytimeMin+'分',''],['💀','玩家死亡',s.totalDeaths,'累计'],['⛏️','破坏方块',s.totalBlocksBroken,''],['🏆','成就达成',s.totalAdvancements,'']];
+  $('feed').innerHTML=list.length?'<div class="feedlist">'+list.map(r=>`<div class="e"><span class="ic">${feedIcon(r.type)}</span><span>${feedText(r)}</span><span class="t">${ago(r.ts)}</span></div>`).join('')+'</div>':`<span class="muted">${T('board.no_event')}</span>`;
+  if($('recentLog'))$('recentLog').innerHTML=list.length?list.slice(0,6).map(r=>`<div class="e"><span class="t">${ago(r.ts)}</span><span>${feedText(r)}</span></div>`).join(''):`<span class="muted">${T('common.none')}</span>`;}
+function renderKpis(s){const it=[['🟢',T('kpi.active7d'),s.active7d,T('kpi.recent7')],['✨',T('kpi.new_today'),s.newToday,T('kpi.today')],['⏱️',T('kpi.avgtime'),s.avgPlaytimeMin+'m',''],['💀',T('kpi.deaths'),s.totalDeaths,T('kpi.cumulative')],['⛏️',T('kpi.blocks'),s.totalBlocksBroken,''],['🏆',T('kpi.advancements'),s.totalAdvancements,'']];
   $('kpis').innerHTML=it.map(([i,k,v,d],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div>${d?`<div class="d muted">${d}</div>`:''}</div>`).join('');}
 function donut(el,labels,data,inst){if(inst)inst.destroy();return new Chart(el,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:PAL,borderColor:'rgba(0,0,0,.25)',borderWidth:2,hoverOffset:6}]},options:{cutout:'60%',plugins:{legend:{position:'right',labels:{usePointStyle:true,padding:11,boxWidth:8,font:{weight:700}}}}}});}
-function renderBehPie(s){behPie=donut($('behPie'),['建造','探索','战斗','合成'],[(s.totalBlocksBroken||0)+(s.totalBlocksPlaced||0),(s.totalAdvancements||0)*5,(s.totalDeaths||0)*3,(s.totalCrafts||0)],behPie);}
+function renderBehPie(s){behPie=donut($('behPie'),[T('behav.build'),T('behav.explore'),T('behav.combat'),T('behav.craft')],[(s.totalBlocksBroken||0)+(s.totalBlocksPlaced||0),(s.totalAdvancements||0)*5,(s.totalDeaths||0)*3,(s.totalCrafts||0)],behPie);}
 function renderSegBar(seg){const l=Object.keys(seg),d=Object.values(seg);if(segBar)segBar.destroy();
   segBar=new Chart($('segBar'),{type:'bar',data:{labels:l,datasets:[{data:d,backgroundColor:PAL,borderRadius:8,barThickness:20}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.07)'},border:{display:false}},y:{grid:{display:false},border:{display:false},ticks:{color:'#f3f0ff',font:{weight:700}}}}}});}
 function renderCmdBar(w){if(cmdBar)cmdBar.destroy();const top=(w||[]).slice(0,10);
@@ -727,8 +849,8 @@ function renderTop(top){if(topChart)topChart.destroy();const ctx=$('topChart').g
 async function searchPlayer(){const sv=$('server').value,name=$('pname').value.trim();if(!sv||!name)return;
   try{const p=await api('/api/player?server='+sv+'&name='+encodeURIComponent(name));if(p.error){$('player').innerHTML=`<p class="err">${esc(p.error)}</p>`;return;}
     const tags=(p.tags||[]).map(t=>`<span class="tag2">${esc(t)}</span>`).join('');
-    const rows=[['主玩法',p.playstyle||'-'],['活跃时段',p.activePeriod||'-'],['在线时长',fmt(p.playtimeMin)+' 分'],['会话',fmt(p.sessions)],['死亡率',(p.deathsPerHour||0)+' /时'],['破坏',fmt(p.blocksBroken)],['成就',fmt(p.advancements)],['账号年龄',fmt(p.ageDays)+' 天'],['最近在线',ago(p.lastSeen)]];
-    $('player').innerHTML=`<div style="margin-bottom:10px">${tags}</div><table><tr><td>玩家</td><td>${esc(p.name)}</td></tr>`+rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')+'</table>';}
+    const rows=[[T('profile.style'),p.playstyle||'-'],[T('profile.active_period'),p.activePeriod||'-'],[T('profile.playtime'),fmt(p.playtimeMin)+' min'],[T('profile.sessions'),fmt(p.sessions)],[T('profile.death_rate'),(p.deathsPerHour||0)+' /h'],[T('profile.blocks'),fmt(p.blocksBroken)],[T('profile.advancements'),fmt(p.advancements)],[T('profile.age'),fmt(p.ageDays)+' d'],[T('profile.last_seen'),ago(p.lastSeen)]];
+    $('player').innerHTML=`<div style="margin-bottom:10px">${tags}</div><table><tr><td>${T('profile.player')}</td><td>${esc(p.name)}</td></tr>`+rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')+'</table>';}
   catch(e){$('player').innerHTML=`<p class="err">${esc(e.message)}</p>`;}}
 async function exportData(){const s=$('server').value;if(!s)return;try{const d=await api('/api/stats?server='+s);
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));a.download='windyagent-'+s+'-stats.json';a.click();}catch(e){alert(e.message);}}
@@ -738,19 +860,19 @@ let kbEntries=[],kbCur=-1;
 async function loadKb(){try{kbEntries=await api('/api/kb');renderList();}catch(e){$('kbList').innerHTML=`<p class="err">${esc(e.message)}</p>`;}}
 function renderList(){const q=($('kbSearch').value||'').trim().toLowerCase();
   const hits=kbEntries.map((e,i)=>({e,i})).filter(({e})=>!q||(e.title+' '+(e.tags||[]).join(' ')+' '+e.content).toLowerCase().includes(q));
-  if(!hits.length){$('kbList').innerHTML=`<p class="muted" style="padding:8px">${kbEntries.length?'无匹配':'还没有条目'}</p>`;return;}
-  const g={};hits.forEach(o=>{const k=(o.e.tags&&o.e.tags[0])||'未分类';(g[k]=g[k]||[]).push(o);});
+  if(!hits.length){$('kbList').innerHTML=`<p class="muted" style="padding:8px">${kbEntries.length?T('kb.no_match'):T('kb.no_entries')}</p>`;return;}
+  const g={};hits.forEach(o=>{const k=(o.e.tags&&o.e.tags[0])||T('kb.uncategorized');(g[k]=g[k]||[]).push(o);});
   $('kbList').innerHTML=Object.keys(g).sort().map(k=>`<div class="kbgroup">📁 ${esc(k)} · ${g[k].length}</div>`+
     g[k].map(({e,i})=>`<div class="kbitem ${i===kbCur?'on':''}" onclick="showDetail(${i})"><div class="it">📄 ${esc(e.title)}</div><div class="is">${esc((e.content||'').replace(/\s+/g,' ').slice(0,44))}</div></div>`).join('')).join('');}
 function showDetail(i){kbCur=i;const e=kbEntries[i];$('kbForm').style.display='none';$('kbDetail').style.display='block';
-  $('kbDetail').innerHTML=`<div class="kbdetail"><h3>${esc(e.title)}</h3><div>${(e.tags||[]).map(t=>`<span class="tag2">${esc(t)}</span>`).join('')}</div><div class="body">${md(e.content||'')}</div><div style="margin-top:16px;display:flex;gap:8px"><button class="btn ghost sm" onclick="openForm(${i})">✏️ 编辑</button><button class="btn ghost sm" onclick="delKb('${esc(e.id)}')">🗑️ 删除</button></div></div>`;renderList();}
-function fill(e){$('kbDetail').style.display='none';$('kbForm').style.display='block';$('kbFormTitle').textContent=(e&&e.id)?'编辑条目':'新建条目';$('kbId').value=(e&&e.id)||'';$('kbTitle').value=(e&&e.title)||'';$('kbTags').value=(e&&e.tags)?e.tags.join(', '):'';$('kbContent').value=(e&&e.content)||'';}
+  $('kbDetail').innerHTML=`<div class="kbdetail"><h3>${esc(e.title)}</h3><div>${(e.tags||[]).map(t=>`<span class="tag2">${esc(t)}</span>`).join('')}</div><div class="body">${md(e.content||'')}</div><div style="margin-top:16px;display:flex;gap:8px"><button class="btn ghost sm" onclick="openForm(${i})">✏️ ${T('kb.btn_edit')}</button><button class="btn ghost sm" onclick="delKb('${esc(e.id)}')">🗑️ ${T('kb.btn_delete')}</button></div></div>`;renderList();}
+function fill(e){$('kbDetail').style.display='none';$('kbForm').style.display='block';$('kbFormTitle').textContent=(e&&e.id)?T('kb.form_edit'):T('kb.form_new');$('kbId').value=(e&&e.id)||'';$('kbTitle').value=(e&&e.title)||'';$('kbTags').value=(e&&e.tags)?e.tags.join(', '):'';$('kbContent').value=(e&&e.content)||'';}
 function openForm(i){fill(typeof i==='number'?kbEntries[i]:null);}
 function closeKb(){$('kbForm').style.display='none';$('kbDetail').style.display='block';}
-async function saveKb(){const title=$('kbTitle').value.trim();if(!title){alert('标题必填');return;}const tags=$('kbTags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
-  try{await api('/api/kb',{method:'POST',body:JSON.stringify({id:$('kbId').value||null,title,content:$('kbContent').value,tags})});await loadKb();const ni=kbEntries.findIndex(x=>x.title===title);if(ni>=0)showDetail(ni);else closeKb();}catch(e){alert('保存失败：'+e.message);}}
-async function delKb(id){if(!confirm('删除这条知识？'))return;try{await api('/api/kb?id='+encodeURIComponent(id),{method:'DELETE'});kbCur=-1;$('kbDetail').innerHTML='<p class="muted">已删除。</p>';closeKb();loadKb();}catch(e){alert(e.message);}}
-async function aiDraft(){const text=$('kbDraft').value.trim();if(!text)return;try{const d=await api('/api/kb/draft',{method:'POST',body:JSON.stringify({text})});$('kbTitle').value=d.title||'';$('kbTags').value=(d.tags||[]).join(', ');$('kbContent').value=d.content||'';}catch(e){alert('起草失败：'+e.message);}}
+async function saveKb(){const title=$('kbTitle').value.trim();if(!title){alert(T('kb.label_title'));return;}const tags=$('kbTags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  try{await api('/api/kb',{method:'POST',body:JSON.stringify({id:$('kbId').value||null,title,content:$('kbContent').value,tags})});await loadKb();const ni=kbEntries.findIndex(x=>x.title===title);if(ni>=0)showDetail(ni);else closeKb();}catch(e){alert(T('kb.err_save')+e.message);}}
+async function delKb(id){if(!confirm(T('kb.confirm_delete')))return;try{await api('/api/kb?id='+encodeURIComponent(id),{method:'DELETE'});kbCur=-1;$('kbDetail').innerHTML=`<p class="muted">${T('kb.deleted')}</p>`;closeKb();loadKb();}catch(e){alert(e.message);}}
+async function aiDraft(){const text=$('kbDraft').value.trim();if(!text)return;try{const d=await api('/api/kb/draft',{method:'POST',body:JSON.stringify({text})});$('kbTitle').value=d.title||'';$('kbTags').value=(d.tags||[]).join(', ');$('kbContent').value=d.content||'';}catch(e){alert(T('kb.err_draft')+e.message);}}
 
 /* ===== 技能扩展（三态：纯文字 / 脚本+文字 / 纯脚本）===== */
 let skills=[], skHandle=null, skType='script';
@@ -786,14 +908,14 @@ async function loadSkills(){
   try{skills=await api('/api/skills');renderSkills();}
   catch(e){$('skList').innerHTML=`<p class="err" style="padding:8px">${esc(e.message)}</p>`;}}
 function renderSkills(){
-  if(!skills.length){$('skList').innerHTML='<p class="muted" style="padding:8px">中心库暂无技能。点「+ 新建技能」。</p>';return;}
+  if(!skills.length){$('skList').innerHTML=`<p class="muted" style="padding:8px">${T('skill.no_skills')}</p>`;return;}
   $('skList').innerHTML=skills.map((k,i)=>{const ic=k.type==='script'?'⚙️':'📄';
     const tg=k.type==='script'?`<span class="tag" style="font-size:10px">→ ${esc(k.targets||'all')}</span>`:'';
     return `<div class="kbitem ${k.handle===skHandle?'on':''}" onclick="openSkill(${i})"><div class="it">${ic} ${esc(k.name)} ${tg}</div><div class="is">${esc((k.description||'').slice(0,44))}</div></div>`;}).join('');}
 async function openSkill(i){const k=skills[i];skHandle=k.handle;
   try{const d=await api('/api/skills/content?handle='+encodeURIComponent(k.handle));
     skType=d.isScript?'script':'text';skForm(k.name,k.handle,d.md||'',d.script||'',d.targets||'');}
-  catch(e){alert('读取失败：'+e.message);}renderSkills();}
+  catch(e){alert(T('skill.err_read')+e.message);}renderSkills();}
 function newSkill(){skHandle=null;skType='script';skForm('','',MD_SCRIPT_TPL,SCRIPT_TPL,'');renderSkills();}
 function setSkType(t){skType=t;
   // 新建时切类型顺带换模板（仅当内容还是另一个模板，避免覆盖用户编辑）
@@ -805,71 +927,72 @@ function setSkType(t){skType=t;
   document.querySelectorAll('.sktab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));}
 function skForm(name,handle,md,script,targets){
   $('skEditor').innerHTML=`
-    <h3>${handle?'✏️ 编辑技能':'➕ 新建技能'}
+    <h3>${handle?T('skill.form_edit'):T('skill.form_new')}
       <span style="float:right;font-size:12px">
-        <button class="btn ghost sm sktab" data-t="text" onclick="setSkType('text')">📄 纯文字</button>
-        <button class="btn ghost sm sktab" data-t="script" onclick="setSkType('script')">⚙️ 脚本+文字</button>
+        <button class="btn ghost sm sktab" data-t="text" onclick="setSkType('text')">${T('skill.tab_text')}</button>
+        <button class="btn ghost sm sktab" data-t="script" onclick="setSkType('script')">${T('skill.tab_script')}</button>
       </span></h3>
-    <label class="muted" style="font-size:12px">技能名（文件夹名，落在 skills/ 下）</label>
-    <input id="skHandleIn" placeholder="如 welcome_vip" value="${esc(handle)}" ${handle?'readonly style="opacity:.7"':''}>
+    <label class="muted" style="font-size:12px">${T('skill.label_name')}</label>
+    <input id="skHandleIn" placeholder="${T('skill.name_ph')}" value="${esc(handle)}" ${handle?'readonly style="opacity:.7"':''}>
     <div id="skTargetsBox">
-      <label class="muted" style="font-size:12px;display:block;margin-top:8px">下发到哪些子服（脚本技能；逗号分隔，留空或 all=所有在线子服）</label>
-      <input id="skTargetsIn" placeholder="all（或：survival, lobby）" value="${esc(targets||'')}">
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">${T('skill.label_targets')}</label>
+      <input id="skTargetsIn" placeholder="${T('skill.targets_ph')}" value="${esc(targets||'')}">
     </div>
-    <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--violet);font-weight:700;font-size:13px">🤖 AI 起草 —— 说人话生成流程型 SKILL.md</summary>
-      <textarea id="skDraft" rows="2" placeholder="例：玩家要求退款时，先查余额和退款政策，符合就扣回并告知，单笔超1000要人工审批" style="margin-top:8px"></textarea>
-      <button class="btn sm" style="margin-top:8px" onclick="aiDraftSkill()">生成草稿 ✨</button></details>
-    <label class="muted" style="font-size:12px;display:block;margin-top:8px">SKILL.md（YAML 头 name/description/args + 正文）</label>
+    <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--violet);font-weight:700;font-size:13px">${T('skill.ai_draft')}</summary>
+      <textarea id="skDraft" rows="2" placeholder="${T('skill.ai_ph')}" style="margin-top:8px"></textarea>
+      <button class="btn sm" style="margin-top:8px" onclick="aiDraftSkill()">${T('skill.ai_btn')}</button></details>
+    <label class="muted" style="font-size:12px;display:block;margin-top:8px">${T('skill.label_md')}</label>
     <textarea id="skMd" rows="9" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:13px">${esc(md)}</textarea>
     <div id="skScriptBox">
-      <label class="muted" style="font-size:12px;display:block;margin-top:8px">script.groovy（脚本正文）</label>
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">${T('skill.label_script')}</label>
       <textarea id="skScript" rows="11" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:13px">${esc(script)}</textarea>
     </div>
     <div style="margin-top:12px;display:flex;gap:8px">
-      <button class="btn" onclick="saveSkill()">💾 保存并热重载</button>
-      ${handle?`<button class="btn ghost" onclick="delSkill()">🗑️ 删除</button>`:''}
+      <button class="btn" onclick="saveSkill()">${T('skill.btn_save_reload')}</button>
+      ${handle?`<button class="btn ghost" onclick="delSkill()">${T('skill.btn_delete')}</button>`:''}
     </div>
     <div id="skRunBox" class="panel glass" style="margin-top:16px;background:rgba(255,255,255,.03)">
-      <h3 style="font-size:14px">▶ 测试运行 <span class="tag">脚本→选中子服执行 / 文字→中心出正文，记 audit</span></h3>
-      <label class="muted" style="font-size:12px">技能名</label>
-      <input id="skRunName" placeholder="技能名" value="${esc(name||'')}">
-      <label class="muted" style="font-size:12px;display:block;margin-top:8px">参数（JSON 对象，如 {"player":"Steve"}）</label>
+      <h3 style="font-size:14px">${T('skill.test_title')} <span class="tag">${T('skill.test_tag')}</span></h3>
+      <label class="muted" style="font-size:12px">${T('skill.label_skill_name')}</label>
+      <input id="skRunName" placeholder="${T('skill.label_skill_name')}" value="${esc(name||'')}">
+      <label class="muted" style="font-size:12px;display:block;margin-top:8px">${T('skill.label_args')}</label>
       <textarea id="skRunArgs" rows="2" spellcheck="false" placeholder="{}"></textarea>
-      <button class="btn ghost sm" style="margin-top:8px" onclick="runSkill()">运行 ✨</button>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="runSkill()">${T('skill.btn_run')}</button>
       <pre id="skRunOut" style="margin-top:10px;white-space:pre-wrap;font-size:12px;color:var(--muted)"></pre>
     </div>`;
   setSkType(skType);}
 async function saveSkill(){
-  const handle=($('skHandleIn').value||'').trim();if(!handle){alert('技能名必填');return;}
+  const handle=($('skHandleIn').value||'').trim();if(!handle){alert(T('skill.err_name'));return;}
   const isScript=skType==='script';
   const targets=isScript?(($('skTargetsIn')||{}).value||'').trim():'';
   try{const r=await api('/api/skills',{method:'POST',body:JSON.stringify({handle,md:$('skMd').value,script:isScript?$('skScript').value:'',isScript,targets})});
     skHandle=handle;await loadSkills();
     const k=skills.find(x=>x.handle===handle);if(k)openSkill(skills.indexOf(k));
-    if(isScript&&r&&r.pushed)console.log('已保存并下发：'+r.pushed);}
-  catch(e){alert('保存失败：'+e.message);}}
-async function delSkill(){if(!skHandle||!confirm('从中心库删除技能 '+skHandle+' ？（已下发的子服副本不会自动清除）'))return;
+    if(isScript&&r&&r.pushed)console.log('Saved & deployed: '+r.pushed);}
+  catch(e){alert(T('skill.err_save')+e.message);}}
+async function delSkill(){if(!skHandle||!confirm(Tf('skill.confirm_delete',skHandle)))return;
   try{await api('/api/skills?handle='+encodeURIComponent(skHandle),{method:'DELETE'});
-    skHandle=null;$('skEditor').innerHTML='<p class="muted">已删除。</p>';loadSkills();}catch(e){alert(e.message);}}
+    skHandle=null;$('skEditor').innerHTML=`<p class="muted">${T('kb.deleted')}</p>`;loadSkills();}catch(e){alert(e.message);}}
 async function reloadSkills(){
-  try{const r=await api('/api/skills/reload',{method:'POST'});loadSkills();alert('已重载中心库：'+((r&&r.count!=null)?r.count+' 个技能':'ok'));}catch(e){alert(e.message);}}
+  try{const r=await api('/api/skills/reload',{method:'POST'});loadSkills();alert(T('skill.reload_done')+((r&&r.count!=null)?r.count+' skills':'ok'));}catch(e){alert(e.message);}}
 async function syncSkills(){
-  try{const r=await api('/api/skills/sync',{method:'POST'});alert('下发结果：'+((r&&r.result)||'ok'));}catch(e){alert('下发失败：'+e.message);}}
-async function aiDraftSkill(){const text=($('skDraft').value||'').trim();if(!text){alert('先写一句需求');return;}
+  try{const r=await api('/api/skills/sync',{method:'POST'});alert(T('skill.sync_done')+((r&&r.result)||'ok'));}catch(e){alert(T('skill.sync_fail')+e.message);}}
+async function aiDraftSkill(){const text=($('skDraft').value||'').trim();if(!text){alert(T('skill.err_draft_hint'));return;}
   try{const d=await api('/api/skills/draft',{method:'POST',body:JSON.stringify({text})});
-    if(d&&d.md){$('skMd').value=d.md;setSkType('text');}}  // 起草的是纯文字技能
-  catch(e){alert('起草失败：'+e.message);}}
-async function runSkill(){const skill=($('skRunName').value||'').trim();if(!skill){alert('填技能名');return;}
+    if(d&&d.md){$('skMd').value=d.md;setSkType('text');}}
+  catch(e){alert(T('skill.err_draft')+e.message);}}
+async function runSkill(){const skill=($('skRunName').value||'').trim();if(!skill){alert(T('skill.fill_name'));return;}
   let args={};const raw=($('skRunArgs').value||'').trim();
-  if(raw){try{args=JSON.parse(raw);}catch(e){alert('参数不是合法 JSON');return;}}
-  // 脚本技能要在子服上跑，取右上角选中的子服；文字技能在中心直接出正文，无需子服
-  const body={skill,args};if(skType==='script'){const s=$('server').value;if(!s){alert('脚本技能需在右上角选一个目标子服');return;}body.server=s;}
-  $('skRunOut').textContent='执行中…';
+  if(raw){try{args=JSON.parse(raw);}catch(e){alert(T('skill.err_json'));return;}}
+  const body={skill,args};if(skType==='script'){const s=$('server').value;if(!s){alert(T('skill.err_run'));return;}body.server=s;}
+  $('skRunOut').textContent=T('skill.executing');
   try{const r=await api('/api/skills/run',{method:'POST',body:JSON.stringify(body)});$('skRunOut').textContent=(r&&r.result!=null)?r.result:JSON.stringify(r);}
-  catch(e){$('skRunOut').textContent='失败：'+e.message;}}
+  catch(e){$('skRunOut').textContent=T('skill.err_run_fail')+e.message;}}
 
 /* 启动 */
-if(TK()){loadServers().then(()=>{$('gate').style.display='none';onServer();}).catch(()=>showGate('请重新输入令牌'));}else showGate();
+document.title=T('title');document.documentElement.lang=T('html.lang');
+applyLang();
+if(TK()){loadServers().then(()=>{$('gate').style.display='none';onServer();}).catch(()=>showGate(T('login.err_reenter')));}else showGate();
 animateIn('page-ops');
 // 聊天记录回灌在 loadServers 里做（要先恢复选中的子服、定位到对应会话）；未登录则等进闸后触发。
 </script>

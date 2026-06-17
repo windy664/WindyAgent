@@ -4,6 +4,7 @@ import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.windy.windyagent.Messages
 import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.safety.TrustLevel
 
@@ -17,7 +18,7 @@ class BukkitApprovalCommand(private val router: AgentCommandRouter) : CommandExe
         val action = command.name.lowercase().removePrefix("ai-") // ai-approve → approve
         val trust = if (sender.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
         val session = if (sender is Player) sender.name else "console"
-        val reply = router.dispatch("$action ${args.joinToString(" ")}".trim(), session, trust) ?: "未知命令"
+        val reply = router.dispatch("$action ${args.joinToString(" ")}".trim(), session, trust) ?: Messages.t("router.unknown_cmd")
         sender.sendMessage("[WindyAgent] $reply")
         return true
     }

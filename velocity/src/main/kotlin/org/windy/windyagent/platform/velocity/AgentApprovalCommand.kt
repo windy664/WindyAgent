@@ -2,6 +2,7 @@ package org.windy.windyagent.platform.velocity
 
 import com.velocitypowered.api.command.RawCommand
 import net.kyori.adventure.text.Component
+import org.windy.windyagent.Messages
 import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.safety.TrustLevel
 
@@ -19,7 +20,7 @@ class AgentApprovalCommand(
         val src = invocation.source()
         val trust = if (src.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
         val reply = router.dispatch("$action ${invocation.arguments()}".trim(), "admin", trust)
-            ?: "未知命令"
+            ?: Messages.t("router.unknown_cmd")
         src.sendMessage(Component.text("[WindyAgent] $reply"))
     }
 
