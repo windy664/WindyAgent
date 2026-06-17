@@ -1,6 +1,7 @@
 package org.windy.windyagent
 
 import org.windy.windyagent.llm.EmbeddingProvider
+import org.windy.windyagent.llm.FallbackProvider
 import org.windy.windyagent.llm.LLMProvider
 import org.windy.windyagent.llm.claude.ClaudeProvider
 import org.windy.windyagent.llm.ollama.OllamaProvider
@@ -34,15 +35,38 @@ fun buildFastProvider(cfg: AgentConfig): LLMProvider? {
     }
 }
 
-fun buildProvider(cfg: AgentConfig): LLMProvider = when (cfg.provider().lowercase()) {
-    "ollama" -> OllamaProvider(cfg.ollamaUrl(), cfg.model())
+/**
+ * 构建主 LLM Provider。如果配置了 fallback，自动包装成 [FallbackProvider]。
+ */
+fun buildProvider(cfg: AgentConfig): LLMProvider {
+    val primary = buildSingleProvider(cfg.provider(), cfg.apiBaseUrl(), cfg.model(), cfg.apiKey(), cfg.ollamaUrl())
+
+    if (!cfg.fallbackEnabled()) return primary
+
+    // 构建备用 Provider 列表
+    val fallbacks = cfg.fallbackProviders().mapNotNull { pc ->
+        val p = (pc["provider"] as? String) ?: return@mapNotNull null
+        val url = (pc["api-base-url"] as? String) ?: ""
+        val model = (pc["model"] as? String) ?: return@mapNotNull null
+        val key = (pc["api-key"] as? String) ?: cfg.apiKey()  // 未填则复用主 key
+        runCatching { buildSingleProvider(p, url, model, key, cfg.ollamaUrl()) }.getOrNull()
+    }
+
+    if (fallbacks.isEmpty()) return primary
+
+    val all = listOf(primary) + fallbacks
+    return FallbackProvider(all)
+}
+
+/** 构建单个 Provider（按 provider 名称分发）。 */
+private fun buildSingleProvider(provider: String, baseUrl: String, model: String, apiKey: String, ollamaUrl: String): LLMProvider = when (provider.lowercase()) {
+    "ollama" -> OllamaProvider(ollamaUrl, model)
     "openai" -> {
-        check(cfg.apiKey().isNotBlank()) { "api-key is required for provider: openai" }
-        OpenAICompatProvider(cfg.apiBaseUrl(), cfg.model(), cfg.apiKey())
+        check(apiKey.isNotBlank()) { "api-key is required for provider: openai" }
+        OpenAICompatProvider(baseUrl, model, apiKey)
     }
     else -> { // claude
-        check(cfg.apiKey().isNotBlank()) { "api-key is required for provider: claude" }
-        val baseUrl = cfg.apiBaseUrl().ifBlank { null }
-        ClaudeProvider(cfg.apiKey(), cfg.model(), baseUrl)
+        check(apiKey.isNotBlank()) { "api-key is required for provider: claude" }
+        ClaudeProvider(apiKey, model, baseUrl.ifBlank { null })
     }
 }

@@ -82,7 +82,12 @@ class ClaudeProvider @JvmOverloads constructor(
 
         for (tool in tools) builder.addTool(buildSdkTool(tool))
 
-        return parseResponse(client.messages().create(builder.build()))
+        return try {
+            parseResponse(client.messages().create(builder.build()))
+        } catch (e: Exception) {
+            // Anthropic SDK 的异常包装成 LLMException，保留原始信息供 FallbackProvider 分类
+            throw LLMException("Claude API 错误: ${e.message}", e)
+        }
     }
 
     private fun buildSdkTool(tool: AgentTool): Tool {
