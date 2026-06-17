@@ -1,0 +1,9 @@
+# WindyAgent 默认技能清单（jar 内资源相对路径，首启时按此释放到中心库 skills/ 目录）
+# 一行一个文件；# 开头为注释；空行忽略。
+online_report.groovy
+weather.groovy
+handle_refund/SKILL.md
+welcome_vip/SKILL.md
+welcome_vip/script.groovy
+setup_spawn/SKILL.md
+backup_world/SKILL.md

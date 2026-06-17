@@ -36,4 +36,8 @@ dependencies {
     implementation 'com.anthropic:anthropic-java:2.34.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'org.yaml:snakeyaml:2.2'
+
+    // Groovy：WorkflowEngine 用 GroovyShell 评估条件/脚本表达式。
+    // 3.0.x 兼容 Java 8 基线；运行时由 bukkit fat jar 提供（shade 进 fat jar）。
+    implementation 'org.codehaus.groovy:groovy:3.0.22'
 }
