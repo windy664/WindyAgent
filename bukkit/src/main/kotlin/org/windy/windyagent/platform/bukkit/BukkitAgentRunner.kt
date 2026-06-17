@@ -101,8 +101,12 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         if (skills != null && skillEngine != null) {
             org.windy.windyagent.skill.SkillDefaults.releaseIfEmpty(skillsDir)
             val n = skills.reload()
-            skills.all().forEach { extraTools += SkillTool(it, skillEngine, audit) }
-            plugin.logger.info("技能已加载 — $n 个（skills/ 目录）")
+            // allTools 用 lazy 回调：SkillTool 被调用时 extraTools 已填满
+            val toolsRef = { extraTools.toList() }
+            skills.all().forEach { def ->
+                extraTools += SkillTool(def, skillEngine, audit, toolsRef, skills)
+            }
+            plugin.logger.info("技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
         }
         val platform = BukkitPlatform(plugin, actions, extraTools)
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)

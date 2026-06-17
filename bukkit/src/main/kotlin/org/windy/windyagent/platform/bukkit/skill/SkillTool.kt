@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.AuditLog
-import org.windy.windyagent.skill.SkillDef
+import org.windy.windyagent.skill.*
 
 /**
  * 把一个 [SkillDef] 包成本地 [AgentTool]，供**嵌入式 Agent（standalone/hub）**直接挂载——
@@ -12,11 +12,18 @@ import org.windy.windyagent.skill.SkillDef
  *
  * 技能由服主编写（文件系统即信任边界），不过 CommandGuard；但每次执行记 [audit]
  * （ALLOW / ERROR），与命令路径同一本审计账。
+ *
+ * 工作流技能（[SkillDef.isWorkflow]）走 [WorkflowEngine] 多阶段编排；
+ * 脚本技能走 [SkillEngine] 单次 Groovy 执行；纯文字直接返回正文。
  */
 class SkillTool(
     private val def: SkillDef,
     private val engine: SkillEngine,
-    private val audit: AuditLog
+    private val audit: AuditLog,
+    /** 当前 Platform 注册的所有工具（工作流 step 调用用）。 */
+    private val allTools: () -> List<AgentTool> = { emptyList() },
+    /** 技能注册表（工作流 step 调用其他 skill 用）。 */
+    private val skillRegistry: SkillRegistry? = null
 ) : AgentTool {
 
     private val mapper = ObjectMapper()
@@ -26,18 +33,55 @@ class SkillTool(
     override val inputSchema = def.inputSchema()
 
     override fun execute(toolCallId: String, inputJson: String): ToolResult {
-        // 纯文字技能：调用即返回操作流程（不执行任何代码），由 Agent 据此用其它工具办事
-        if (!def.isScript) {
+        // 纯文字技能：调用即返回操作流程
+        if (!def.isScript && !def.isWorkflow) {
             audit.record("local", "run_skill", def.name, "TEXT")
             return ToolResult.success(toolCallId, def.textOutput())
         }
+
+        val argsMap = SkillArgs.toMap(runCatching { mapper.readTree(inputJson) }.getOrNull())
+
+        // 工作流技能：走 WorkflowEngine
+        if (def.isWorkflow) {
+            return runCatching {
+                val workflowEngine = buildWorkflowEngine()
+                val result = workflowEngine.execute(def, argsMap)
+                audit.record("local", "run_skill", def.name, if (result.success) "ALLOW" else "ERROR")
+                if (result.success) ToolResult.success(toolCallId, result.message)
+                else ToolResult.error(toolCallId, result.message)
+            }.getOrElse {
+                audit.record("local", "run_skill", def.name, "ERROR", it.message ?: "")
+                ToolResult.error(toolCallId, "工作流「${def.name}」执行失败：${it.message}")
+            }
+        }
+
+        // 脚本技能：走 SkillEngine
         return runCatching {
-            val argsMap = SkillArgs.toMap(runCatching { mapper.readTree(inputJson) }.getOrNull())
             audit.record("local", "run_skill", def.name, "ALLOW")
             ToolResult.success(toolCallId, engine.run(def, argsMap))
         }.getOrElse {
             audit.record("local", "run_skill", def.name, "ERROR", it.message ?: "")
             ToolResult.error(toolCallId, "技能「${def.name}」执行失败：${it.message}")
         }
+    }
+
+    private fun buildWorkflowEngine(): WorkflowEngine {
+        val tools = allTools()
+        val toolMap = tools.associateBy { it.name }
+        return WorkflowEngine(
+            toolFinder = { name ->
+                toolMap[name]?.let { tool ->
+                    object : AgentToolRef {
+                        override val name = tool.name
+                        override fun execute(toolCallId: String, inputJson: String): ToolResultRef {
+                            val r = tool.execute(toolCallId, inputJson)
+                            return ToolResultRef(r.content, r.isError)
+                        }
+                    }
+                }
+            },
+            skillRegistry = skillRegistry,
+            groovyClassLoader = javaClass.classLoader
+        )
     }
 }

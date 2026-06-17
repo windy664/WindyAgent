@@ -283,7 +283,7 @@ class DashboardServer(
         json(ex, 200, mapper.createObjectNode().put("result", sync.invoke()).toString())
     }
 
-    /** 在 SKILL.md 的 frontmatter 中设置 `targets:` 行（csv→列表，空/all/* 则删除该行=全部子服）。 */
+    /** 在 SKILL.md 的 frontmatter 中设置 `targets:` 行（csv→列表，空或 all 则删除该行=全部子服）。 */
     private fun withTargets(md: String, targetsCsv: String): String {
         val items = targetsCsv.split(Regex("[,，]")).map { it.trim() }.filter { it.isNotEmpty() && !it.equals("all", true) && it != "*" }
         val lines = md.replace("\r\n", "\n").split("\n").toMutableList()
