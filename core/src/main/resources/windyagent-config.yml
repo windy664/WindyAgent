@@ -30,6 +30,18 @@ llm:
   # 便宜模型（可选）：路由分类/查询扩展等元任务用它省 token；留空=与主模型相同
   fast-model: ""
 
+  # 故障转移（可选）：主 Provider 挂了（额度用完/过载/超时）自动切备用，对话不中断。
+  # 主 Provider 恢复后自动切回（每 5 分钟健康检查）。
+  # fallback:
+  #   enabled: true
+  #   providers:
+  #     - provider: openai
+  #       api-base-url: "https://xxx/v1"
+  #       api-key: "备用-key"          # 留空则复用主 api-key
+  #       model: "备用模型"
+  #     - provider: ollama
+  #       model: "llama3.2"            # 本地兜底，永远不欠费
+
 agent:
   # 触发前缀
   trigger: "!ai"

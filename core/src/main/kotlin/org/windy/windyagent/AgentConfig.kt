@@ -31,6 +31,16 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun ollamaUrl() = getString("llm.ollama-url", "http://localhost:11434")
     /** 元任务（路由分类/查询扩展）用的便宜模型；留空=与主模型相同。 */
     fun fastModel() = getString("llm.fast-model", "")
+
+    // 故障转移：备用 Provider 列表（主 Provider 挂了自动切换）
+    /** 是否启用故障转移。 */
+    fun fallbackEnabled() = (getNode("llm.fallback.enabled") as? Boolean) ?: false
+    /** 备用 Provider 列表（格式同主 llm 配置）。 */
+    @Suppress("UNCHECKED_CAST")
+    fun fallbackProviders(): List<Map<String, Any>> {
+        val node = getNode("llm.fallback.providers") ?: return emptyList()
+        return node as? List<Map<String, Any>> ?: emptyList()
+    }
     fun trigger() = getString("agent.trigger", "!ai")
     fun maxHistory() = (getNode("agent.max-history") as? Number)?.toInt() ?: 20
 

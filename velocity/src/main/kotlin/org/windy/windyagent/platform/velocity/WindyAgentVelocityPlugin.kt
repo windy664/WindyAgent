@@ -151,6 +151,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
             persistFile = dataDirectory.resolve("errors.json").toFile()
         )
         extraTools += org.windy.windyagent.agent.GetRecentErrorsTool(errorBuffer)
+        // LLM 状态查询（管理员问"用的什么模型"时）
+        extraTools += org.windy.windyagent.agent.LLMStatusTool(llm)
 
         // MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent（与跨服总线正交）
         val mcpTools = McpLoader.load(cfg.mcpServers())

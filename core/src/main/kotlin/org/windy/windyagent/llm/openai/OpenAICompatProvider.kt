@@ -71,6 +71,10 @@ class OpenAICompatProvider(
             .build()
 
         http.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val body = runCatching { resp.body?.string() }.getOrNull() ?: ""
+                throw LLMException("LLM HTTP ${resp.code}: ${body.take(200)}")
+            }
             return parseResponse(resp.body!!.string())
         }
     }
