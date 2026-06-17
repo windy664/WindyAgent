@@ -127,9 +127,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         } else null
         skills?.let { reg ->
             val texts = reg.all().filter { !it.isScript }
-            texts.forEach { extraTools += org.windy.windyagent.agent.TextSkillTool(it, audit) }
-            logger.info("技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服）",
-                reg.all().size, texts.size, reg.all().size - texts.size)
+            val toolsRef = { extraTools.toList() }
+            texts.forEach { def ->
+                extraTools += org.windy.windyagent.agent.TextSkillTool(def, audit, toolsRef, reg)
+            }
+            logger.info("技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）",
+                reg.all().size, texts.size, reg.all().size - texts.size, reg.all().count { it.isWorkflow })
         }
         var skillSync: SkillSync? = null
 
