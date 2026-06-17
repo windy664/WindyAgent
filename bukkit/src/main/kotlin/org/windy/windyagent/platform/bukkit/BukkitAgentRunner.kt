@@ -151,6 +151,10 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             )
             watcher.start()
         }
+        // 插件集成（自动发现已安装插件，注册对应工具）
+        org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit).let { pluginTools ->
+            extraTools += pluginTools
+        }
         val platform = BukkitPlatform(plugin, actions, extraTools)
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
         val sessions = SessionManager(cfg.maxHistory())
