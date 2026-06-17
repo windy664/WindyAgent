@@ -5,6 +5,7 @@ import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.skill.*
+import java.io.File
 
 /**
  * 把一个 [SkillDef] 包成本地 [AgentTool]，供**嵌入式 Agent（standalone/hub）**直接挂载——
@@ -23,7 +24,9 @@ class SkillTool(
     /** 当前 Platform 注册的所有工具（工作流 step 调用用）。 */
     private val allTools: () -> List<AgentTool> = { emptyList() },
     /** 技能注册表（工作流 step 调用其他 skill 用）。 */
-    private val skillRegistry: SkillRegistry? = null
+    private val skillRegistry: SkillRegistry? = null,
+    /** 技能库根目录（用于 SkillState 持久化）。 */
+    private val skillsDir: File? = null
 ) : AgentTool {
 
     private val mapper = ObjectMapper()
@@ -40,11 +43,13 @@ class SkillTool(
         }
 
         val argsMap = SkillArgs.toMap(runCatching { mapper.readTree(inputJson) }.getOrNull())
+        // 技能状态（跨次执行持久化）
+        val state = skillsDir?.let { SkillState(def.name, it) }
 
         // 工作流技能：走 WorkflowEngine
         if (def.isWorkflow) {
             return runCatching {
-                val workflowEngine = buildWorkflowEngine()
+                val workflowEngine = buildWorkflowEngine(state)
                 val result = workflowEngine.execute(def, argsMap)
                 audit.record("local", "run_skill", def.name, if (result.success) "ALLOW" else "ERROR")
                 if (result.success) ToolResult.success(toolCallId, result.message)
@@ -58,14 +63,14 @@ class SkillTool(
         // 脚本技能：走 SkillEngine
         return runCatching {
             audit.record("local", "run_skill", def.name, "ALLOW")
-            ToolResult.success(toolCallId, engine.run(def, argsMap))
+            ToolResult.success(toolCallId, engine.run(def, argsMap, state))
         }.getOrElse {
             audit.record("local", "run_skill", def.name, "ERROR", it.message ?: "")
             ToolResult.error(toolCallId, "技能「${def.name}」执行失败：${it.message}")
         }
     }
 
-    private fun buildWorkflowEngine(): WorkflowEngine {
+    private fun buildWorkflowEngine(state: SkillState? = null): WorkflowEngine {
         val tools = allTools()
         val toolMap = tools.associateBy { it.name }
         return WorkflowEngine(
@@ -81,7 +86,8 @@ class SkillTool(
                 }
             },
             skillRegistry = skillRegistry,
-            groovyClassLoader = javaClass.classLoader
+            groovyClassLoader = javaClass.classLoader,
+            skillState = state
         )
     }
 }

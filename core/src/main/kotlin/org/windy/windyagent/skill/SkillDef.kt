@@ -59,7 +59,9 @@ data class SkillDef(
     /** 输出声明（name → type 描述），告知 LLM 执行后能得到什么。 */
     val outputs: Map<String, String> = emptyMap(),
     /** 工作流步骤；null = 旧模式（纯文字/纯脚本）。非空时走 WorkflowEngine。 */
-    val steps: List<WorkflowStep>? = null
+    val steps: List<WorkflowStep>? = null,
+    /** 技能来源：manual（服主手写，默认）/ ai_generated（AI 生成）。 */
+    val origin: String = "manual"
 ) {
     val isScript: Boolean get() = script != null
     /** 是否为工作流技能（有多阶段步骤）。 */

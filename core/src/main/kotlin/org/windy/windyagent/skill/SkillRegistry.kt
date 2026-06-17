@@ -78,7 +78,8 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
             tags = parseTags(meta["tags"]),
             permission = meta["permission"]?.ifBlank { null } ?: "trusted",
             outputs = parseOutputs(meta["outputs"]),
-            steps = parseSteps(meta["steps"])
+            steps = parseSteps(meta["steps"]),
+            origin = meta["origin"]?.ifBlank { null } ?: "manual"
         )
     }
 
@@ -99,7 +100,8 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
             tags = parseTags(meta["tags"]),
             permission = meta["permission"]?.ifBlank { null } ?: "trusted",
             outputs = parseOutputs(meta["outputs"]),
-            steps = parseSteps(meta["steps"])
+            steps = parseSteps(meta["steps"]),
+            origin = meta["origin"]?.ifBlank { null } ?: "manual"
         )
     }
 
@@ -359,7 +361,8 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
             assign = m["assign"]?.toString(),
             repeat = m["repeat"]?.toString(),
             forEach = m["forEach"]?.toString() ?: m["foreach"]?.toString(),
-            onFail = m["onFail"]?.toString() ?: m["on_fail"]?.toString() ?: "abort"
+            onFail = m["onFail"]?.toString() ?: m["on_fail"]?.toString() ?: "abort",
+            parallel = m["parallel"]?.toString()?.toBoolean() ?: false
         )
     }
 
@@ -379,6 +382,7 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
         val sb = StringBuilder("---\n")
         sb.append("name: ${def.name}\n")
         sb.append("description: ${def.description}\n")
+        if (def.origin != "manual") sb.append("origin: ${def.origin}\n")
         if (def.tags.isNotEmpty()) sb.append("tags: [${def.tags.joinToString(", ")}]\n")
         if (def.permission != "trusted") sb.append("permission: ${def.permission}\n")
         if (def.isScript) {
@@ -415,6 +419,7 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
                 step.repeat?.let { sb.append("    repeat: $it\n") }
                 step.forEach?.let { sb.append("    forEach: $it\n") }
                 if (step.onFail != "abort") sb.append("    onFail: ${step.onFail}\n")
+                if (step.parallel) sb.append("    parallel: true\n")
             }
         }
         sb.append("---\n")

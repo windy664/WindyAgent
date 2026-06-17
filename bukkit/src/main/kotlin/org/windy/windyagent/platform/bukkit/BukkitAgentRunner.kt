@@ -34,6 +34,8 @@ import org.windy.windyagent.memory.RememberTool
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.rag.LlmQueryExpander
 import org.windy.windyagent.safety.PendingApprovals
+import com.fasterxml.jackson.databind.ObjectMapper
+import java.io.File
 
 /**
  * 嵌入式 Agent 装配：把 core 的 Agent 大脑接到本 Bukkit 服。
@@ -104,9 +106,50 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             // allTools 用 lazy 回调：SkillTool 被调用时 extraTools 已填满
             val toolsRef = { extraTools.toList() }
             skills.all().forEach { def ->
-                extraTools += SkillTool(def, skillEngine, audit, toolsRef, skills)
+                extraTools += SkillTool(def, skillEngine, audit, toolsRef, skills, skillsDir)
             }
+            // 对话式技能管理
+            extraTools += org.windy.windyagent.agent.CreateSkillTool(skills, audit, isUpdate = false)
+            extraTools += org.windy.windyagent.agent.CreateSkillTool(skills, audit, isUpdate = true)
+            extraTools += org.windy.windyagent.agent.ListSkillsTool(skills)
+            extraTools += org.windy.windyagent.agent.ReadSkillTool(skills)
+            // 脚本验证：编译检查 + dry-run（bukkit 侧有 SkillEngine）
+            extraTools += org.windy.windyagent.agent.ValidateSkillTool(
+                compileCheck = { script -> skillEngine.compile(script) },
+                dryRun = { script, args ->
+                    val r = skillEngine.dryRun(script, args)
+                    org.windy.windyagent.agent.DryRunSummary(r.success, r.operations, r.error)
+                }
+            )
             plugin.logger.info("技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
+        }
+        // 日志读取工具 + 日志监控
+        val logDir = plugin.server.worldContainer.resolve("logs")
+        extraTools += org.windy.windyagent.agent.ReadLogTool(logDir)
+        if (logDir.exists()) {
+            val watcher = org.windy.windyagent.ops.LogWatcher(
+                logFiles = listOf(File(logDir, "latest.log")),
+                onError = { err ->
+                    // 本地记审计
+                    audit.record("local", "log_error", err.pattern, err.severity.uppercase(), err.errorLine.take(200))
+                    plugin.logger.warning("[日志监控] ${err.pattern} — ${err.errorLine.take(100)}")
+                    // 经总线推送到中心（如果已连接）
+                    if (remoteBus != null) {
+                        val json = ObjectMapper().writeValueAsString(mapOf(
+                            "server" to cfg.serverName(),
+                            "file" to err.file,
+                            "lineNum" to err.lineNum,
+                            "errorLine" to err.errorLine,
+                            "context" to err.context,
+                            "pattern" to err.pattern,
+                            "severity" to err.severity,
+                            "ts" to err.ts
+                        ))
+                        runCatching { remoteBus.publishError(json) }
+                    }
+                }
+            )
+            watcher.start()
         }
         val platform = BukkitPlatform(plugin, actions, extraTools)
         val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)

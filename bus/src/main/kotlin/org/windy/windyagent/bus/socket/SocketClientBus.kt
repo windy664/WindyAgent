@@ -107,6 +107,15 @@ class SocketClientBus(
         }
     }
 
+    /** 子服侧：推送日志异常到中枢（fire-and-forget，不缓存）。 */
+    override fun publishError(errorJson: String) {
+        val out = activeOut
+        if (out != null) {
+            runCatching { FrameCodec.write(out, Frame(type = FrameType.ERROR, server = serverName, errorJson = errorJson)) }
+        }
+        // 未连上则丢弃（日志异常是即时告警，不值得缓存重推）
+    }
+
     /** 子服侧不发起 dispatch。 */
     override fun dispatch(server: String, action: String, argsJson: String, timeoutMs: Long): CompletableFuture<ToolReply> =
         CompletableFuture.completedFuture(ToolReply("", false, "SocketClientBus 是子服侧，不支持 dispatch"))

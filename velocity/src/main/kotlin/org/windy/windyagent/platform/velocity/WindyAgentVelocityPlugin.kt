@@ -126,15 +126,31 @@ class WindyAgentVelocityPlugin @Inject constructor(
             org.windy.windyagent.skill.SkillRegistry(sdir).also { it.reload() }
         } else null
         skills?.let { reg ->
+            val sdirFile = dataDirectory.resolve(cfg.skillsDir()).toFile()
             val texts = reg.all().filter { !it.isScript }
             val toolsRef = { extraTools.toList() }
             texts.forEach { def ->
-                extraTools += org.windy.windyagent.agent.TextSkillTool(def, audit, toolsRef, reg)
+                extraTools += org.windy.windyagent.agent.TextSkillTool(def, audit, toolsRef, reg, sdirFile)
             }
+            // 对话式技能管理：服主说人话 → AI 生成 → 落盘
+            extraTools += org.windy.windyagent.agent.CreateSkillTool(reg, audit, isUpdate = false)
+            extraTools += org.windy.windyagent.agent.CreateSkillTool(reg, audit, isUpdate = true)
+            extraTools += org.windy.windyagent.agent.ListSkillsTool(reg)
+            extraTools += org.windy.windyagent.agent.ReadSkillTool(reg)
+            // 脚本验证：Velocity 中心无 Groovy 运行时，验证委托给子服（standalone/hub 的 bukkit 侧有完整验证）
             logger.info("技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）",
                 reg.all().size, texts.size, reg.all().size - texts.size, reg.all().count { it.isWorkflow })
         }
         var skillSync: SkillSync? = null
+
+        // 日志读取工具（Agent 可主动读日志做诊断）
+        val logDir = dataDirectory.resolve("../logs").normalize().toFile()
+        extraTools += org.windy.windyagent.agent.ReadLogTool(logDir)
+        // 日志异常缓冲（各子服经总线推来的错误，Agent 可读取分析，持久化到 errors.json）
+        val errorBuffer = org.windy.windyagent.ops.RecentErrorBuffer(
+            persistFile = dataDirectory.resolve("errors.json").toFile()
+        )
+        extraTools += org.windy.windyagent.agent.GetRecentErrorsTool(errorBuffer)
 
         // MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent（与跨服总线正交）
         val mcpTools = McpLoader.load(cfg.mcpServers())
@@ -164,6 +180,20 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 // 脚本技能下发器：子服上线（宣告目录）时把命中它的脚本技能推到其 skills/ 目录执行
                 skillSync = skills?.let { SkillSync(b, it, cfg.remoteTimeoutMs()) }
                 b.onCatalog { json -> registry.accept(json); skillSync?.onServerAnnounced(json) }
+                // 子服日志异常 → 存入缓冲 + 控制台告警
+                b.onError { json ->
+                    errorBuffer.addFromJson(json)
+                    // 严重异常打控制台日志，管理员不看 WebUI 也能注意到
+                    runCatching {
+                        val node = ObjectMapper().readTree(json)
+                        val server = node["server"]?.asText() ?: "?"
+                        val severity = node["severity"]?.asText() ?: "?"
+                        val pattern = node["pattern"]?.asText() ?: "?"
+                        if (severity == "critical" || severity == "error") {
+                            logger.warn("[日志监控] 子服 {} 检测到 {} 级异常：{}", server, severity, pattern)
+                        }
+                    }
+                }
                 if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
                 // 在线判定：优先用总线的"真实在线"集（Socket 中枢=活动连接）；传输报不了(如 Redis)才退回
@@ -241,11 +271,24 @@ class WindyAgentVelocityPlugin @Inject constructor(
                     // 脚本：跑创建时 LLM 编译好的固定步骤，确定性、不调 LLM
                     "script" -> if (task.script.isEmpty()) "脚本为空（未生成步骤）" else
                         task.script.mapIndexed { i, s -> "步骤${i + 1} " + runStep(s.action, s.target, s.payload) }.joinToString("\n")
+                    // 技能：经总线在目标子服执行服主创建的技能（skill_name 存在 payload）
+                    "skill" -> {
+                        val targets = if (task.target == "*" || task.target.isBlank()) connectedServers() else setOf(task.target)
+                        if (targets.isEmpty()) "无目标子服（未连接）" else {
+                            val skillPayload = schedMapper.createObjectNode().put("skill", task.payload).toString()
+                            targets.joinToString("；") { srv ->
+                                val rep = runCatching { b.dispatch(srv, "run_skill", skillPayload, cfg.remoteTimeoutMs()).get(cfg.remoteTimeoutMs() + 1000, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrNull()
+                                "$srv:" + (rep?.content?.take(60) ?: "超时")
+                            }
+                        }
+                    }
                     // 单动作：广播 / 命令
                     else -> runStep(task.action, task.target, task.payload)
                 }
             }.also { sch -> if (sch.list().isEmpty()) sch.upsert(defaultNightlyTask()); sch.start() }
         }
+        // 对话式定时任务管理
+        scheduler?.let { sch -> extraTools += org.windy.windyagent.agent.ScheduleTool(sch, audit) }
 
         // 载体无关的元命令路由（help/clear/history/status/approve…）
         val statusSupplier = {

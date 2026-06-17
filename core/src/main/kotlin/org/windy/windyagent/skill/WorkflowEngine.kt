@@ -3,6 +3,9 @@ package org.windy.windyagent.skill
 import groovy.lang.Binding
 import groovy.lang.GroovyShell
 import org.slf4j.LoggerFactory
+import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 工作流执行引擎：按序执行 [SkillDef.steps]，支持变量插值、条件跳转、循环、skill 间调用。
@@ -27,9 +30,13 @@ class WorkflowEngine(
     /** Groovy 脚本/条件执行的 ClassLoader。 */
     private val groovyClassLoader: ClassLoader? = null,
     /** 进度回调（每步开始/完成时推送）。 */
-    private val onProgress: ((StepProgress) -> Unit)? = null
+    private val onProgress: ((StepProgress) -> Unit)? = null,
+    /** 技能状态（跨次执行持久化；null = 无状态）。 */
+    private val skillState: SkillState? = null
 ) {
     private val log = LoggerFactory.getLogger(WorkflowEngine::class.java)
+    /** 共享线程池（所有并行组复用，避免每次创建新池导致泄漏）。 */
+    private val parallelPool = Executors.newFixedThreadPool(4) { r -> Thread(r, "wf-parallel").apply { isDaemon = true } }
 
     /**
      * 执行一个工作流技能。返回 [WorkflowResult]。
@@ -42,21 +49,108 @@ class WorkflowEngine(
         val ctx = LinkedHashMap<String, Any?>()
         params.forEach { (k, v) -> ctx[k] = v }
         ctx["params"] = params
+        // 注入状态（脚本里可用 state.xxx 读写，插值可用 {state.xxx}）
+        skillState?.let { ctx["state"] = it; ctx["_skillState"] = it }
 
+        // 把连续的 parallel=true 步骤分组，每组并行执行
+        val groups = groupSteps(steps)
         val executed = mutableListOf<String>()
-        for (step in steps) {
-            val result = executeStep(step, ctx, def.name)
-            executed.add(step.id)
-            if (!result.success) {
-                return WorkflowResult(false, "步骤「${step.name}」失败：${result.message}", ctx, executed)
-            }
-            // assign：把结果存入上下文
-            if (step.assign != null && result.value != null) {
-                ctx[step.assign] = result.value
+
+        for (group in groups) {
+            if (group.size == 1 && !group[0].parallel) {
+                // 单步串行
+                val step = group[0]
+                val result = executeStep(step, ctx, def.name)
+                executed.add(step.id)
+                if (!result.success) {
+                    return WorkflowResult(false, "步骤「${step.name}」失败：${result.message}", ctx, executed)
+                }
+                if (step.assign != null && result.value != null) {
+                    ctx[step.assign] = result.value
+                }
+            } else {
+                // 并行组：所有步骤同时执行，全部完成后才能继续
+                val result = executeParallel(group, ctx, def.name)
+                executed.addAll(result.executedSteps)
+                if (!result.success) {
+                    return WorkflowResult(false, result.message, ctx, executed)
+                }
+                // assign 所有结果
+                for (step in group) {
+                    val stepResult = result.stepResults[step.id]
+                    if (step?.assign != null && stepResult?.value != null) {
+                        ctx[step.assign] = stepResult.value
+                    }
+                }
             }
         }
         return WorkflowResult(true, "工作流「${def.name}」执行完成", ctx, executed)
     }
+
+    /** 把步骤列表按 parallel 标记分组：连续的 parallel=true 归入同组。 */
+    private fun groupSteps(steps: List<WorkflowStep>): List<List<WorkflowStep>> {
+        val groups = mutableListOf<MutableList<WorkflowStep>>()
+        for (step in steps) {
+            if (step.parallel && groups.lastOrNull()?.let { it.last().parallel } == true) {
+                groups.last().add(step)
+            } else {
+                groups.add(mutableListOf(step))
+            }
+        }
+        return groups
+    }
+
+    /** 并行执行一组步骤。全部完成或任一失败（abort）时返回。共享线程池 + 超时保护。 */
+    private fun executeParallel(
+        group: List<WorkflowStep>,
+        ctx: MutableMap<String, Any?>,
+        skillName: String
+    ): ParallelResult {
+        val stepResults = LinkedHashMap<String, StepResult>()
+        val executed = mutableListOf<String>()
+        val error = AtomicReference<String?>(null)
+        val latch = CountDownLatch(group.size)
+
+        for (step in group) {
+            parallelPool.submit {
+                try {
+                    val result = executeStep(step, ctx, skillName)
+                    synchronized(executed) { executed.add(step.id) }
+                    stepResults[step.id] = result
+                    if (!result.success && error.compareAndSet(null, result.message)) {
+                        // 标记第一个失败
+                    }
+                } catch (e: Exception) {
+                    synchronized(executed) { executed.add(step.id) }
+                    stepResults[step.id] = StepResult(false, e.message, null)
+                    error.compareAndSet(null, e.message)
+                } finally {
+                    latch.countDown()
+                }
+            }
+        }
+        // 超时保护：最多等 60 秒，防止单步卡住导致整个并行组永久阻塞
+        val completed = latch.await(60, java.util.concurrent.TimeUnit.SECONDS)
+        if (!completed) {
+            log.warn("并行组超时（60s），{} / {} 步已完成", executed.size, group.size)
+        }
+
+        val errMsg = error.get()
+        return if (errMsg != null) {
+            ParallelResult(false, "并行组中有步骤失败：$errMsg", executed, stepResults)
+        } else if (!completed) {
+            ParallelResult(false, "并行组超时（60s），部分步骤未完成", executed, stepResults)
+        } else {
+            ParallelResult(true, "并行组 ${group.size} 步全部完成", executed, stepResults)
+        }
+    }
+
+    private data class ParallelResult(
+        val success: Boolean,
+        val message: String,
+        val executedSteps: List<String>,
+        val stepResults: Map<String, StepResult>
+    )
 
     // ── 单步执行 ──
 

@@ -31,15 +31,22 @@ class InProcessBus : MessageBus {
     }
 
     @Volatile private var catalogHandler: ((String) -> Unit)? = null
+    @Volatile private var errorHandler: ((String) -> Unit)? = null
 
     /** 进程内回复直接完成 future，无需独立回复监听。 */
     override fun startReplyListener() { /* no-op */ }
 
     override fun onCatalog(handler: (String) -> Unit) { catalogHandler = handler }
+    override fun onError(handler: (String) -> Unit) { errorHandler = handler }
 
     /** 进程内：直接同步回调中心已注册的目录处理器。 */
     override fun publishCatalog(catalogJson: String) {
         runCatching { catalogHandler?.invoke(catalogJson) }
+    }
+
+    /** 进程内：直接同步回调中心已注册的错误处理器。 */
+    override fun publishError(errorJson: String) {
+        runCatching { errorHandler?.invoke(errorJson) }
     }
 
     override fun listen(server: String, handler: (ToolRequest) -> ToolReply) {

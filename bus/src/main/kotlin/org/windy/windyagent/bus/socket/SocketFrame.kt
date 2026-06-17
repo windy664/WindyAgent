@@ -26,7 +26,8 @@ data class Frame(
     val error: String? = null,
     val request: ToolRequest? = null,
     val reply: ToolReply? = null,
-    val catalogJson: String? = null
+    val catalogJson: String? = null,
+    val errorJson: String? = null
 )
 
 object FrameType {
@@ -35,6 +36,7 @@ object FrameType {
     const val REQUEST = "REQUEST"
     const val REPLY = "REPLY"
     const val CATALOG = "CATALOG"
+    const val ERROR = "ERROR"
 }
 
 /** 帧编解码：长度前缀 + JSON。写按输出流加锁，允许多线程并发回包。 */

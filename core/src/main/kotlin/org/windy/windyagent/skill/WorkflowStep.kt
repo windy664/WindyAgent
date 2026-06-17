@@ -44,7 +44,9 @@ data class WorkflowStep(
     /** 上下文中已有列表变量名，对每个元素执行本步。 */
     val forEach: String? = null,
     /** 失败策略：abort / continue / retry:N。 */
-    val onFail: String = "abort"
+    val onFail: String = "abort",
+    /** 是否可与相邻的并行步骤同时执行。连续的 parallel=true 步骤组成一个并行组。 */
+    val parallel: Boolean = false
 ) {
     /** 解析重试次数（onFail = "retry:3" → 3；其它 → 0）。 */
     val retryCount: Int get() {
