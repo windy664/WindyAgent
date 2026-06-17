@@ -19,6 +19,13 @@
 
 **TODO**：等用户编译验证（[[user-handles-builds]]）；实测下发链路（子服上线 → 收脚本 → 重建目录 → run_skill_on_server）；遗留：子服 legacy 文字技能不会被下发清理（中心已本地执行同名，重复无害）；`DashboardServer` 的 `Files`/`dispatchTo` 可能变未用（仅警告）。
 
+**编译状态（2026-06-15 收尾）**：用户编译时 `web:compileKotlin` 报一大串 `Unresolved reference` + `Missing '}'` + `Unclosed comment(460)`——根因是 `DashboardServer.withTargets` 的 KDoc 里写了 `空/all/*`，`all` 后的 `/` 与 `*` 拼成 `/*`，**Kotlin 块注释支持嵌套**，于是开了个嵌套注释吞掉了结尾 `*/` 和后面所有 helper 函数定义。已把注释改成「空或 all」修掉。**其余模块（core/velocity/bukkit）尚未确认编译通过**——下次开工先让用户完整编一遍，集中修剩余错。
+
+**玩家管理（今日讨论，暂缓，后期做）**：WebUI「玩家管理」仍是「建设中」占位。方案已想好，分两步：
+- **A 步**（快，几乎不动子服后端，复用现有总线动作）：在线玩家表（`server_detail` 的 名/世界/延迟/模式）+ 点开详情（`behavior_player` 画像 + `get_balance` 余额）+ 踢人（`kick_player`）+ 分群卡（`behavior_segments`）。新增几个轻量代理端点（`/api/players/detail`、`/api/players/kick`）。
+- **B 步**（要给子服 `BukkitActions` 加动作+总线+端点）：封禁/解封、白名单增删、私聊、给物品/给钱（Vault）等。
+- 用户已选「这些先不做，后期再做」。下次可直接照此落地。
+
 ## 2026-06-15 Groovy 技能（skill）：服主免重编译给 Agent 加新能力
 
 **动机**：Agent 跑在 Java 服务端却没法执行代码去调装过来插件的 API。讨论后明确：要的不是「LLM 现场写代码」（每次现编、不可审、违背确定化哲学），而是**让服主写好脚本、Agent 按名调用**——审一次冻结，等于一条确定性能力，且免重编译即可扩展。

@@ -4,8 +4,8 @@
 # Gradle cache folder
 .gradle
 
-# Gradle build folder
-build
+# Gradle build folder（所有模块的 build/ 均忽略）
+**/build/
 
 # IntelliJ
 out/
@@ -23,3 +23,9 @@ run
 # 已搁置的 NeoForge 载体：本地留作备份，不进版本库
 disabled-neoforge/
 build.gradle.neoforge-backup
+
+# Claude Code 本地配置（含权限规则，非项目源码）
+.claude/
+
+# 落地部署样例（模板配置，非源码；技能副本已在 core/resources/skills/ 管理）
+deploy/
