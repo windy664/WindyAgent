@@ -31,10 +31,10 @@ class BukkitCapabilityHandler(
     var onSkillsChanged: () -> Unit = {}
 
     fun handle(req: ToolRequest): ToolReply {
-        plugin.logger.info("← 收到中心指令：action=${req.action} args=${req.argsJson.take(200)}")
+        plugin.logger.info("[Capability] ← 收到中心指令：action=${req.action} args=${req.argsJson.take(200)}")
         val reply = runCatching { dispatch(req) }
             .getOrElse { ToolReply(req.requestId, false, "执行异常：${it.message}") }
-        plugin.logger.info("→ 回复中心：${if (reply.success) "OK" else "FAIL"} ${reply.content.take(200)}")
+        plugin.logger.info("[Capability] → 回复中心：${if (reply.success) "OK" else "FAIL"} ${reply.content.take(200)}")
         return reply
     }
 

@@ -54,7 +54,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
     /** @return 是否成功启动（失败已记日志，调用方据此决定后续）。cfg 由插件入口统一加载后传入。 */
     fun start(cfg: AgentConfig, remoteBus: MessageBus? = null, remoteTimeoutMs: Long = 5000L): Boolean {
         val llm = runCatching { buildProvider(cfg) }.getOrElse {
-            plugin.logger.severe(it.message)
+            plugin.logger.severe("[LLM] " + it.message)
             return false
         }
         val fastLlm = buildFastProvider(cfg)
@@ -125,7 +125,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                     org.windy.windyagent.agent.DryRunSummary(r.success, r.operations, r.error)
                 }
             )
-            plugin.logger.info("技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
+            plugin.logger.info("[Skill] 技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
         }
         // 日志读取工具 + 日志监控
         val logDir = plugin.server.worldContainer.resolve("logs")
@@ -136,7 +136,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                 onError = { err ->
                     // 本地记审计
                     audit.record("local", "log_error", err.pattern, err.severity.uppercase(), err.errorLine.take(200))
-                    plugin.logger.warning("[日志监控] ${err.pattern} — ${err.errorLine.take(100)}")
+                    plugin.logger.warning("[LogMon] ${err.pattern} — ${err.errorLine.take(100)}")
                     // 经总线推送到中心（如果已连接）
                     if (remoteBus != null) {
                         val json = ObjectMapper().writeValueAsString(mapOf(
@@ -189,7 +189,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // /ai 命令（需在 plugin.yml 声明 commands.ai）
         plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))
-            ?: plugin.logger.warning("未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
+            ?: plugin.logger.warning("[Command] 未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
 
         // 顶层审批命令（薄适配 → router）
         val approval = BukkitApprovalCommand(router)
@@ -200,7 +200,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger()), plugin
         )
 
-        plugin.logger.info("嵌入式 Agent 已就绪 — provider: ${llm.name}, 触发: '${cfg.trigger()} <消息>' / '/ai <消息>'")
+        plugin.logger.info("[Agent] 嵌入式 Agent 已就绪 — provider: ${llm.name}, 触发: '${cfg.trigger()} <消息>' / '/ai <消息>'")
         return true
     }
 }

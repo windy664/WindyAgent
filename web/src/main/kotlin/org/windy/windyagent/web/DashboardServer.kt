@@ -39,8 +39,10 @@ class DashboardServer(
         s.createContext("/") { ex -> handle(ex) }
         s.start()
         server = s
-        if (token.isBlank()) log.warn("管理控制台 token 为空——接口无鉴权，强烈建议设 web.token 并仅绑 127.0.0.1")
-        log.info("管理控制台已启动：http://{}:{}/ ({} 个 handler)", if (host == "0.0.0.0") "<本机IP>" else host, port, handlers.size)
+        if (token.isBlank()) log.warn("[Web] token 为空——接口无鉴权，强烈建议设 web.token 并仅绑 127.0.0.1")
+        log.info("[Web] 管理控制台已启动：http://{}:{}/ （{} 个 handler，token={}）",
+            if (host == "0.0.0.0") "<本机IP>" else host, port, handlers.size,
+            if (token.isBlank()) "无" else token)
     }
 
     fun stop() { server?.stop(0); server = null }

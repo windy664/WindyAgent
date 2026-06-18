@@ -27,14 +27,14 @@ class ChatWordCollector(private val bus: MessageBus, private val timeoutMs: Long
     @Subscribe
     fun onChat(e: PlayerChatEvent) {
         val srv = e.player.currentServer.map { it.serverInfo.name }.orElse("?")
-        if (seen++ == 0L) log.info("[聊天词云] 代理层收到首条聊天（{} @ {}）——采集生效", e.player.username, srv)
+        if (seen++ == 0L) log.info("[ChatWC] 代理层收到首条聊天（{} @ {}）——采集生效", e.player.username, srv)
         val m = perServer.computeIfAbsent(srv) { ConcurrentHashMap() }
         ChatTokenizer.tokens(e.message).forEach { m.computeIfAbsent(it) { AtomicLong() }.incrementAndGet() }
     }
 
     fun start() {
         exec.scheduleAtFixedRate({ runCatching { flush() } }, 60, 60, TimeUnit.SECONDS)
-        log.info("[聊天词云] 代理层聊天采集已启动（玩家需经 Velocity 连入才会被采集）")
+        log.info("[ChatWC] 代理层聊天采集已启动（玩家需经 Velocity 连入才会被采集）")
     }
 
     fun stop() { runCatching { flush() }; exec.shutdown() }
@@ -45,7 +45,7 @@ class ChatWordCollector(private val bus: MessageBus, private val timeoutMs: Long
             for ((w, a) in words) { val d = a.getAndSet(0).toInt(); if (d > 0) drained[w] = d }
             if (drained.isEmpty()) continue
             val node = mapper.createObjectNode(); val w = node.putObject("words"); drained.forEach { (k, v) -> w.put(k, v) }
-            log.info("[聊天词云] {} 个词 → 子服 {}", drained.size, srv)
+            log.info("[ChatWC] {} 个词 → 子服 {}", drained.size, srv)
             runCatching { bus.dispatch(srv, "behavior_chatwords", node.toString(), timeoutMs) }   // 发后即忘，不等回包
         }
     }

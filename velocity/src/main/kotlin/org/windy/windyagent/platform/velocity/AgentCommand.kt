@@ -64,7 +64,7 @@ class AgentCommand(
                 } else playerQa.answer(input)
                 source.sendMessage(Component.text("[WindyAgent] $reply"))
             }.onFailure {
-                logger.error("Agent error for {}", sessionId, it)
+                logger.error("[Agent] 会话 {} 执行出错", sessionId, it)
                 source.sendMessage(Component.text(Messages.t("cmd.error")))
             }
         }

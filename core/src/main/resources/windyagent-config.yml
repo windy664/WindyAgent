@@ -189,10 +189,10 @@ safety:
 
 # AI 管理控制台（WebUI，仅 Velocity 读取）：浏览器看玩家行为看板（以后加 AI 对话 + 知识库编辑）。
 web:
-  enabled: false         # 设 true 开启；浏览器开 http://<host>:<port>/
+  enabled: true          # 默认开启；浏览器开 http://<host>:<port>/。设 false 关闭
   host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
   port: 8080
-  token: ""              # ★设成随机串，/api 鉴权用（留空=无鉴权，仅限本机调试）
+  token: ""              # 留空=首启自动生成随机串写回本行；外网开放时务必用强 token
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
 deployment:

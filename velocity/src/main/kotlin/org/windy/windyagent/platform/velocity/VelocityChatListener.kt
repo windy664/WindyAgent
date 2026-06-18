@@ -44,7 +44,7 @@ class VelocityChatListener(
                 // 非命令 → 知识库问答（不进 Agent、无工具）
                 platform.sendResponse(playerName, playerQa.answer(userInput))
             }.onFailure {
-                logger.error("Agent error for player {}", playerName, it)
+                logger.error("[Chat] 玩家 {} 问答处理出错", playerName, it)
                 platform.sendResponse(playerName, "处理出错，请稍后重试。")
             }
         }
