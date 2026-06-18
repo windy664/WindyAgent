@@ -14,6 +14,7 @@ import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.bus.RedisBus
 import org.windy.windyagent.bus.socket.SocketClientBus
 import org.windy.windyagent.bus.socket.SocketHubBus
+import org.windy.windyagent.ui.WindyLog
 
 /**
  * WindyAgent Bukkit 插件入口。**配置与 Velocity 统一**：只读插件数据目录下的
@@ -31,14 +32,25 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
 
     override fun onEnable() {
         val cfg = runCatching { AgentConfig.load(dataFolder.toPath()) }.getOrElse {
-            logger.severe("加载 windyagent-config.yml 失败，插件未启用：${it.message}")
+            logger.severe(WindyLog.tag("Boot", "加载 windyagent-config.yml 失败，插件未启用：${it.message}"))
             return
         }
         Messages.init(cfg.language())
+        val mode = cfg.mode()
+        val role = when (mode) {
+            "standalone" -> "嵌入式 Agent · standalone"
+            "hub" -> "嵌入式 Agent + 总线中枢 · hub"
+            else -> "能力提供方 · provider"
+        }
+        logger.info(WindyLog.banner(buildList {
+            add("角色" to role)
+            add("子服名" to cfg.serverName().ifBlank { "(未设)" })
+            if (mode != "standalone") add("传输" to cfg.crossServerTransport())
+        }))
         // 行为采集与部署形态无关：事件都在本子服发生，三种模式都跑
         behavior = runCatching { BehaviorService.build(this, cfg)?.also { it.start() } }
-            .getOrElse { logger.warning("行为采集启动失败：${it.message}"); null }
-        when (cfg.mode()) {
+            .getOrElse { logger.warning(WindyLog.tag("Behavior", "行为采集启动失败：${it.message}")); null }
+        when (mode) {
             "standalone" -> startStandalone(cfg)
             "hub" -> startHub(cfg)
             else -> startProvider(cfg)
@@ -49,7 +61,7 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
     private fun startProvider(cfg: AgentConfig) {
         val serverName = cfg.serverName().takeIf { it.isNotBlank() }
         if (serverName == null) {
-            logger.severe("provider 模式需在 windyagent-config.yml 设置 deployment.server-name。总线未启用。")
+            logger.severe(WindyLog.tag("Provider", "provider 模式需在 windyagent-config.yml 设置 deployment.server-name。总线未启用。"))
             return
         }
         val transport = cfg.crossServerTransport()
@@ -61,17 +73,17 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         val skills = if (cfg.skillsEnabled())
             SkillRegistry(dataFolder.toPath().resolve(cfg.skillsDir()).toFile()) else null
         val skillEngine = skills?.let { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
-        skills?.let { logger.info("技能已加载 — ${it.reload()} 个（skills/ 目录）") }
+        skills?.let { logger.info(WindyLog.tag("Skill", "技能已加载 — ${it.reload()} 个（skills/ 目录）")) }
         val handler = BukkitCapabilityHandler(this, actions, itemService, behavior, skills, skillEngine)
 
         bus = runCatching {
             buildClientBus(cfg, transport).also { it.listen(serverName) { req -> handler.handle(req) } }
         }.getOrElse {
-            logger.severe("总线启动失败，能力提供方未启用：${it.message}")
+            logger.severe(WindyLog.tag("Bus", "总线启动失败，能力提供方未启用：${it.message}"))
             null
         }
         bus?.let { b ->
-            logger.info("能力提供方已启动 — server-name: $serverName, transport: $transport")
+            logger.info(WindyLog.tag("Provider", "能力提供方已启动 — server-name: $serverName, transport: $transport"))
             // 启动后建能力目录（含技能条目），经总线推回中心（取代中心每次现扫）
             val capSync = CapabilitySync(this, actions, serverName, { cat -> b.publishCatalog(CapabilitySync.toJson(cat)) },
                 { skills?.let { it.reload(); it.all().map { d -> d.toCapabilityCommand() } } ?: emptyList() }
@@ -84,21 +96,21 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
 
     /** standalone：仅嵌入式 Agent。 */
     private fun startStandalone(cfg: AgentConfig) {
-        if (BukkitAgentRunner(this).start(cfg)) logger.info("WindyAgent 已启动（standalone：本机嵌入式 Agent）")
-        else logger.severe("standalone 启动失败，请检查 windyagent-config.yml 的 LLM 配置")
+        if (BukkitAgentRunner(this).start(cfg)) logger.info(WindyLog.tag("Boot", "已启动（standalone：本机嵌入式 Agent）"))
+        else logger.severe(WindyLog.tag("Boot", "standalone 启动失败，请检查 windyagent-config.yml 的 LLM 配置"))
     }
 
     /** hub：嵌入式 Agent + 总线中枢。 */
     private fun startHub(cfg: AgentConfig) {
         val transport = cfg.crossServerTransport()
         bus = runCatching { buildHubBus(cfg, transport).also { it.startReplyListener() } }.getOrElse {
-            logger.severe("中枢总线启动失败：${it.message}")
+            logger.severe(WindyLog.tag("Bus", "中枢总线启动失败：${it.message}"))
             null
         }
         if (BukkitAgentRunner(this).start(cfg, remoteBus = bus, remoteTimeoutMs = cfg.remoteTimeoutMs())) {
-            logger.info("WindyAgent 已启动（hub：嵌入式 Agent + 总线中枢，transport: $transport）")
+            logger.info(WindyLog.tag("Boot", "已启动（hub：嵌入式 Agent + 总线中枢，transport: $transport）"))
         } else {
-            logger.severe("hub 启动失败，请检查 windyagent-config.yml 的 LLM 配置")
+            logger.severe(WindyLog.tag("Boot", "hub 启动失败，请检查 windyagent-config.yml 的 LLM 配置"))
         }
     }
 
@@ -119,6 +131,6 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         behavior = null
         bus?.close()
         bus = null
-        logger.info("WindyAgent 已停止")
+        logger.info(WindyLog.tag("Boot", "WindyAgent 已停止"))
     }
 }

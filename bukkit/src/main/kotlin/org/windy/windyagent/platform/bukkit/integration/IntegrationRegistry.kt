@@ -33,9 +33,9 @@ object IntegrationRegistry {
             runCatching {
                 val pluginTools = integration.createTools(audit)
                 tools.addAll(pluginTools)
-                plugin.logger.info("[插件集成] ${integration.pluginName} — ${pluginTools.size} 个工具")
+                plugin.logger.info("[Integration] ${integration.pluginName} — ${pluginTools.size} 个工具")
             }.onFailure {
-                plugin.logger.warning("[插件集成] ${integration.pluginName} 加载失败：${it.message}")
+                plugin.logger.warning("[Integration] ${integration.pluginName} 加载失败：${it.message}")
             }
         }
         return tools

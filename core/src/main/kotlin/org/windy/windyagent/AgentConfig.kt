@@ -7,7 +7,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.*
 
-class AgentConfig private constructor(private val root: Map<String, Any>) {
+class AgentConfig private constructor(
+    private val root: MutableMap<String, Any>,
+    private val configFile: Path
+) {
 
     companion object {
         fun load(configDir: Path): AgentConfig {
@@ -19,9 +22,11 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
                     .use { Files.copy(it, file) }
             }
             @Suppress("UNCHECKED_CAST")
-            val root = file.inputStream().use { Yaml().load<Map<String, Any>>(it) }
-            return AgentConfig(root)
+            val root = file.inputStream().use { Yaml().load<MutableMap<String, Any>>(it) }
+            return AgentConfig(root, file)
         }
+
+        private const val TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
     }
 
     fun language() = getString("language", "zh_cn")
@@ -140,10 +145,51 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     fun sentinelAdvise() = (getNode("sentinel.advise") as? Boolean) ?: true
 
     // AI 管理控制台（WebUI，仅 Velocity 读取）
-    fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: false
+    fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: true
     fun webHost() = getString("web.host", "127.0.0.1")
     fun webPort() = (getNode("web.port") as? Number)?.toInt() ?: 8080
     fun webToken() = getString("web.token", "")
+
+    /**
+     * 取控制台 token；若为空则生成一个随机串、写回配置文件并返回。
+     * 保证默认开启 web 时不会裸奔无鉴权——首启自动落一个 token 到 windyagent-config.yml。
+     */
+    fun ensureWebToken(): String {
+        val cur = webToken()
+        if (cur.isNotBlank()) return cur
+        val token = buildString { repeat(32) { append(TOKEN_CHARS[kotlin.random.Random.nextInt(TOKEN_CHARS.length)]) } }
+        // 内存里同步更新，使本次启动 webToken() 立即返回新值
+        @Suppress("UNCHECKED_CAST")
+        (root["web"] as? MutableMap<String, Any>)?.put("token", token)
+        runCatching { patchScalar("web", "token", token) }
+        return token
+    }
+
+    /**
+     * 定点替换 `section:` 下某个标量键的值，保留行尾注释与文件其余内容（不整体重写 YAML，免得吃掉注释）。
+     */
+    private fun patchScalar(section: String, key: String, value: String) {
+        if (!configFile.exists()) return
+        val lines = configFile.readLines().toMutableList()
+        val sectionRe = Regex("^$section:\\s*(#.*)?$")
+        val keyRe = Regex("^(\\s+)$key:\\s*(\"[^\"]*\"|\\S*)?\\s*(#.*)?$")
+        var inSection = false
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (!inSection) {
+                if (sectionRe.matches(line)) inSection = true
+                continue
+            }
+            // 出现新的顶格非空非注释行 = 离开本段
+            if (line.isNotBlank() && !line.first().isWhitespace() && !line.trimStart().startsWith("#")) return
+            val m = keyRe.matchEntire(line) ?: continue
+            val indent = m.groupValues[1]
+            val comment = m.groupValues[3]
+            lines[i] = "$indent$key: \"$value\"" + if (comment.isNotEmpty()) "  $comment" else ""
+            configFile.writeText(lines.joinToString(System.lineSeparator()) + System.lineSeparator())
+            return
+        }
+    }
 
     // 安全护栏：命令执行策略
     /** enforce（命中即拒）/ warn（放行但审计告警）/ off（不拦）。 */

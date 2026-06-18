@@ -45,7 +45,7 @@ class BukkitChatListener(
                 // 非命令 → 知识库问答（不进 Agent、无工具）
                 platform.sendResponse(playerName, playerQa.answer(input))
             }.onFailure {
-                plugin.logger.severe("Agent 处理出错（$playerName）：${it.message}")
+                plugin.logger.severe("[Chat] 处理出错（$playerName）：${it.message}")
                 platform.sendResponse(playerName, "处理出错，请稍后重试。")
             }
         })

@@ -60,6 +60,7 @@ import org.windy.windyagent.ops.LogNotifier
 import org.windy.windyagent.ops.TaskScheduler
 import org.windy.windyagent.web.AlertCenter
 import org.windy.windyagent.web.DashboardServer
+import org.windy.windyagent.ui.WindyLog
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.nio.file.Path
 
@@ -84,21 +85,21 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
-        logger.info("WindyAgent initializing...")
+        logger.info(WindyLog.tag("Boot", "中心 Agent 初始化中…（Velocity）"))
 
         val cfg = runCatching { AgentConfig.load(dataDirectory) }.getOrElse {
-            logger.error("Failed to load windyagent-config.yml: {}", it.message)
+            logger.error(WindyLog.tag("Boot", "加载 windyagent-config.yml 失败，插件未启用：{}"), it.message)
             return
         }
         Messages.init(cfg.language())
 
         val llm = runCatching { buildProvider(cfg) }.getOrElse {
-            logger.error(it.message)
+            logger.error(WindyLog.tag("LLM", "提供方初始化失败，插件未启用：{}"), it.message)
             return
         }
         // 元任务（路由/扩展）便宜模型，省 token；未配则用主模型
         val fastLlm = buildFastProvider(cfg)
-        if (fastLlm != null) logger.info("元任务便宜模型：{}", cfg.fastModel())
+        if (fastLlm != null) logger.info(WindyLog.tag("LLM", "元任务便宜模型：{}"), cfg.fastModel())
 
         val extraTools = mutableListOf<AgentTool>()
         var valueExecutor: org.windy.windyagent.command.ValueExecutor? = null
@@ -109,11 +110,11 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val guard = buildCommandGuard(cfg)
         val audit = AuditLog(dataDirectory.resolve("audit.log"))
         val pending = PendingApprovals()
-        logger.info("安全护栏：mode={}", cfg.safetyMode())
+        logger.info(WindyLog.tag("Safety", "安全护栏：mode={}"), cfg.safetyMode())
 
         // 长期记忆（跨会话）：有则挂 remember 工具 + 自动召回
         val memory = if (cfg.memoryEnabled()) FileLongTermMemory(dataDirectory.resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore()) else null
-        memory?.let { extraTools += RememberTool(it); logger.info("长期记忆已启用") }
+        memory?.let { extraTools += RememberTool(it); logger.info(WindyLog.tag("Memory", "长期记忆已启用")) }
 
         // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（用便宜模型，默认开，可关）
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
@@ -122,7 +123,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"))
         extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
         extraTools += KnowledgeWriteTool(knowledge)   // 让 Agent 能写知识库（夜间整理沉淀用，仅 TRUSTED）
-        logger.info("知识库已加载 — {} 条", knowledge.size())
+        logger.info(WindyLog.tag("Knowledge", "知识库已加载 — {} 条"), knowledge.size())
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
         val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander)
 
@@ -146,7 +147,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             extraTools += org.windy.windyagent.agent.ListSkillsTool(reg)
             extraTools += org.windy.windyagent.agent.ReadSkillTool(reg)
             // 脚本验证：Velocity 中心无 Groovy 运行时，验证委托给子服（standalone/hub 的 bukkit 侧有完整验证）
-            logger.info("技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）",
+            logger.info(WindyLog.tag("Skill", "技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）"),
                 reg.all().size, texts.size, reg.all().size - texts.size, reg.all().count { it.isWorkflow })
         }
         var skillSync: SkillSync? = null
@@ -166,7 +167,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val mcpTools = McpLoader.load(cfg.mcpServers())
         if (mcpTools.isNotEmpty()) {
             extraTools += mcpTools
-            logger.info("MCP 工具已接入 — {} 个", mcpTools.size)
+            logger.info(WindyLog.tag("MCP", "工具已接入 — {} 个"), mcpTools.size)
         }
 
         // 跨服总线（可选）：启用后把远端子服能力包装成工具加入 Agent。
@@ -200,11 +201,11 @@ class WindyAgentVelocityPlugin @Inject constructor(
                         val severity = node["severity"]?.asText() ?: "?"
                         val pattern = node["pattern"]?.asText() ?: "?"
                         if (severity == "critical" || severity == "error") {
-                            logger.warn("[日志监控] 子服 {} 检测到 {} 级异常：{}", server, severity, pattern)
+                            logger.warn(WindyLog.tag("LogMon", "子服 {} 检测到 {} 级异常：{}"), server, severity, pattern)
                         }
                     }
                 }
-                if (cfg.embeddingEnabled()) logger.info("能力检索启用语义向量（embedding: {}）", cfg.embeddingModel())
+                if (cfg.embeddingEnabled()) logger.info(WindyLog.tag("Bus", "能力检索启用语义向量（embedding: {}）"), cfg.embeddingModel())
                 extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
                 // 在线判定：优先用总线的"真实在线"集（Socket 中枢=活动连接）；传输报不了(如 Redis)才退回
                 // 注册表的"曾见过"集。避免选/派到离线子服白等超时（"假在线"）。
@@ -213,7 +214,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers(), online)
                 connectedServers = online
                 bus = b
-                logger.info("跨服总线已启用 — transport: {}", cfg.crossServerTransport())
+                logger.info(WindyLog.tag("Bus", "跨服总线已启用 — transport: {}"), cfg.crossServerTransport())
 
                 // Agent 读「今日运营洞察」的手（各子服统计/分群/词云 + 告警）——夜间整理任务靠它取数据
                 extraTools += OpsInsightTool(b, online, alerts, cfg.remoteTimeoutMs())
@@ -245,7 +246,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                         notifier.notify(inc, advice)
                     }.also { it.start() }
                 }
-            }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
+            }.onFailure { logger.error(WindyLog.tag("Bus", "跨服总线启动失败，将仅以本代理模式运行：{}"), it.message) }
         }
 
         // 人格文件（可选）
@@ -327,7 +328,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 系统健康数据聚合（供 Dashboard /api/system）
         val systemHealth = org.windy.windyagent.ops.SystemHealth(usageTracker, sessions)
 
+        var webUrl: String? = null   // 供启动横幅展示；null = 未开启
         if (cfg.webEnabled()) {
+            // 默认开启 web：token 为空则首启自动生成随机串写回配置，避免裸奔
+            val webToken = cfg.ensureWebToken()
+            val webHostShown = if (cfg.webHost() == "0.0.0.0") "<本机IP>" else cfg.webHost()
+            webUrl = "http://$webHostShown:${cfg.webPort()}/"
             val chat: (String, String) -> String = { sid, msg ->
                 router.dispatch(msg, sid, TrustLevel.TRUSTED) ?: run {
                     val resp = agent.run(AgentContext(sid, msg, platform, sessions.getHistory(sid), TrustLevel.TRUSTED))
@@ -359,7 +365,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "正文可引用现有工具名，如 get_balance / run_command_on_server / knowledge_search / remember 等，让 Agent 用它们办事而非写代码。" +
                 "只输出 SKILL.md 内容本身，不要解释、不要代码块围栏。"
             val draftSkill: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
-            web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken()).also { srv ->
+            web = DashboardServer(cfg.webHost(), cfg.webPort(), webToken).also { srv ->
                 srv.register(org.windy.windyagent.web.handlers.ServerHandler(srv, bus, cfg.remoteTimeoutMs(), connectedServers, alerts) { sentinel?.snapshotsJson() ?: "[]" })
                 srv.register(org.windy.windyagent.web.handlers.ChatHandler(srv, chat, dataDirectory))
                 srv.register(org.windy.windyagent.web.handlers.KnowledgeHandler(srv, knowledge, draft))
@@ -394,10 +400,14 @@ class WindyAgentVelocityPlugin @Inject constructor(
             commandManager.register(m, AgentApprovalCommand(router, act))
         }
 
-        logger.info(
-            "WindyAgent started — provider: {} — chat: '{} <message>' — command: '/{} <message>' (console supported)",
-            llm.name, cfg.trigger(), commandName
-        )
+        logger.info(WindyLog.banner(buildList {
+            add("角色" to "中心 Agent · Velocity")
+            add("模型" to (llm.name + (cfg.fastModel().takeIf { fastLlm != null }?.let { "  (fast: $it)" } ?: "")))
+            add("工具" to "${platform.tools.size} 个")
+            add("触发" to "聊天 '${cfg.trigger()} <消息>'  /  命令 '/$commandName <消息>'")
+            add("跨服" to if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用")
+            add("控制台" to (webUrl ?: "已关闭（web.enabled=false）"))
+        }))
     }
 
     /**
@@ -409,7 +419,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
      */
     private fun buildBus(transport: String, cfg: AgentConfig): MessageBus = when (transport) {
         "socket" -> SocketHubBus(cfg.socketHost(), cfg.socketPort(), cfg.socketSecret().ifBlank { null }).also {
-            logger.info("跨服总线使用 SocketHubBus（自建 TCP 中枢）— bind {}:{}", cfg.socketHost(), cfg.socketPort())
+            logger.info(WindyLog.tag("Bus", "使用 SocketHubBus（自建 TCP 中枢）— bind {}:{}"), cfg.socketHost(), cfg.socketPort())
         }
         "inprocess", "memory" -> InProcessBus().also { bus ->
             server.allServers.forEach { rs ->
@@ -418,7 +428,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                     ToolReply(req.requestId, true, "[模拟子服 $name] 已接收 ${req.action}：${req.argsJson}")
                 }
             }
-            logger.warn("跨服总线使用 InProcessBus（测试用，不跨进程）— 已为 {} 个子服注册回显 stub", server.allServers.size)
+            logger.warn(WindyLog.tag("Bus", "使用 InProcessBus（测试用，不跨进程）— 已为 {} 个子服注册回显 stub"), server.allServers.size)
         }
         else -> RedisBus(cfg.redisHost(), cfg.redisPort(), cfg.redisPassword())
     }
@@ -463,6 +473,6 @@ class WindyAgentVelocityPlugin @Inject constructor(
         web?.stop(); web = null
         bus?.close()
         bus = null
-        logger.info("WindyAgent stopped.")
+        logger.info(WindyLog.tag("Boot", "WindyAgent 已停止。"))
     }
 }

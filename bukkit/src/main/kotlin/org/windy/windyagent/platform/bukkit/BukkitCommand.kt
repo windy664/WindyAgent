@@ -57,7 +57,7 @@ class BukkitCommand(
                 } else playerQa.answer(input)
                 reply(sender, out)
             }.onFailure {
-                plugin.logger.severe("Agent error ($sessionId): ${it.message}")
+                plugin.logger.severe("[Command] 会话 $sessionId 执行出错：${it.message}")
                 reply(sender, Messages.t("cmd.error"))
             }
         })

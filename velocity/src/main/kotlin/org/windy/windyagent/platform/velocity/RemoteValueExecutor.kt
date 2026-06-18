@@ -50,28 +50,28 @@ class RemoteValueExecutor(
     /** 中心编排 LLM 估值：① 子服回根 → ② 本机 LLM 定价 → ③ 回写子服级联重算。 */
     private fun runLlm(server: String, all: Boolean): String {
         val scope = if (all) "全部悬空物" else "悬空的根"
-        log.info("[value llm{}] 子服 {} —— 步骤1/3 取{}…", if (all) " all" else "", server, scope)
+        log.info("[Value{}] 子服 {} —— 步骤1/3 取{}…", if (all) " all" else "", server, scope)
         val argsJson = if (all) mapper.createObjectNode().put("all", true).toString() else "{}"
         val rootsJson = dispatchText(server, "value_roots", argsJson)
         val bundle = runCatching { parseBundle(rootsJson) }
             .getOrElse { return "取清单失败（子服回复：${rootsJson.take(120)}）" }
         if (bundle.roots.isEmpty()) {
-            log.info("[value llm] 子服 {} 无{}，无需估值", server, scope)
+            log.info("[Value] 子服 {} 无{}，无需估值", server, scope)
             return "「$server」没有需要 LLM 估值的物品（都已解析，或先 value build $server）。"
         }
-        log.info("[value llm] 子服 {} —— 步骤2/3 取到 {} 个{}，调用 LLM 估价…", server, bundle.roots.size, scope)
+        log.info("[Value] 子服 {} —— 步骤2/3 取到 {} 个{}，调用 LLM 估价…", server, bundle.roots.size, scope)
         val pricer = LlmRootPricer(llm, rarityTiers)
         val seeds = if (all) pricer.priceBatched(bundle, batchSize) else pricer.price(bundle)
         if (seeds.isEmpty()) {
-            log.warn("[value llm] 子服 {} —— LLM 未给出有效估价", server)
+            log.warn("[Value] 子服 {} —— LLM 未给出有效估价", server)
             return "LLM 没给出有效估价（${bundle.roots.size} 个），未改动。可重试或改用 value set。"
         }
-        log.info("[value llm] 子服 {} —— 步骤3/3 LLM 给 {} 个估价，下发子服级联重算…", server, seeds.size)
+        log.info("[Value] 子服 {} —— 步骤3/3 LLM 给 {} 个估价，下发子服级联重算…", server, seeds.size)
         val seedNode = mapper.createObjectNode()
         val s = seedNode.putObject("seeds")
         seeds.forEach { (k, v) -> s.put(k, v) }
         val applied = dispatchText(server, "value_seed", seedNode.toString())
-        log.info("[value llm] 子服 {} —— 完成", server)
+        log.info("[Value] 子服 {} —— 完成", server)
         return "LLM 给 ${seeds.size}/${bundle.roots.size} 个物品定价并下发「$server」。\n$applied"
     }
 

@@ -59,7 +59,7 @@ class BehaviorTracker(
     private val chatListener = object : Listener {
         @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
         fun onChat(e: AsyncPlayerChatEvent) {
-            if (chatSeen++ == 0L) plugin.logger.info("[聊天词云] 收到首条聊天事件（${e.player.name}）——本服聊天采集已生效 ✓")
+            if (chatSeen++ == 0L) plugin.logger.info("[ChatWC] 收到首条聊天事件（${e.player.name}）——本服聊天采集已生效 ✓")
             a(e.player.uniqueId, e.player.name).chats.incrementAndGet()
             tokenizeChat(e.message)
         }
@@ -75,11 +75,11 @@ class BehaviorTracker(
         plugin.server.pluginManager.registerEvents(this, plugin)
         if (trackChat) {
             plugin.server.pluginManager.registerEvents(chatListener, plugin)
-            plugin.logger.info("行为采集：聊天词云已开启（AsyncPlayerChatEvent；旧 Youer≤26.1.2.75 采不到，请升到 26.1.2.76+，看是否出现「收到首条聊天事件」）")
+            plugin.logger.info("[Behavior] 聊天词云已开启（AsyncPlayerChatEvent；旧 Youer≤26.1.2.75 采不到，请升到 26.1.2.76+，看是否出现「收到首条聊天事件」）")
         }
-        exec.scheduleAtFixedRate({ runCatching { flush() }.onFailure { plugin.logger.warning("行为 flush 失败：${it.message}") } },
+        exec.scheduleAtFixedRate({ runCatching { flush() }.onFailure { plugin.logger.warning("[Behavior] flush 失败：${it.message}") } },
             flushIntervalSec, flushIntervalSec, TimeUnit.SECONDS)
-        plugin.logger.info("行为采集已启动（flush 每 ${flushIntervalSec}s，事件保留 ${retentionDays} 天）")
+        plugin.logger.info("[Behavior] 已启动（flush 每 ${flushIntervalSec}s，事件保留 ${retentionDays} 天）")
     }
 
     fun stop() { runCatching { flush() }; exec.shutdown() }
@@ -158,7 +158,7 @@ class BehaviorTracker(
         db.writeSessions(drain(sessionBuf)); db.writeEvents(drain(eventBuf))
         db.bumpWords("cmd", drainWords(cmdWords)); db.bumpWords("chat", drainWords(chatWords))
         db.recordOnline(now, onlineSince.size)   // 在线数快照（用于趋势图）
-        if (deltas.isNotEmpty()) plugin.logger.info("[行为采集] flush：${deltas.size} 名玩家画像更新")
+        if (deltas.isNotEmpty()) plugin.logger.info("[Behavior] flush：${deltas.size} 名玩家画像更新")
         if (++flushes % 60L == 0L) db.pruneEvents(now - retentionDays * 86_400_000L)
     }
 

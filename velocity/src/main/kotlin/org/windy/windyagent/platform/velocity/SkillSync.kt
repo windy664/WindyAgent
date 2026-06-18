@@ -32,7 +32,7 @@ class SkillSync(
     fun onServerAnnounced(catalogJson: String) {
         val server = runCatching { mapper.readTree(catalogJson)["server"]?.asText() }.getOrNull()
             ?.takeIf { it.isNotBlank() } ?: return
-        exec.submit { runCatching { syncTo(server) }.onFailure { log.warn("向子服「{}」下发技能失败：{}", server, it.message) } }
+        exec.submit { runCatching { syncTo(server) }.onFailure { log.warn("[SkillSync] 向子服「{}」下发技能失败：{}", server, it.message) } }
     }
 
     /** 把命中 [server] 的脚本技能逐个下发。返回下发条数。 */
@@ -51,9 +51,9 @@ class SkillSync(
             val ok = runCatching {
                 bus.dispatch(server, "skill_save", payload, timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS).success
             }.getOrDefault(false)
-            if (ok) n++ else log.warn("下发技能「{}」到子服「{}」未成功", def.name, server)
+            if (ok) n++ else log.warn("[SkillSync] 下发技能「{}」到子服「{}」未成功", def.name, server)
         }
-        if (n > 0) log.info("已向子服「{}」下发 {} 个脚本技能", server, n)
+        if (n > 0) log.info("[SkillSync] 已向子服「{}」下发 {} 个脚本技能", server, n)
         return n
     }
 

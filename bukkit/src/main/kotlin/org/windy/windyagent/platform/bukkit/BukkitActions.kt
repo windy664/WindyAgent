@@ -48,7 +48,7 @@ class BukkitActions(
                     cs.javaClass.getMethod("getServer").invoke(cs) as? java.util.concurrent.Executor
                 }.getOrNull()
                 mainExecResolved = true
-                plugin.logger.info("主线程执行器：" + if (mainExec != null) "MinecraftServer(NMS)" else "Bukkit 调度器(回退)")
+                plugin.logger.info("[Actions] 主线程执行器：" + if (mainExec != null) "MinecraftServer(NMS)" else "Bukkit 调度器(回退)")
             }
         }
         return mainExec
@@ -106,7 +106,7 @@ class BukkitActions(
     fun runCapture(command: String): List<String> = onMain {
         val sink = java.util.Collections.synchronizedList(ArrayList<String>())
         runCatching { Bukkit.dispatchCommand(CommandCapture.sender(Bukkit.getServer(), sink), command) }
-            .onFailure { plugin.logger.fine("命令捕获失败（$command）：${it.message}") }
+            .onFailure { plugin.logger.fine("[Actions] 命令捕获失败（$command）：${it.message}") }
         ArrayList(sink)
     }
 

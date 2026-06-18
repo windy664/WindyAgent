@@ -59,14 +59,14 @@ class CapabilitySync(
                 val sig = signature(commands)
                 // 变更门控：签名与上次已提交一致就不推（中心靠持久记忆存活）
                 if (sig == readSig()) {
-                    plugin.logger.info("能力目录无变更（${commands.size} 条），跳过下发")
+                    plugin.logger.info("[CapSync] 能力目录无变更（${commands.size} 条），跳过下发")
                 } else {
                     val catalog = CapabilityCatalog(serverName, commands, System.currentTimeMillis())
-                    plugin.logger.info("能力目录变更 → ${commands.size} 条命令（server=$serverName），下发…")
+                    plugin.logger.info("[CapSync] 能力目录变更 → ${commands.size} 条命令（server=$serverName），下发…")
                     deliver(catalog)
                     writeSig(sig)
                 }
-            }.onFailure { plugin.logger.warning("生成能力目录失败：${it.message}") }
+            }.onFailure { plugin.logger.warning("[CapSync] 生成能力目录失败：${it.message}") }
         }, delaySec, TimeUnit.SECONDS)
     }
 
@@ -81,7 +81,7 @@ class CapabilitySync(
     private fun readSig(): String? = runCatching { if (sigFile.exists()) sigFile.readText().trim() else null }.getOrNull()
     private fun writeSig(sig: String) {
         runCatching { plugin.dataFolder.mkdirs(); sigFile.writeText(sig) }
-            .onFailure { plugin.logger.warning("写入 catalog.sig 失败：${it.message}") }
+            .onFailure { plugin.logger.warning("[CapSync] 写入 catalog.sig 失败：${it.message}") }
     }
 
     companion object {
