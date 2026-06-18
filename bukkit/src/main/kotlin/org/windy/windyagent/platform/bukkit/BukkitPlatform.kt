@@ -18,6 +18,7 @@ class BukkitPlatform(
 ) : Platform {
 
     override val name = "bukkit"
+    override var personality: String = ""
 
     override val tools: List<AgentTool> = listOf(
         BukkitBroadcastTool(actions),

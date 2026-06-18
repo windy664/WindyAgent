@@ -4,13 +4,17 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.agent.ContextCompressor
+import org.windy.windyagent.agent.PersonalityLoader
 import org.windy.windyagent.agent.PlanExecuteAgent
 import org.windy.windyagent.agent.ReActAgent
+import org.windy.windyagent.agent.UserProfileManager
 import org.windy.windyagent.agent.RemoteAppraiseTool
 import org.windy.windyagent.agent.RemoteBalanceTool
 import org.windy.windyagent.agent.RemoteCommandTool
 import org.windy.windyagent.agent.RemoteProposePackTool
 import org.windy.windyagent.agent.RemoteRefreshItemsTool
+import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
 import org.windy.windyagent.platform.bukkit.skill.SkillTool
@@ -155,16 +159,28 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit).let { pluginTools ->
             extraTools += pluginTools
         }
+        // 人格文件
+        val personality = PersonalityLoader.load(plugin.dataFolder.toPath(), cfg.personalityFile())
         val platform = BukkitPlatform(plugin, actions, extraTools)
-        val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
+        platform.personality = personality
+
+        // 用量追踪
+        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, plugin.dataFolder.toPath()) else null
+        val effectiveLlm = usageTracker ?: llm
+
+        // 上下文压缩 + 用户画像
+        val compressor = if (cfg.compressionEnabled()) ContextCompressor(fastLlm ?: effectiveLlm, cfg.compressionThreshold(), cfg.compressionKeepRecent()) else null
+        val profileManager = if (cfg.profilesEnabled()) UserProfileManager(plugin.dataFolder.toPath().resolve("profiles")) else null
+
+        val agent = AgentRouter(effectiveLlm, ReActAgent(effectiveLlm), PlanExecuteAgent(effectiveLlm), memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager)
         val sessions = SessionManager(cfg.maxHistory())
 
-        // 载体无关的元命令路由（help/clear/history/status/approve…）
+        // 载体无关的元命令路由
         val statusSupplier = {
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n模式：${cfg.mode()}"
         }
         val valueExecutor = items?.let { LocalValueExecutor(it, fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers()) }
-        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
+        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor, usageTracker, compressor, profileManager)
 
         // 启动后建本机能力目录，放进本地注册表
         val selfName = cfg.serverName().ifBlank { "local" }

@@ -88,8 +88,10 @@ object SystemPrompt {
           你只需如实告知用户"该操作需要管理员确认"，不要试图绕过或换花样硬执行。
     """.trimIndent()
 
-    /** 通用基底 + 载体特有上下文（可为空）。 */
-    fun build(platformContext: String): String =
-        if (platformContext.isBlank()) BASE
-        else BASE + "\n\n" + platformContext.trim()
+    /** 通用基底 + 载体特有上下文 + 可选人格（可为空）。 */
+    fun build(platformContext: String, personality: String = ""): String = buildString {
+        append(BASE)
+        if (platformContext.isNotBlank()) append("\n\n").append(platformContext.trim())
+        if (personality.isNotBlank()) append("\n\n[你的个性设定，请自然融入回复风格]\n").append(personality.trim())
+    }
 }

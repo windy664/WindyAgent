@@ -1,5 +1,8 @@
 package org.windy.windyagent.command
 
+import org.windy.windyagent.agent.ContextCompressor
+import org.windy.windyagent.agent.UserProfileManager
+import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.AuditLog
@@ -26,10 +29,13 @@ class CommandContext(
     val sessions: SessionManager,
     val pending: PendingApprovals,
     val audit: AuditLog,
-    /** 长期记忆（未启用为 null）。 */
     val memory: LongTermMemory?,
-    /** 载体提供的状态文案（provider/工具/安全等，各载体自拼）。 */
     val status: () -> String,
-    /** 物品估值执行后端（未启用为 null）。 */
-    val valueExecutor: ValueExecutor? = null
+    val valueExecutor: ValueExecutor? = null,
+    /** 用量追踪器（未启用为 null）。 */
+    val usageTracker: LLMUsageTracker? = null,
+    /** 上下文压缩器（未启用为 null）。 */
+    val compressor: ContextCompressor? = null,
+    /** 用户画像管理器（未启用为 null）。 */
+    val profileManager: UserProfileManager? = null
 )

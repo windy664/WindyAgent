@@ -25,6 +25,16 @@ class AgentConfig private constructor(private val root: Map<String, Any>) {
     }
 
     fun language() = getString("language", "zh_cn")
+    fun usageEnabled() = (getNode("usage.enabled") as? Boolean) ?: true
+    fun personalityFile() = getString("personality", "personality.md")
+    fun compressionEnabled() = (getNode("context.compress.enabled") as? Boolean) ?: true
+    fun compressionThreshold() = (getNode("context.compress.threshold") as? Number)?.toInt() ?: 16
+    fun compressionKeepRecent() = (getNode("context.compress.keep-recent") as? Number)?.toInt() ?: 6
+    fun profilesEnabled() = (getNode("profiles.enabled") as? Boolean) ?: true
+    fun sessionStoreEnabled() = (getNode("session-store.enabled") as? Boolean) ?: false
+    fun rateLimitEnabled() = (getNode("rate-limit.enabled") as? Boolean) ?: true
+    fun rateLimitBucketSize() = (getNode("rate-limit.bucket-size") as? Number)?.toInt() ?: 5
+    fun rateLimitRefillRate() = (getNode("rate-limit.refill-rate") as? Number)?.toDouble() ?: 0.1
     fun provider() = getString("llm.provider", "claude")
     fun apiKey() = getString("llm.api-key", "")
     fun apiBaseUrl() = getString("llm.api-base-url", "")

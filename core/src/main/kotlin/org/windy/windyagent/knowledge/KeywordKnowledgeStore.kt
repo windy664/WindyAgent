@@ -6,10 +6,18 @@ package org.windy.windyagent.knowledge
  * 对查询切词后，按词在 标题/标签/正文 中的出现次数加权打分。
  * 中文无空格，故除英文/数字 token 外，额外对连续中文段取相邻二元组，
  * 让「春节礼包」这类查询也能命中。无外部依赖、结果确定、可审计。
+ *
+ * 性能：构建时预计算 lowercase 字符串 + 提取 terms，避免每次搜索重复分配。
  */
-class KeywordKnowledgeStore(private val entries: List<KnowledgeEntry>) : KnowledgeStore {
+class KeywordKnowledgeStore(entries: List<KnowledgeEntry>) : KnowledgeStore {
 
-    override fun size(): Int = entries.size
+    // 预计算：每条 entry 的 lowercase 字段（构建一次，搜索多次）
+    private data class Prepared(val entry: KnowledgeEntry, val titleLc: String, val tagsLc: String, val contentLc: String)
+    private val prepared = entries.map { e ->
+        Prepared(e, e.title.lowercase(), e.tags.joinToString(" ").lowercase(), e.content.lowercase())
+    }
+
+    override fun size(): Int = prepared.size
 
     override fun search(query: String, topK: Int): List<KnowledgeEntry> =
         searchScored(query, topK).map { it.first }
@@ -18,22 +26,19 @@ class KeywordKnowledgeStore(private val entries: List<KnowledgeEntry>) : Knowled
     fun searchScored(query: String, topK: Int): List<Pair<KnowledgeEntry, Int>> {
         val terms = extractTerms(query)
         if (terms.isEmpty()) return emptyList()
-        return entries
-            .map { it to score(it, terms) }
+        return prepared
+            .map { it.entry to score(it, terms) }
             .filter { it.second > 0 }
             .sortedByDescending { it.second }
             .take(topK)
     }
 
-    private fun score(e: KnowledgeEntry, terms: List<String>): Int {
-        val title = e.title.lowercase()
-        val tags = e.tags.joinToString(" ").lowercase()
-        val content = e.content.lowercase()
+    private fun score(p: Prepared, terms: List<String>): Int {
         var s = 0
         for (t in terms) {
-            s += count(title, t) * 3
-            s += count(tags, t) * 2
-            s += count(content, t)
+            s += count(p.titleLc, t) * 3
+            s += count(p.tagsLc, t) * 2
+            s += count(p.contentLc, t)
         }
         return s
     }

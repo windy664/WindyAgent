@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory
  * 本类下沉到 core：中心（Velocity）与 bukkit 子服共用同一套解析/文件管理。脚本的**执行**仍在
  * bukkit 侧（SkillEngine，需 Bukkit API）。[reload] 幂等，能力目录重建时调用做热重载。
  */
-class SkillRegistry(private val dir: File) : SkillRegistryRef {
+class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 * 1024) : SkillRegistryRef {
 
     private val log: Logger = LoggerFactory.getLogger(SkillRegistry::class.java)
     @Volatile private var skills: Map<String, SkillDef> = emptyMap()
@@ -43,10 +43,10 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
         dir.listFiles()?.sortedBy { it.name }?.forEach { f ->
             runCatching {
                 when {
-                    f.isDirectory -> File(f, "SKILL.md").takeIf { it.isFile }?.let { parseFolder(f, it) }
+                    f.isDirectory -> File(f, "SKILL.md").takeIf { it.isFile && it.length() <= maxFileSize }?.let { parseFolder(f, it) }
                     f.name.equals("SKILL.md", true) -> null  // 顶层裸 SKILL.md 跳过
-                    f.name.endsWith(".md", true) -> parseFlatText(f)
-                    f.name.endsWith(".groovy", true) -> parseFlatScript(f)
+                    f.name.endsWith(".md", true) -> if (f.length() <= maxFileSize) parseFlatText(f) else null
+                    f.name.endsWith(".groovy", true) -> if (f.length() <= maxFileSize) parseFlatScript(f) else null
                     else -> null
                 }
             }.onSuccess { def -> if (def != null) found[def.name.lowercase()] = def }
@@ -371,7 +371,7 @@ class SkillRegistry(private val dir: File) : SkillRegistryRef {
     /** 读一个技能的两部分内容（md 正文 + 脚本）。扁平技能无 SKILL.md 时按当前元数据合成一份，供 WebUI 编辑。 */
     fun read(handle: String): SkillContent? {
         val def = all().firstOrNull { it.handle.equals(handle, true) } ?: return null
-        val mdFile = def.mdPath?.let { File(dir, it).takeIf { f -> f.isFile }?.readText() }
+        val mdFile = def.mdPath?.let { File(dir, it).takeIf { f -> f.isFile && f.length() <= maxFileSize }?.readText() }
         val md = mdFile ?: synthMd(def)
         val sc = def.scriptPath?.let { File(dir, it).takeIf { f -> f.isFile }?.readText() } ?: def.script ?: ""
         return SkillContent(def.isScript, md, sc, def.scriptPath?.substringAfterLast('/'), def.isWorkflow)

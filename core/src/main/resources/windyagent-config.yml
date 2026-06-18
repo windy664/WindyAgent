@@ -4,6 +4,30 @@
 # 语言 / Language: zh_cn (中文) | en (English)
 language: zh_cn
 
+# 用量追踪：统计 LLM token 消耗 /api/usage
+usage:
+  enabled: true
+
+# 人格文件：自定义 Agent 语气/风格（放在数据目录下 personality.md）
+# personality: personality.md
+
+# 上下文压缩：历史消息超阈值时用 LLM 摘要旧消息
+context:
+  compress:
+    enabled: true
+    threshold: 16      # 超过多少条消息触发压缩
+    keep-recent: 6     # 保留最近多少条原样消息
+
+# 用户画像：跨会话理解用户偏好（存 profiles/<session>.json）
+profiles:
+  enabled: true
+
+# 速率限制：每玩家令牌桶防滥用
+rate-limit:
+  enabled: true
+  bucket-size: 5     # 桶容量（最大突发请求数）
+  refill-rate: 0.1   # 每秒补充令牌（0.1 = 每10秒恢复1个）
+
 llm:
   # 供应商: claude | openai | ollama
   #   claude  — 使用 Anthropic 官方 SDK（或兼容代理）

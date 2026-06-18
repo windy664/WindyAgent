@@ -12,6 +12,8 @@ import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.Messages
 import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.agent.ContextCompressor
+import org.windy.windyagent.agent.PersonalityLoader
 import org.windy.windyagent.agent.PlanExecuteAgent
 import org.windy.windyagent.agent.ReActAgent
 import org.windy.windyagent.agent.RemoteAppraiseTool
@@ -19,10 +21,12 @@ import org.windy.windyagent.agent.RemoteBalanceTool
 import org.windy.windyagent.agent.RemoteCommandTool
 import org.windy.windyagent.agent.RemoteProposePackTool
 import org.windy.windyagent.agent.RemoteRefreshItemsTool
+import org.windy.windyagent.agent.UserProfileManager
 import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.bus.InProcessBus
+import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.bus.RedisBus
 import org.windy.windyagent.bus.ToolReply
@@ -75,6 +79,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
     private var chatWords: ChatWordCollector? = null
     private var sentinel: HealthMonitor? = null
     private var scheduler: TaskScheduler? = null
+    private var usageTrackerInst: LLMUsageTracker? = null
+    private var configWatcherInst: org.windy.windyagent.ConfigWatcher? = null
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -242,9 +248,24 @@ class WindyAgentVelocityPlugin @Inject constructor(
             }.onFailure { logger.error("跨服总线启动失败，将仅以本代理模式运行：{}", it.message) }
         }
 
+        // 人格文件（可选）
+        val personality = PersonalityLoader.load(dataDirectory, cfg.personalityFile())
+
         val platform = VelocityPlatform(server, audit, extraTools)
+        platform.personality = personality
+
+        // 用量追踪（装饰器包装 LLMProvider）
+        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, dataDirectory).also { usageTrackerInst = it } else null
+        val effectiveLlm = usageTracker ?: llm
+
+        // 上下文压缩器
+        val compressor = if (cfg.compressionEnabled()) ContextCompressor(fastLlm ?: effectiveLlm, cfg.compressionThreshold(), cfg.compressionKeepRecent()) else null
+
+        // 用户画像管理器
+        val profileManager = if (cfg.profilesEnabled()) UserProfileManager(dataDirectory.resolve("profiles")) else null
+
         // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由；注入长期记忆做自动召回
-        val agent = AgentRouter(llm, ReActAgent(llm), PlanExecuteAgent(llm), memory, cfg.memoryRecallTopK(), fastLlm)
+        val agent = AgentRouter(effectiveLlm, ReActAgent(effectiveLlm), PlanExecuteAgent(effectiveLlm), memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager)
         val sessions = SessionManager(cfg.maxHistory())
 
         // 定时任务调度器：broadcast/command 走总线下发；**agent 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。
@@ -299,10 +320,13 @@ class WindyAgentVelocityPlugin @Inject constructor(
             "提供方：${llm.name}\n工具：${platform.tools.size} 个\n安全：mode=${cfg.safetyMode()}\n" +
                 "跨服：${if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用"}"
         }
-        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor)
+        val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor, usageTracker, compressor, profileManager)
 
         // AI 管理控制台（WebUI）：聊天接 router/agent（多轮靠 SessionManager），知识库接 KnowledgeManager，
         // 行为看板经总线。放最后装配（依赖 agent/会话）；webEnabled 即开，与跨服是否启用无关。
+        // 系统健康数据聚合（供 Dashboard /api/system）
+        val systemHealth = org.windy.windyagent.ops.SystemHealth(usageTracker, sessions)
+
         if (cfg.webEnabled()) {
             val chat: (String, String) -> String = { sid, msg ->
                 router.dispatch(msg, sid, TrustLevel.TRUSTED) ?: run {
@@ -335,10 +359,25 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "正文可引用现有工具名，如 get_balance / run_command_on_server / knowledge_search / remember 等，让 Agent 用它们办事而非写代码。" +
                 "只输出 SKILL.md 内容本身，不要解释、不要代码块围栏。"
             val draftSkill: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
-            web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken(), bus, cfg.remoteTimeoutMs(), dataDirectory,
-                connectedServers, chat, knowledge, draft, alerts, { sentinel?.snapshotsJson() ?: "[]" }, scheduler, refine, pending, compileScript, draftSkill,
-                skills, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用，无法下发" }).also { it.start() }
+            web = DashboardServer(cfg.webHost(), cfg.webPort(), cfg.webToken()).also { srv ->
+                srv.register(org.windy.windyagent.web.handlers.ServerHandler(srv, bus, cfg.remoteTimeoutMs(), connectedServers, alerts) { sentinel?.snapshotsJson() ?: "[]" })
+                srv.register(org.windy.windyagent.web.handlers.ChatHandler(srv, chat, dataDirectory))
+                srv.register(org.windy.windyagent.web.handlers.KnowledgeHandler(srv, knowledge, draft))
+                srv.register(org.windy.windyagent.web.handlers.TaskHandler(srv, scheduler, refine, compileScript))
+                srv.register(org.windy.windyagent.web.handlers.ApprovalHandler(srv, pending))
+                srv.register(org.windy.windyagent.web.handlers.SkillHandler(srv, skills, draftSkill, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用" }, bus, cfg.remoteTimeoutMs(), connectedServers))
+                srv.register(org.windy.windyagent.web.handlers.UsageHandler(srv, usageTracker, systemHealth))
+                srv.start()
+            }
         }
+
+        // 速率限制器
+        val rateLimiter = if (cfg.rateLimitEnabled()) org.windy.windyagent.safety.RateLimiter(cfg.rateLimitBucketSize(), cfg.rateLimitRefillRate()) else null
+
+        // 配置热重载
+        val configWatcher = org.windy.windyagent.ConfigWatcher(dataDirectory).also { configWatcherInst = it }
+        configWatcher.addListener("messages") { newCfg -> Messages.init(newCfg.language()) }
+        configWatcher.start()
 
         // 玩家游戏内聊天触发：!ai <message>（永远只走知识库问答，不进 Agent）
         server.eventManager.register(this, VelocityChatListener(playerQa, platform, router, logger, cfg.trigger()))
@@ -347,7 +386,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val commandName = cfg.trigger().trimStart('!', '/', '.', ' ').ifBlank { "ai" }
         val commandManager = server.commandManager
         val meta = commandManager.metaBuilder(commandName).plugin(this).build()
-        commandManager.register(meta, AgentCommand(agent, playerQa, platform, sessions, router, logger))
+        commandManager.register(meta, AgentCommand(agent, playerQa, platform, sessions, router, logger, rateLimiter))
 
         // 顶层审批命令（薄适配 → router）
         for (act in listOf("approve", "deny", "pending")) {
@@ -416,9 +455,11 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        configWatcherInst?.stop(); configWatcherInst = null
         sentinel?.stop(); sentinel = null
         scheduler?.stop(); scheduler = null
         chatWords?.stop(); chatWords = null
+        usageTrackerInst?.close(); usageTrackerInst = null
         web?.stop(); web = null
         bus?.close()
         bus = null

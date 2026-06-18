@@ -26,7 +26,8 @@ class BukkitCommand(
     private val playerQa: PlayerQa,
     private val platform: BukkitPlatform,
     private val sessions: SessionManager,
-    private val router: AgentCommandRouter
+    private val router: AgentCommandRouter,
+    private val rateLimiter: org.windy.windyagent.safety.RateLimiter? = null
 ) : CommandExecutor {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -36,6 +37,13 @@ class BukkitCommand(
             return true
         }
         val sessionId = if (sender is Player) sender.name else "console"
+
+        // 速率限制（非管理员也受限）
+        if (rateLimiter != null && !rateLimiter.tryAcquire(sessionId)) {
+            sender.sendMessage(Messages.t("cmd.rate_limited"))
+            return true
+        }
+
         val trust = if (sender.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
         sender.sendMessage(Messages.t("cmd.processing"))
 

@@ -2,7 +2,11 @@ package org.windy.windyagent.command
 
 import org.windy.windyagent.Messages
 import org.windy.windyagent.llm.LLMMessage
+import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.safety.TrustLevel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** 内置元命令集合（载体无关）。 */
 
@@ -138,5 +142,57 @@ object MemoryCommand : AgentSubcommand {
             }
             else -> Messages.t("cmd.memory.usage")
         }
+    }
+}
+
+object UsageCommand : AgentSubcommand {
+    override val name = "usage"
+    override val aliases = listOf("用量")
+    override val description get() = Messages.t("cmd.usage.desc")
+    override fun handle(args: String, ctx: CommandContext): String {
+        val tracker = ctx.usageTracker ?: return Messages.t("cmd.usage.disabled")
+        val summary = tracker.summary()
+        val sb = StringBuilder(Messages.t("cmd.usage.header") + "\n")
+        sb.append("  ${Messages.t("cmd.usage.calls")}: ${summary.totalCalls}\n")
+        sb.append("  ${Messages.t("cmd.usage.input")}: ${summary.totalInputTokens}\n")
+        sb.append("  ${Messages.t("cmd.usage.output")}: ${summary.totalOutputTokens}\n")
+        sb.append("  ${Messages.t("cmd.usage.latency")}: ${summary.totalLatencyMs / 1000}s\n")
+        val days = args.trim().toIntOrNull()?.coerceIn(1, 30) ?: 7
+        val daily = tracker.queryDaily(days)
+        if (daily.isNotEmpty()) {
+            sb.append("\n${Messages.t("cmd.usage.daily", days)}\n")
+            val fmt = DateTimeFormatter.ofPattern("MM-dd").withZone(ZoneId.systemDefault())
+            for (d in daily) {
+                sb.append("  ${fmt.format(Instant.ofEpochMilli(d.day))}  ${Messages.t("cmd.usage.day")}  in=${d.inputTokens} out=${d.outputTokens} calls=${d.calls}\n")
+            }
+        }
+        return sb.toString().trimEnd()
+    }
+}
+
+object CompressCommand : AgentSubcommand {
+    override val name = "compress"
+    override val aliases = listOf("压缩")
+    override val description get() = Messages.t("cmd.compress.desc")
+    override fun handle(args: String, ctx: CommandContext): String {
+        val comp = ctx.compressor ?: return Messages.t("cmd.compress.disabled")
+        val before = ctx.sessions.getHistory(ctx.sessionId).size
+        // 通过 sessions 获取历史（compressor 需要可变列表）
+        val history = ctx.sessions.getHistory(ctx.sessionId)
+        val compressed = comp.compress(history)
+        val after = compressed.size
+        return if (before != after) Messages.t("cmd.compress.done", before, after)
+        else Messages.t("cmd.compress.noop", before)
+    }
+}
+
+object ProfileCommand : AgentSubcommand {
+    override val name = "profile"
+    override val aliases = listOf("画像")
+    override val description get() = Messages.t("cmd.profile.desc")
+    override fun handle(args: String, ctx: CommandContext): String {
+        val pm = ctx.profileManager ?: return Messages.t("cmd.profile.empty")
+        val text = pm.get(ctx.sessionId).toText()
+        return text.ifBlank { Messages.t("cmd.profile.empty") }
     }
 }

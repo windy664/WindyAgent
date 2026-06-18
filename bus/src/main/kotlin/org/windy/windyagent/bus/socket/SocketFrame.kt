@@ -37,6 +37,8 @@ object FrameType {
     const val REPLY = "REPLY"
     const val CATALOG = "CATALOG"
     const val ERROR = "ERROR"
+    const val PING = "PING"
+    const val PONG = "PONG"
 }
 
 /** 帧编解码：长度前缀 + JSON。写按输出流加锁，允许多线程并发回包。 */

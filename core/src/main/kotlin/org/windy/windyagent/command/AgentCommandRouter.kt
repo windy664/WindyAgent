@@ -1,6 +1,9 @@
 package org.windy.windyagent.command
 
 import org.windy.windyagent.Messages
+import org.windy.windyagent.agent.ContextCompressor
+import org.windy.windyagent.agent.UserProfileManager
+import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.safety.AuditLog
@@ -19,11 +22,17 @@ class AgentCommandRouter(
     private val audit: AuditLog,
     private val memory: LongTermMemory?,
     private val statusSupplier: () -> String,
-    private val valueExecutor: ValueExecutor? = null
+    private val valueExecutor: ValueExecutor? = null,
+    private val usageTracker: LLMUsageTracker? = null,
+    private val compressor: ContextCompressor? = null,
+    private val profileManager: UserProfileManager? = null
 ) {
     private val commands: List<AgentSubcommand> = buildList {
         addAll(listOf(ClearCommand, HistoryCommand, StatusCommand, PendingCommand, ApproveCommand, DenyCommand, MemoryCommand))
         if (valueExecutor != null) add(ValueCommand)
+        add(UsageCommand)
+        add(CompressCommand)
+        add(ProfileCommand)
     }
     private val byName: Map<String, AgentSubcommand> = buildMap {
         for (c in commands) {
@@ -44,7 +53,7 @@ class AgentCommandRouter(
             return Messages.t("router.perm_denied", token)
         }
         val args = trimmed.substringAfter(' ', "").trim()
-        val ctx = CommandContext(sessionId, trust, sessions, pending, audit, memory, statusSupplier, valueExecutor)
+        val ctx = CommandContext(sessionId, trust, sessions, pending, audit, memory, statusSupplier, valueExecutor, usageTracker, compressor, profileManager)
         return runCatching { cmd.handle(args, ctx) }.getOrElse { Messages.t("router.exec_error", it.message ?: "") }
     }
 

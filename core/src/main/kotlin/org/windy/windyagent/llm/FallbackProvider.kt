@@ -22,7 +22,7 @@ class FallbackProvider(
 ) : LLMProvider {
 
     private val log = LoggerFactory.getLogger(FallbackProvider::class.java)
-    private var activeIndex = 0
+    @Volatile private var activeIndex = 0
     private var lastFailbackCheck = 0L
     private val failbackIntervalMs = 5 * 60 * 1000L  // 5 分钟尝试回切
 

@@ -2,6 +2,9 @@ package org.windy.windyagent.skill
 
 import groovy.lang.Binding
 import groovy.lang.GroovyShell
+import groovy.transform.ThreadInterrupt
+import org.codehaus.groovy.control.CompilerConfiguration
+import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
@@ -37,18 +40,31 @@ class WorkflowEngine(
     private val log = LoggerFactory.getLogger(WorkflowEngine::class.java)
     /** 共享线程池（所有并行组复用，避免每次创建新池导致泄漏）。 */
     private val parallelPool = Executors.newFixedThreadPool(4) { r -> Thread(r, "wf-parallel").apply { isDaemon = true } }
+    /** Groovy 编译配置：注入 ThreadInterrupt 让循环具备协作式取消（#25, #26）。 */
+    private val compilerConfig = CompilerConfiguration().apply {
+        addCompilationCustomizers(ASTTransformationCustomizer(ThreadInterrupt::class.java))
+    }
+    companion object {
+        private const val MAX_RECURSE_DEPTH = 5
+        private val SINGLE_VAR = Regex("""^\{(\w+(?:\.\w+)*)}$""")
+        private val VAR_RE = Regex("""\{(\w+(?:\.\w+)*)}""")
+        private val MAPPER = com.fasterxml.jackson.databind.ObjectMapper()
+    }
 
     /**
      * 执行一个工作流技能。返回 [WorkflowResult]。
      * @param def 技能定义（[SkillDef.steps] 须非空）
      * @param params 调用方传入的原始参数
+     * @param depth 递归深度（防 StackOverflow，#28）
      */
-    fun execute(def: SkillDef, params: Map<String, Any?>): WorkflowResult {
+    fun execute(def: SkillDef, params: Map<String, Any?>, depth: Int = 0): WorkflowResult {
+        if (depth >= MAX_RECURSE_DEPTH) return WorkflowResult(false, "工作流递归超过 $MAX_RECURSE_DEPTH 层，中止", emptyMap())
         val steps = def.steps ?: return WorkflowResult(false, "技能「${def.name}」无工作流步骤", emptyMap())
         // 初始上下文：params 扁平 + params.xxx 别名
         val ctx = LinkedHashMap<String, Any?>()
         params.forEach { (k, v) -> ctx[k] = v }
         ctx["params"] = params
+        ctx["_depth"] = depth
         // 注入状态（脚本里可用 state.xxx 读写，插值可用 {state.xxx}）
         skillState?.let { ctx["state"] = it; ctx["_skillState"] = it }
 
@@ -112,17 +128,19 @@ class WorkflowEngine(
         val latch = CountDownLatch(group.size)
 
         for (step in group) {
+            // 每个并行步拿到 ctx 快照副本，避免多线程并发读写同一个 map（#27）
+            val snapshot = HashMap(ctx)
             parallelPool.submit {
                 try {
-                    val result = executeStep(step, ctx, skillName)
+                    val result = executeStep(step, snapshot, skillName)
                     synchronized(executed) { executed.add(step.id) }
-                    stepResults[step.id] = result
+                    synchronized(stepResults) { stepResults[step.id] = result }
                     if (!result.success && error.compareAndSet(null, result.message)) {
                         // 标记第一个失败
                     }
                 } catch (e: Exception) {
                     synchronized(executed) { executed.add(step.id) }
-                    stepResults[step.id] = StepResult(false, e.message, null)
+                    synchronized(stepResults) { stepResults[step.id] = StepResult(false, e.message, null) }
                     error.compareAndSet(null, e.message)
                 } finally {
                     latch.countDown()
@@ -217,7 +235,7 @@ class WorkflowEngine(
         return when (step.actionType) {
             WorkflowStep.ActionType.TOOL -> dispatchTool(step.tool!!, args)
             WorkflowStep.ActionType.SCRIPT -> dispatchScript(step.script!!, args, ctx)
-            WorkflowStep.ActionType.SKILL -> dispatchSkill(step.skill!!, args)
+            WorkflowStep.ActionType.SKILL -> dispatchSkill(step.skill!!, args, ctx)
             WorkflowStep.ActionType.NONE -> null
         }
     }
@@ -233,21 +251,20 @@ class WorkflowEngine(
 
     private fun dispatchScript(script: String, args: Map<String, Any?>, ctx: Map<String, Any?>): Any? {
         val binding = Binding()
-        // 注入上下文变量
         ctx.forEach { (k, v) -> binding.setVariable(k, v) }
         args.forEach { (k, v) -> binding.setVariable(k, v) }
         val cl = groovyClassLoader ?: javaClass.classLoader
-        val shell = GroovyShell(cl, binding)
-        return shell.evaluate(script, "wf_step.groovy")
+        return GroovyShell(cl, binding, compilerConfig).evaluate(script, "wf_step.groovy")
     }
 
-    private fun dispatchSkill(skillName: String, args: Map<String, Any?>): String? {
+    private fun dispatchSkill(skillName: String, args: Map<String, Any?>, ctx: Map<String, Any?>): String? {
         val ref = skillRegistry ?: throw IllegalStateException("技能注册表未接入，无法调用「$skillName」")
         val def = ref.get(skillName)
             ?: throw IllegalStateException("技能「$skillName」不存在")
         return if (def.isWorkflow) {
-            // 递归执行工作流
-            execute(def, args).let { if (it.success) it.message else throw IllegalStateException(it.message) }
+            // 递归执行工作流（从 ctx 读当前深度+1，#28）
+            val d = (ctx["_depth"] as? Int) ?: 0
+            execute(def, args, d + 1).let { if (it.success) it.message else throw IllegalStateException(it.message) }
         } else if (def.isScript) {
             // 脚本技能：由调用方自行通过 SkillEngine 执行（这里返回提示）
             "[脚本技能「${def.name}」需在 Bukkit 子服执行，请使用 run_skill_on_server]"
@@ -295,12 +312,12 @@ class WorkflowEngine(
         }
     }
 
-    /** 用 GroovyShell 评估一个表达式（条件 / repeat），注入上下文变量。 */
+    /** 用 GroovyShell 评估一个表达式（条件 / repeat），注入上下文变量。带 ThreadInterrupt 防死循环。 */
     private fun evalExpression(expr: String, ctx: Map<String, Any?>): Any? {
         val binding = Binding()
         ctx.forEach { (k, v) -> binding.setVariable(k, v) }
         val cl = groovyClassLoader ?: javaClass.classLoader
-        return GroovyShell(cl, binding).evaluate(expr, "wf_eval.groovy")
+        return GroovyShell(cl, binding, compilerConfig).evaluate(expr, "wf_eval.groovy")
     }
 
     /**
@@ -339,11 +356,6 @@ class WorkflowEngine(
         return current
     }
 
-    companion object {
-        private val SINGLE_VAR = Regex("""^\{(\w+(?:\.\w+)*)}$""")
-        private val VAR_RE = Regex("""\{(\w+(?:\.\w+)*)}""")
-        private val MAPPER = com.fasterxml.jackson.databind.ObjectMapper()
-    }
 }
 
 // ── 引擎依赖的最小接口（避免循环依赖）──

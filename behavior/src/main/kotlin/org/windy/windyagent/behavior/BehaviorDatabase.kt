@@ -38,6 +38,8 @@ class BehaviorDatabase(private val dbPath: Path) {
                 st.executeUpdate("CREATE TABLE IF NOT EXISTS online_snap(ts INT, cnt INT)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_profile_last ON profile(last_seen)")
                 st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_sessions_join ON sessions(join_ts)")
+                st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
+                st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_word_count ON word_freq(source, count DESC)")
             }
         }
     }
@@ -137,12 +139,14 @@ class BehaviorDatabase(private val dbPath: Path) {
         return peak.entries.map { it.key to it.value }
     }
 
-    /** 7×24 时段热力（行=周一..周日，列=0..23 时），数据来自会话登入时刻。 */
+    /** 7×24 时段热力（行=周一..周日，列=0..23 时），数据来自近 30 天会话登入时刻。 */
     @Synchronized
     fun heatmap(): Array<IntArray> {
         val m = Array(7) { IntArray(24) }
-        c().createStatement().use { st ->
-            st.executeQuery("SELECT join_ts FROM sessions").use { rs ->
+        val cutoff = System.currentTimeMillis() - 30L * 86_400_000L
+        c().prepareStatement("SELECT join_ts FROM sessions WHERE join_ts > ?").use { ps ->
+            ps.setLong(1, cutoff)
+            ps.executeQuery().use { rs ->
                 while (rs.next()) {
                     val z = java.time.Instant.ofEpochMilli(rs.getLong(1)).atZone(java.time.ZoneId.systemDefault())
                     m[z.dayOfWeek.value - 1][z.hour]++
@@ -169,10 +173,11 @@ class BehaviorDatabase(private val dbPath: Path) {
         }
     }
 
-    /** 清理超过保留期的原始 events + 在线快照（画像/会话/词频不清）。 */
+    /** 清理超过保留期的原始 events + 过期 sessions + 在线快照（画像/词频不清）。 */
     @Synchronized
     fun pruneEvents(before: Long): Int {
         c().prepareStatement("DELETE FROM online_snap WHERE ts < ?").use { it.setLong(1, before); it.executeUpdate() }
+        c().prepareStatement("DELETE FROM sessions WHERE join_ts < ?").use { it.setLong(1, before); it.executeUpdate() }
         return c().prepareStatement("DELETE FROM events WHERE ts < ?").use { it.setLong(1, before); it.executeUpdate() }
     }
 
@@ -238,6 +243,20 @@ class BehaviorDatabase(private val dbPath: Path) {
                 rs.getLong("playtime_sec"), rs.getInt("session_count"), rs.getInt("death_count"), rs.getInt("cmd_count"),
                 rs.getInt("chat_count"), rs.getInt("blocks_placed"), rs.getInt("blocks_broken"), rs.getInt("craft_count"), rs.getInt("adv_count")
             )
+        }
+    }
+
+    /** 获取所有玩家画像（生命周期分析用）。 */
+    @Synchronized
+    fun allProfiles(): List<Profile> = c().prepareStatement("SELECT * FROM profile").use { ps ->
+        ps.executeQuery().use { rs ->
+            val out = mutableListOf<Profile>()
+            while (rs.next()) out += Profile(
+                rs.getString("uuid"), rs.getString("name"), rs.getLong("first_seen"), rs.getLong("last_seen"),
+                rs.getLong("playtime_sec"), rs.getInt("session_count"), rs.getInt("death_count"), rs.getInt("cmd_count"),
+                rs.getInt("chat_count"), rs.getInt("blocks_placed"), rs.getInt("blocks_broken"), rs.getInt("craft_count"), rs.getInt("adv_count")
+            )
+            out
         }
     }
 }

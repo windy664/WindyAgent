@@ -14,6 +14,8 @@ import org.windy.windyagent.safety.TrustLevel
  * 1. 明显简单（短、问候/闲聊、无多步信号）→ ReAct，零额外成本。
  * 2. 明显复杂（多步连接词、编号步骤、批量、长文本）→ PlanExecute。
  * 3. 模棱两可 → 一次轻量 LLM 分类兜底；分类调用本身失败则保守走 ReAct。
+ *
+ * 集成：上下文压缩 + 用户画像召回 + 工具集动态选择。
  */
 class AgentRouter(
     private val llmProvider: LLMProvider,
@@ -22,7 +24,9 @@ class AgentRouter(
     private val memory: LongTermMemory? = null,
     private val recallTopK: Int = 3,
     /** 元任务（复杂度分类）用的便宜模型；null=用主模型。 */
-    private val fastLlm: LLMProvider? = null
+    private val fastLlm: LLMProvider? = null,
+    private val compressor: ContextCompressor? = null,
+    private val profileManager: UserProfileManager? = null
 ) : Agent {
     override val name = "router"
     private val logger = LoggerFactory.getLogger(AgentRouter::class.java)
@@ -31,16 +35,45 @@ class AgentRouter(
         // 请求级上下文：信任级别 + 会话 id，供深层工具（安全护栏分权 / remember 作用域）读取
         RequestContext.enter(context.trust, context.sessionId, context.unattended)
         try {
-            // 自动召回长期记忆，拼进上下文（agent 会加到系统提示）——透明记忆，零额外 LLM
+            // 1. 自动召回长期记忆
             memory?.let { m ->
-                // 可信(管理方)请求并召回管理方共享域 admin；玩家请求只看自己 scope + 全服
                 val incAdmin = context.trust == TrustLevel.TRUSTED
                 val hits = runCatching { m.recall(context.sessionId, context.userMessage, recallTopK, incAdmin) }.getOrNull().orEmpty()
                 if (hits.isNotEmpty()) context.recalled = hits.joinToString("\n") { "- ${it.content}" }
             }
+
+            // 2. 用户画像召回
+            val profileText = profileManager?.get(context.sessionId)?.toText() ?: ""
+
+            // 3. 上下文压缩（历史超阈值时摘要旧消息）
+            compressor?.compress(context.history)
+
+            // 4. 工具集动态选择（设到 context.selectedTools，toolLoop 会用 context.effectiveTools）
+            val selectedTools = ToolsetSelector.select(context.userMessage, context.trust, context.platform.toolsets)
+            if (selectedTools !== context.platform.tools && selectedTools.size < context.platform.tools.size) {
+                context.selectedTools = selectedTools
+                logger.debug("工具集选择：{} / {} 个工具", selectedTools.size, context.platform.tools.size)
+            }
+
+            // 5. 拼接画像到用户消息
+            if (profileText.isNotBlank()) {
+                context.recalled = if (context.recalled.isNotBlank())
+                    "$profileText\n\n${context.recalled}" else profileText
+            }
+
+            // 6. 选择 Agent 执行
             val chosen = select(context.userMessage)
             logger.info("Router → {} for session {} (trust={})", chosen.name, context.sessionId, context.trust)
-            return chosen.run(context)
+            val response = chosen.run(context)
+
+            // 7. 异步更新用户画像
+            profileManager?.let { pm ->
+                val reply = response.message.take(500)
+                val fast = fastLlm ?: llmProvider
+                runCatching { pm.updateFromConversation(context.sessionId, context.userMessage, reply, fast) }
+            }
+
+            return response
         } finally {
             RequestContext.clear()
         }
@@ -83,7 +116,6 @@ class AgentRouter(
 
         private val GREETINGS = listOf("你好", "您好", "hi", "hello", "在吗", "谢谢", "哈喽", "在不在")
 
-        /** 中文多步/批量信号。刻意避开「再」「了一遍」这类高歧义单字，减少误判。 */
         private val COMPLEX_SIGNALS = listOf(
             "然后", "接着", "依次", "逐个", "逐一", "批量", "之后", "最后",
             "首先", "其次", "步骤", "并且", "同时", "全部", "所有", "每个", "每位", "先查"

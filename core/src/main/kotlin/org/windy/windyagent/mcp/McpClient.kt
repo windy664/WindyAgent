@@ -25,13 +25,18 @@ data class McpToolDef(val name: String, val description: String, val inputSchema
  * 响应兼容纯 JSON 与 SSE（text/event-stream）两种形态。
  */
 class McpClient(
-    private val endpoint: String,
+    endpoint: String,
     private val headers: Map<String, String> = emptyMap()
 ) {
     private val log = LoggerFactory.getLogger(McpClient::class.java)
+    // URL 校验：只允许 http/https（防 file:/jar:/gopher 等协议滥用）
+    private val endpoint: String = endpoint.also {
+        require(it.startsWith("http://") || it.startsWith("https://")) { "MCP endpoint 必须是 http/https URL" }
+    }
     private val http = OkHttpClient.Builder()
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
+    companion object { private const val MAX_RESPONSE_BYTES = 4L * 1024 * 1024 } // 4MB 上限
     private val mapper = ObjectMapper()
     private val ids = AtomicInteger(0)
 
@@ -98,7 +103,9 @@ class McpClient(
 
         http.newCall(builder.build()).execute().use { resp ->
             resp.header("Mcp-Session-Id")?.let { sessionId = it }
-            val body = resp.body?.string().orEmpty()
+            val bytes = resp.body?.bytes() ?: ByteArray(0)
+            if (bytes.size > MAX_RESPONSE_BYTES) throw IllegalStateException("MCP 响应超过 ${MAX_RESPONSE_BYTES / 1024 / 1024}MB 限制")
+            val body = String(bytes, Charsets.UTF_8)
             return if (body.isBlank()) mapper.createObjectNode() else parseRpc(body)
         }
     }
