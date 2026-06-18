@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import org.slf4j.LoggerFactory
+import org.windy.windyagent.Messages
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.ops.ScheduledTask
@@ -122,8 +123,8 @@ class DashboardServer(
             "/api/tasks/refine" -> refineApi(ex)
             "/api/tasks/compile" -> compileApi(ex)
             "/api/approvals" -> approvalsApi(ex)
-            "/api/approvals/approve" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("result", p.approve(id) ?: "单号不存在或已过期").toString()) }
-            "/api/approvals/deny" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("desc", p.deny(id) ?: "单号不存在").toString()) }
+            "/api/approvals/approve" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("result", p.approve(id) ?: Messages.t("cmd.approve.not_found", id)).toString()) }
+            "/api/approvals/deny" -> { val p = pending; val id = q["id"]; if (p == null || id.isNullOrBlank()) json(ex, 400, """{"error":"bad request"}""") else json(ex, 200, mapper.createObjectNode().put("desc", p.deny(id) ?: Messages.t("cmd.deny.not_found", id)).toString()) }
             "/api/chat" -> chatApi(ex)
             "/api/chat/history" -> json(ex, 200, chatHistory(q["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             "/api/kb" -> kbApi(ex, q)
@@ -163,9 +164,9 @@ class DashboardServer(
         // "/clear" 类清空指令：清后端会话 + 删存档，不计入历史
         if (msg.trim().equals("clear", true) || msg.trim() == "/clear") {
             runCatching { c(sid, msg) }; clearChatLog(sid)
-            return json(ex, 200, mapper.createObjectNode().put("reply", "已开新对话").toString())
+            return json(ex, 200, mapper.createObjectNode().put("reply", Messages.t("web.new_chat")).toString())
         }
-        val reply = runCatching { c(sid, msg) }.getOrElse { "出错：${it.message}" }
+        val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
         appendChatLog(sid, "u", disp); appendChatLog(sid, "a", reply)
         json(ex, 200, mapper.createObjectNode().put("reply", reply).toString())
     }
@@ -386,7 +387,7 @@ class DashboardServer(
         if (ex.requestMethod != "POST") return json(ex, 405, """{"error":"use POST"}""")
         val n = runCatching { mapper.readTree(body(ex)) }.getOrNull() ?: return json(ex, 400, """{"error":"bad json"}""")
         val text = n["text"]?.asText()?.takeIf { it.isNotBlank() } ?: return json(ex, 400, """{"error":"empty"}""")
-        val out = runCatching { r(text) }.getOrElse { "出错：${it.message}" }
+        val out = runCatching { r(text) }.getOrElse { Messages.t("web.error", it.message ?: "") }
         json(ex, 200, mapper.createObjectNode().put("text", out).toString())
     }
 

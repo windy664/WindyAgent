@@ -1,6 +1,7 @@
 package org.windy.windyagent.agent
 
 import org.slf4j.LoggerFactory
+import org.windy.windyagent.Messages
 import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.llm.LLMProvider
 import org.windy.windyagent.llm.LLMResponse
@@ -48,11 +49,11 @@ internal fun toolLoop(
                 }
                 messages += LLMMessage.ToolResults(results)
             }
-            else -> return AgentResponse("已停止：${response.stopReason}", false, executedTools)
+            else -> return AgentResponse(Messages.t("agent.stopped", response.stopReason ?: ""), false, executedTools)
         }
     }
 
-    return AgentResponse("已达到最大迭代次数（$maxIterations），任务未完成", false, executedTools)
+    return AgentResponse(Messages.t("agent.max_iter", maxIterations), false, executedTools)
 }
 
 /** 把循环后的完整消息列表写回会话历史。 */

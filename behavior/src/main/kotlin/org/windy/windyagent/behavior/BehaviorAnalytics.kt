@@ -1,7 +1,6 @@
 package org.windy.windyagent.behavior
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.windy.windyagent.Messages
 
 /**
  * 行为分析层：把 [BehaviorDatabase] 里的原始计数聚合成对外 JSON（看板 / 总线消费）。
@@ -77,24 +76,24 @@ class BehaviorAnalytics(
 
         // 行为标签（规则解读；阈值取常识值，后续可调/可配）
         val tags = ArrayList<String>()
-        tags += when { hours < 1 -> Messages.t("tag.newbie"); hours < 10 -> Messages.t("tag.normal"); hours < 50 -> Messages.t("tag.regular"); else -> Messages.t("tag.hardcore") }
-        if (p.blocksPlaced > 1500) tags += Messages.t("tag.builder")
-        if (p.blocksBroken > 3000) tags += Messages.t("tag.miner")
-        if (p.advancements >= 15) tags += Messages.t("tag.explorer")
-        if (p.crafts > 800) tags += Messages.t("tag.crafter")
-        if (deathsPerH >= 2 && hours >= 0.5) tags += Messages.t("tag.squishy")
-        if (avgSessionMin > 120) tags += Messages.t("tag.long_session")
-        if (recencyDays > churnDays) tags += Messages.t("tag.churn_risk") else if (recencyDays <= 1) tags += Messages.t("tag.active_recent")
-        if (ageDays <= newbieDays) tags += Messages.t("tag.new_join")
+        tags += when { hours < 1 -> "萌新"; hours < 10 -> "常规玩家"; hours < 50 -> "常驻玩家"; else -> "肝帝" }
+        if (p.blocksPlaced > 1500) tags += "建筑党"
+        if (p.blocksBroken > 3000) tags += "挖矿党"
+        if (p.advancements >= 15) tags += "探索者"
+        if (p.crafts > 800) tags += "合成狂"
+        if (deathsPerH >= 2 && hours >= 0.5) tags += "脆皮"
+        if (avgSessionMin > 120) tags += "长时在线"
+        if (recencyDays > churnDays) tags += "流失风险" else if (recencyDays <= 1) tags += "近期活跃"
+        if (ageDays <= newbieDays) tags += "新加入"
 
         // 主玩法：各维度归一打分取最高
-        val scores = linkedMapOf(Messages.t("behavior.build") to blocks / 60.0, Messages.t("behavior.explore") to p.advancements * 4.0, Messages.t("behavior.afk") to hours * 1.5, Messages.t("behavior.combat") to p.deaths * 1.0)
-        val playstyle = scores.maxByOrNull { it.value }?.takeIf { it.value > 0 }?.key ?: Messages.t("tag.unknown")
+        val scores = linkedMapOf("建造" to blocks / 60.0, "探索" to p.advancements * 4.0, "生存挂机" to hours * 1.5, "战斗" to p.deaths * 1.0)
+        val playstyle = scores.maxByOrNull { it.value }?.takeIf { it.value > 0 }?.key ?: "未知"
 
         val hist = db.playerHourHistogram(p.uuid)
         val periods = intArrayOf((0..5).sumOf { hist[it] }, (6..11).sumOf { hist[it] }, (12..17).sumOf { hist[it] }, (18..23).sumOf { hist[it] })
-        val activePeriod = if (periods.all { it == 0 }) Messages.t("tag.unknown")
-            else arrayOf(Messages.t("period.late_night"), Messages.t("period.morning"), Messages.t("period.afternoon"), Messages.t("period.evening"))[periods.indices.maxByOrNull { periods[it] } ?: 0]
+        val activePeriod = if (periods.all { it == 0 }) "未知"
+            else arrayOf("深夜(0-6)", "上午(6-12)", "下午(12-18)", "晚上(18-24)")[periods.indices.maxByOrNull { periods[it] } ?: 0]
 
         val n = mapper.createObjectNode()
         n.put("name", p.name); n.put("uuid", p.uuid)

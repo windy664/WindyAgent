@@ -1,7 +1,6 @@
 package org.windy.windyagent.behavior
 
 import org.slf4j.LoggerFactory
-import org.windy.windyagent.Messages
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
@@ -206,10 +205,10 @@ class BehaviorDatabase(private val dbPath: Path) {
         return c().createStatement().use { st ->
             fun q1(sql: String): Long = st.executeQuery(sql).use { if (it.next()) it.getLong(1) else 0L }
             linkedMapOf(
-                Messages.t("seg.new_player") to q1("SELECT COUNT(*) FROM profile WHERE first_seen > ${now - newbieDays * day}"),
-                Messages.t("seg.core", activeMinutes) to q1("SELECT COUNT(*) FROM profile WHERE playtime_sec >= $activeSec AND last_seen > ${now - churnDays * day}"),
-                Messages.t("seg.active", churnDays) to q1("SELECT COUNT(*) FROM profile WHERE last_seen > ${now - churnDays * day} AND playtime_sec < $activeSec AND first_seen <= ${now - newbieDays * day}"),
-                Messages.t("seg.churn_risk", churnDays) to q1("SELECT COUNT(*) FROM profile WHERE last_seen <= ${now - churnDays * day}")
+                "新玩家" to q1("SELECT COUNT(*) FROM profile WHERE first_seen > ${now - newbieDays * day}"),
+                "核心(在线≥${activeMinutes}分)" to q1("SELECT COUNT(*) FROM profile WHERE playtime_sec >= $activeSec AND last_seen > ${now - churnDays * day}"),
+                "活跃(近${churnDays}天)" to q1("SELECT COUNT(*) FROM profile WHERE last_seen > ${now - churnDays * day} AND playtime_sec < $activeSec AND first_seen <= ${now - newbieDays * day}"),
+                "流失风险(>${churnDays}天未见)" to q1("SELECT COUNT(*) FROM profile WHERE last_seen <= ${now - churnDays * day}")
             )
         }
     }
