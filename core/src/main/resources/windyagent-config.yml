@@ -195,12 +195,13 @@ web:
   token: ""              # 留空=首启自动生成随机串写回本行；外网开放时务必用强 token
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
-deployment:
+  # auto       自动判定（默认，推荐）：socket 探测到中枢（如装了 WindyAgent 的 Velocity）=当 provider；
+  #            探测不到=当 standalone 单机跑。仅 transport: socket 时探测，redis 下 auto 直接当 provider。
   # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent。
   # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。
-  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。
-  mode: provider
-  # 本节点在总线上注册的名字（provider 必填；中心按此名字派发，与 Velocity 无关）。
+  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。auto 不会选 hub，需显式指定。
+  mode: auto
+  # 本节点在总线上注册的名字（provider 用；留空则 auto/provider 自动命名为 server-<端口> 并写回本行）。
   server-name: ""
 
 # 跨服总线：中心 ↔ 子服通信。
@@ -211,11 +212,11 @@ cross-server:
   enabled: false
 
   # 传输实现：
-  #   redis      — 生产：Redis pub/sub（复用 RedisBungee 的 Redis），跨进程、扛并发
-  #   socket     — 生产：自建 TCP 中枢，本端当 broker、子服主动连入，无需 Redis
+  #   socket     — 默认/即插即用：自建 TCP 中枢，本端当 broker、子服主动连入，无需任何外部服务
+  #   redis      — 进阶：Redis pub/sub（复用 RedisBungee 的 Redis），适合多代理集群；需自备 Redis
   #   inprocess  — 测试：进程内回显 stub，无需 Redis、无需第二个服务端，
   #                仅用于在单个 Velocity 实例里验证中心侧链路（不跨进程）
-  transport: redis
+  transport: socket
 
   # 子服无响应的超时时间（毫秒）
   timeout-ms: 5000

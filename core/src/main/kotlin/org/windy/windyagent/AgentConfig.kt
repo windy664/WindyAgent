@@ -61,15 +61,25 @@ class AgentConfig private constructor(
     fun maxHistory() = (getNode("agent.max-history") as? Number)?.toInt() ?: 20
 
     // 部署形态（仅 Bukkit 读取；Velocity 固定为中心 Agent，忽略本段）
-    /** provider（纯能力提供方）/ standalone（嵌入式 Agent）/ hub（嵌入式 Agent + 总线中枢）。 */
-    fun mode() = getString("deployment.mode", "provider").lowercase()
+    /** auto（自动判定角色）/ provider / standalone / hub。默认 auto：socket 探测到中枢=provider，否则 standalone。 */
+    fun mode() = getString("deployment.mode", "auto").lowercase()
     /** 本节点在总线上的名字（provider 必填，须与中枢侧期望一致）。 */
     fun serverName() = getString("deployment.server-name", "")
+
+    /** 取总线注册名；为空则用 [default] 写回 deployment.server-name 并返回（auto→provider 自动命名用）。 */
+    fun ensureServerName(default: String): String {
+        val cur = serverName()
+        if (cur.isNotBlank()) return cur
+        @Suppress("UNCHECKED_CAST")
+        (root["deployment"] as? MutableMap<String, Any>)?.put("server-name", default)
+        runCatching { patchScalar("deployment", "server-name", default) }
+        return default
+    }
 
     // 跨服总线（Velocity ↔ Bukkit 子服）
     fun crossServerEnabled() = (getNode("cross-server.enabled") as? Boolean) ?: false
     /** 传输实现：redis（生产）/ socket（无 Redis 的自建 TCP 中枢）/ inprocess（单实例测试）。 */
-    fun crossServerTransport() = getString("cross-server.transport", "redis").lowercase()
+    fun crossServerTransport() = getString("cross-server.transport", "socket").lowercase()
     fun remoteTimeoutMs() = (getNode("cross-server.timeout-ms") as? Number)?.toLong() ?: 5000L
 
     // transport: redis
@@ -167,28 +177,52 @@ class AgentConfig private constructor(
 
     /**
      * 定点替换 `section:` 下某个标量键的值，保留行尾注释与文件其余内容（不整体重写 YAML，免得吃掉注释）。
+     * 键不存在时插入到本段末尾（沿用段内缩进，默认 2 空格）。
      */
     private fun patchScalar(section: String, key: String, value: String) {
         if (!configFile.exists()) return
+        val esc = value.replace("\\", "\\\\").replace("\"", "\\\"")
         val lines = configFile.readLines().toMutableList()
         val sectionRe = Regex("^$section:\\s*(#.*)?$")
         val keyRe = Regex("^(\\s+)$key:\\s*(\"[^\"]*\"|\\S*)?\\s*(#.*)?$")
-        var inSection = false
+        var sectionAt = -1
+        var lastBodyAt = -1
+        var indent = "  "
         for (i in lines.indices) {
             val line = lines[i]
-            if (!inSection) {
-                if (sectionRe.matches(line)) inSection = true
-                continue
+            if (sectionAt < 0) { if (sectionRe.matches(line)) sectionAt = i; continue }
+            // 段内所有合法行都带缩进；出现顶格非空行（下一段的键或注释）= 段结束
+            if (line.isNotBlank() && !line.first().isWhitespace()) break
+            val m = keyRe.matchEntire(line)
+            if (m != null) {
+                val ind = m.groupValues[1]; val comment = m.groupValues[3]
+                lines[i] = "$ind$key: \"$esc\"" + if (comment.isNotEmpty()) "  $comment" else ""
+                configFile.writeText(lines.joinToString(System.lineSeparator()) + System.lineSeparator())
+                return
             }
-            // 出现新的顶格非空非注释行 = 离开本段
-            if (line.isNotBlank() && !line.first().isWhitespace() && !line.trimStart().startsWith("#")) return
-            val m = keyRe.matchEntire(line) ?: continue
-            val indent = m.groupValues[1]
-            val comment = m.groupValues[3]
-            lines[i] = "$indent$key: \"$value\"" + if (comment.isNotEmpty()) "  $comment" else ""
-            configFile.writeText(lines.joinToString(System.lineSeparator()) + System.lineSeparator())
-            return
+            if (line.isNotBlank()) { lastBodyAt = i; line.takeWhile { it.isWhitespace() }.let { if (it.isNotEmpty()) indent = it } }
         }
+        if (sectionAt < 0) return   // 没这个段，放弃（不擅自造段）
+        val insertAt = (if (lastBodyAt >= 0) lastBodyAt else sectionAt) + 1
+        lines.add(insertAt, "$indent$key: \"$esc\"")
+        configFile.writeText(lines.joinToString(System.lineSeparator()) + System.lineSeparator())
+    }
+
+    /** 是否还没配好可用的 LLM（claude/openai 需 api-key；ollama 无需）。供首启向导判断。 */
+    fun needsLlmSetup(): Boolean = provider().lowercase() != "ollama" && apiKey().isBlank()
+
+    /**
+     * 首启向导写回 LLM 配置：定点改写 windyagent-config.yml 的 llm 段并同步内存。
+     * 写完需重启代理走完整初始化（不做热生效）。
+     */
+    fun applyLlmSetup(provider: String, apiBaseUrl: String, apiKey: String, model: String, fastModel: String) {
+        val pairs = linkedMapOf(
+            "provider" to provider, "api-base-url" to apiBaseUrl,
+            "api-key" to apiKey, "model" to model, "fast-model" to fastModel
+        )
+        @Suppress("UNCHECKED_CAST")
+        val llm = (root["llm"] as? MutableMap<String, Any>)
+        pairs.forEach { (k, v) -> patchScalar("llm", k, v); llm?.put(k, v) }
     }
 
     // 安全护栏：命令执行策略

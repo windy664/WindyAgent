@@ -93,6 +93,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
         }
         Messages.init(cfg.language())
 
+        // 首启未配 LLM：起一个「配置模式」的精简 web 向导 + 控制台提示，不再全盘退出（配好重启即可）
+        if (cfg.needsLlmSetup()) { startSetupMode(cfg); return }
+
         val llm = runCatching { buildProvider(cfg) }.getOrElse {
             logger.error(WindyLog.tag("LLM", "提供方初始化失败，插件未启用：{}"), it.message)
             return
@@ -373,6 +376,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 srv.register(org.windy.windyagent.web.handlers.ApprovalHandler(srv, pending))
                 srv.register(org.windy.windyagent.web.handlers.SkillHandler(srv, skills, draftSkill, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用" }, bus, cfg.remoteTimeoutMs(), connectedServers))
                 srv.register(org.windy.windyagent.web.handlers.UsageHandler(srv, usageTracker, systemHealth))
+                srv.register(org.windy.windyagent.web.handlers.SetupHandler(srv, cfg))   // 已配置时返回 configured:true
                 srv.start()
             }
         }
@@ -408,6 +412,35 @@ class WindyAgentVelocityPlugin @Inject constructor(
             add("跨服" to if (cfg.crossServerEnabled()) cfg.crossServerTransport() else "未启用")
             add("控制台" to (webUrl ?: "已关闭（web.enabled=false）"))
         }))
+    }
+
+    /**
+     * 首启未配 LLM 时的「配置模式」：起一个只挂 SetupHandler 的精简 web 向导，并在控制台醒目提示。
+     * 服主在网页填好 provider/key/model（或手改配置）后重启代理，即走完整初始化。
+     */
+    private fun startSetupMode(cfg: AgentConfig) {
+        if (cfg.webEnabled()) {
+            val token = cfg.ensureWebToken()
+            val hostShown = if (cfg.webHost() == "0.0.0.0") "<本机IP>" else cfg.webHost()
+            val url = "http://$hostShown:${cfg.webPort()}/"
+            web = DashboardServer(cfg.webHost(), cfg.webPort(), token).also { srv ->
+                srv.register(org.windy.windyagent.web.handlers.SetupHandler(srv, cfg))
+                srv.start()
+            }
+            logger.warn(WindyLog.banner(buildList {
+                add("状态" to "⚠ 尚未配置 LLM API Key —— 进入配置向导")
+                add("配置页" to url)
+                add("token" to token)
+                add("手动改" to "或编辑 plugins/windyagent/windyagent-config.yml 的 llm.api-key")
+                add("生效" to "配好后重启 Velocity 代理")
+            }))
+        } else {
+            logger.warn(WindyLog.banner(buildList {
+                add("状态" to "⚠ 尚未配置 LLM API Key，且 web 已关闭")
+                add("请手动" to "编辑 windyagent-config.yml 填 llm.api-key 后重启")
+                add("或" to "设 web.enabled: true 用网页向导配置")
+            }))
+        }
     }
 
     /**

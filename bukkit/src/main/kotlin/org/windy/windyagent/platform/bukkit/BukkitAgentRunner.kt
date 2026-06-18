@@ -39,6 +39,7 @@ import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.rag.LlmQueryExpander
 import org.windy.windyagent.safety.PendingApprovals
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.windy.windyagent.ui.WindyLog
 import java.io.File
 
 /**
@@ -51,8 +52,32 @@ import java.io.File
  */
 class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
+    // ── shutdown 需要追踪的资源 ──
+    private var aiCommand: org.bukkit.command.PluginCommand? = null
+    private var approvalCommands: List<org.bukkit.command.PluginCommand> = emptyList()
+    private var chatListener: BukkitChatListener? = null
+    private var logWatcher: org.windy.windyagent.ops.LogWatcher? = null
+
+    /** 关闭 standalone 模式注册的所有组件（命令入口、聊天监听、日志监控）。
+     *  用于 auto 模式下探测到中枢后切换到 provider 前的清理。 */
+    fun shutdown() {
+        // 注销 /ai 命令
+        aiCommand?.setExecutor(null)
+        aiCommand = null
+        // 注销审批命令
+        approvalCommands.forEach { it.setExecutor(null) }
+        approvalCommands = emptyList()
+        // 注销聊天监听
+        chatListener?.let { org.bukkit.event.HandlerList.unregisterAll(it) }
+        chatListener = null
+        // 停止日志监控
+        logWatcher?.stop()
+        logWatcher = null
+        plugin.logger.info(WindyLog.tag("Switch", "standalone 组件已关闭"))
+    }
+
     /** @return 是否成功启动（失败已记日志，调用方据此决定后续）。cfg 由插件入口统一加载后传入。 */
-    fun start(cfg: AgentConfig, remoteBus: MessageBus? = null, remoteTimeoutMs: Long = 5000L): Boolean {
+    fun start(cfg: AgentConfig, remoteBus: MessageBus? = null, remoteTimeoutMs: Long = 5000L, profileRegistry: org.windy.windyagent.profile.ProfileDataRegistry? = null): Boolean {
         val llm = runCatching { buildProvider(cfg) }.getOrElse {
             plugin.logger.severe("[LLM] " + it.message)
             return false
@@ -154,9 +179,10 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                 }
             )
             watcher.start()
+            logWatcher = watcher
         }
         // 插件集成（自动发现已安装插件，注册对应工具）
-        org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit).let { pluginTools ->
+        org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit, profileRegistry).let { pluginTools ->
             extraTools += pluginTools
         }
         // 人格文件
@@ -188,17 +214,17 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         CapabilitySync(plugin, actions, selfName, deliver = { cat -> registry.put(cat) }).start()
 
         // /ai 命令（需在 plugin.yml 声明 commands.ai）
-        plugin.getCommand("ai")?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))
+        aiCommand = plugin.getCommand("ai")
+        aiCommand?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))
             ?: plugin.logger.warning("[Command] 未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
 
         // 顶层审批命令（薄适配 → router）
         val approval = BukkitApprovalCommand(router)
-        listOf("ai-approve", "ai-deny", "ai-pending").forEach { plugin.getCommand(it)?.setExecutor(approval) }
+        approvalCommands = listOf("ai-approve", "ai-deny", "ai-pending").mapNotNull { plugin.getCommand(it)?.also { cmd -> cmd.setExecutor(approval) } }
 
         // 聊天触发 <trigger> <消息>
-        plugin.server.pluginManager.registerEvents(
-            BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger()), plugin
-        )
+        chatListener = BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger())
+        plugin.server.pluginManager.registerEvents(chatListener!!, plugin)
 
         plugin.logger.info("[Agent] 嵌入式 Agent 已就绪 — provider: ${llm.name}, 触发: '${cfg.trigger()} <消息>' / '/ai <消息>'")
         return true

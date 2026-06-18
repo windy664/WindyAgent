@@ -8,6 +8,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.platform.bukkit.integration.PluginIntegration
+import org.windy.windyagent.profile.ProfileDataRegistry
 import org.windy.windyagent.safety.AuditLog
 
 /**
@@ -15,7 +16,10 @@ import org.windy.windyagent.safety.AuditLog
  *
  * 直接调用 CMI Java API（compileOnly 依赖），结构化返回，比命令拼接更可靠。
  */
-class CmiIntegration(private val plugin: JavaPlugin) : PluginIntegration {
+class CmiIntegration(
+    private val plugin: JavaPlugin,
+    private val profileRegistry: ProfileDataRegistry? = null
+) : PluginIntegration {
 
     override val pluginName = "CMI"
     override fun isAvailable(): Boolean = Bukkit.getPluginManager().getPlugin("CMI") != null
@@ -27,7 +31,7 @@ class CmiIntegration(private val plugin: JavaPlugin) : PluginIntegration {
             PayTool(cmi, audit),
             HomeTool(cmi, audit),
             WarpTool(cmi, audit),
-            UserInfoTool(cmi, audit),
+            UserInfoTool(cmi, audit, profileRegistry),
             BanTool(cmi, audit),
             MuteTool(cmi, audit),
             KitTool(cmi, audit)
@@ -136,7 +140,11 @@ class CmiIntegration(private val plugin: JavaPlugin) : PluginIntegration {
 
     // ── 用户 ──
 
-    private class UserInfoTool(private val cmi: CMI, private val audit: AuditLog) : AgentTool {
+    private class UserInfoTool(
+        private val cmi: CMI,
+        private val audit: AuditLog,
+        private val profileRegistry: ProfileDataRegistry? = null
+    ) : AgentTool {
         override val name = "cmi_userinfo"
         override val description = "查询玩家详细信息（最后登录/IP/位置/余额）"
         override val inputSchema = """{"type":"object","properties":{"player":{"type":"string"}},"required":["player"]}"""
@@ -144,6 +152,18 @@ class CmiIntegration(private val plugin: JavaPlugin) : PluginIntegration {
             val pn = parsePlayer(inputJson) ?: return ToolResult.error(toolCallId, "缺少 player")
             audit.record("local", name, pn, "ALLOW")
             return runCatching {
+                // 优先读画像缓存（零 CMI 开销），缓存未命中再查 CMI
+                val cached = profileRegistry?.snapshot(pn)
+                if (cached != null && cached.containsKey("cmi.balance")) {
+                    val sb = StringBuilder("📊 $pn 信息（缓存）：\n")
+                    cached["cmi.balance"]?.let { sb.appendLine("• 余额：$it") }
+                    cached["cmi.homes"]?.let { sb.appendLine("• 家数量：$it") }
+                    cached["cmi.lastLogin"]?.let { sb.appendLine("• 最后登录：${formatTime(it.toLongOrNull() ?: 0)}") }
+                    cached["cmi.lastLogoff"]?.let { sb.appendLine("• 最后退出：${formatTime(it.toLongOrNull() ?: 0)}") }
+                    cached["cmi.lastIp"]?.let { sb.appendLine("• IP：$it") }
+                    return@runCatching ToolResult.success(toolCallId, sb.toString().trimEnd())
+                }
+                // 缓存未命中，回退到实时查询
                 val user = cmi.getUser(null, pn, pn) ?: return ToolResult.error(toolCallId, "找不到用户")
                 val sb = StringBuilder("📊 $pn 信息：\n")
                 sb.appendLine("• 在线：${if (user.isOnline) "是" else "否"}")
