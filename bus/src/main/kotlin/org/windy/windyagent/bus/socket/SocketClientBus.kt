@@ -74,13 +74,17 @@ class SocketClientBus(
 
                     while (running) {
                         val frame = FrameCodec.read(input)
-                        if (frame.type == FrameType.REQUEST && frame.request != null) {
-                            val req = frame.request
-                            workers.submit {
-                                val reply = runCatching { handler?.invoke(req) ?: ToolReply(req.requestId, false, "无 handler") }
-                                    .getOrElse { ToolReply(req.requestId, false, "执行异常：${it.message}") }
-                                runCatching { FrameCodec.write(out, Frame(type = FrameType.REPLY, reply = reply)) }
+                        when {
+                            frame.type == FrameType.REQUEST && frame.request != null -> {
+                                val req = frame.request
+                                workers.submit {
+                                    val reply = runCatching { handler?.invoke(req) ?: ToolReply(req.requestId, false, "无 handler") }
+                                        .getOrElse { ToolReply(req.requestId, false, "执行异常：${it.message}") }
+                                    runCatching { FrameCodec.write(out, Frame(type = FrameType.REPLY, reply = reply)) }
+                                }
                             }
+                            frame.type == FrameType.PING ->
+                                runCatching { FrameCodec.write(out, Frame(type = FrameType.PONG)) }
                         }
                     }
                 }

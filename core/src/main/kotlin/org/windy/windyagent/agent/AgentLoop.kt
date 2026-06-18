@@ -6,12 +6,19 @@ import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.llm.LLMProvider
 import org.windy.windyagent.llm.LLMResponse
 import org.windy.windyagent.llm.ToolResult
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
 
 private val loopLogger = LoggerFactory.getLogger("org.windy.windyagent.agent.ToolLoop")
+/** 工具并行执行线程池（守护线程，不阻塞 JVM 退出）。 */
+private val toolPool = Executors.newCachedThreadPool { r -> Thread(r, "windyagent-tool").apply { isDaemon = true } }
 
 /**
  * 通用 ReAct 工具循环：反复调用 LLM，遇到 TOOL_USE 就执行工具并把结果回灌，
  * 直到模型 END_TURN 或达到 [maxIterations] 上限。
+ *
+ * 工具调用并行执行：同一轮多个 tool call 用线程池并发，缩短总等待时间。
+ * 结果按原始顺序回灌（LLM 期望顺序一致）。
  *
  * 被 [ReActAgent] 与 [PlanExecuteAgent] 共用——前者直接跑一轮，后者带着计划跑。
  * [messages] 会被原地追加，便于调用方据此同步会话历史。
@@ -38,15 +45,21 @@ internal fun toolLoop(
             }
             LLMResponse.StopReason.TOOL_USE -> {
                 messages += LLMMessage.Assistant(response.textContent, response.toolCalls)
-                val results = response.toolCalls.map { tc ->
+                // 并行执行所有 tool call（保持顺序回灌）
+                val calls = response.toolCalls
+                val futures = calls.map { tc ->
                     loopLogger.info("Tool call: {} args={}", tc.name, tc.inputJson.take(200))
                     executedTools += tc.name
-                    val r = tools.find { it.name == tc.name }
-                        ?.execute(tc.id, tc.inputJson)
-                        ?: ToolResult.error(tc.id, "Tool not found: ${tc.name}")
-                    loopLogger.info("Tool result: {} -> {}{}", tc.name, if (r.isError) "[ERROR] " else "", r.content.take(300))
-                    r
+                    CompletableFuture.supplyAsync({
+                        val r = tools.find { it.name == tc.name }
+                            ?.execute(tc.id, tc.inputJson)
+                            ?: ToolResult.error(tc.id, "Tool not found: ${tc.name}")
+                        loopLogger.info("Tool result: {} -> {}{}", tc.name, if (r.isError) "[ERROR] " else "", r.content.take(300))
+                        r
+                    }, toolPool)
                 }
+                // 等全部完成，按原始顺序收集结果
+                val results = futures.map { it.join() }
                 messages += LLMMessage.ToolResults(results)
             }
             else -> return AgentResponse(Messages.t("agent.stopped", response.stopReason ?: ""), false, executedTools)

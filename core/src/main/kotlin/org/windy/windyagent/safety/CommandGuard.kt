@@ -57,7 +57,7 @@ class CommandGuard(
             "whitelist", "save-off", "save-all", "reload", "rl", "gamerule", "difficulty",
             "kill", "execute", "forceload", "datapack", "perm", "pex", "lp"
         )
-        private val DANGEROUS_SELECTOR = Regex("@[aer]\\b")
+        private val DANGEROUS_SELECTOR = Regex("@[aer](?:\\s|$)")
 
         fun mode(name: String): Mode = when (name.lowercase()) {
             "off" -> Mode.OFF

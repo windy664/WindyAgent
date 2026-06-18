@@ -64,7 +64,11 @@ class OllamaProvider(
             .build()
 
         http.newCall(request).execute().use { resp ->
-            return parseResponse(resp.body!!.string())
+            val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+            if (bodyBytes.size > 8 * 1024 * 1024) throw LLMException("Ollama 响应超过 8MB")
+            val bodyStr = String(bodyBytes, Charsets.UTF_8)
+            if (!resp.isSuccessful) throw LLMException("Ollama HTTP ${resp.code}: ${bodyStr.take(200)}")
+            return parseResponse(bodyStr)
         }
     }
 
@@ -87,6 +91,9 @@ class OllamaProvider(
             "length" -> LLMResponse.StopReason.MAX_TOKENS
             else -> LLMResponse.StopReason.END_TURN
         }
-        return LLMResponse(content, toolCalls, stopReason)
+        val usage = node["usage"]
+        val inTok = usage?.get("prompt_tokens")?.asInt(-1) ?: -1
+        val outTok = usage?.get("completion_tokens")?.asInt(-1) ?: -1
+        return LLMResponse(content, toolCalls, stopReason, inTok, outTok)
     }
 }

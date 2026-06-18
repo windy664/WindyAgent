@@ -67,6 +67,7 @@ class TaskScheduler(
 
     fun stop() = ticker.shutdown()
 
+    @Synchronized
     private fun tick() {
         val now = System.currentTimeMillis()
         var changed = false

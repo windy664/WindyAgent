@@ -2,6 +2,7 @@ package org.windy.windyagent.platform
 
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.agent.SystemPrompt
+import org.windy.windyagent.agent.Toolset
 
 interface Platform {
     val name: String
@@ -14,9 +15,16 @@ interface Platform {
     val platformContext: String
         get() = ""
 
-    /** 通用基底 + 载体上下文，统一由核心层拼接，载体一般无需覆盖。 */
+    /** 人格文件内容（由插件启动时注入）。 */
+    var personality: String
+
+    /** 通用基底 + 载体上下文 + 人格，统一由核心层拼接。 */
     val systemPrompt: String
-        get() = SystemPrompt.build(platformContext)
+        get() = SystemPrompt.build(platformContext, personality)
+
+    /** 工具集分组（默认：全部工具归为一个 alwaysOn 组）。子类可覆盖做精细分组。 */
+    val toolsets: List<Toolset>
+        get() = listOf(Toolset("all", "All tools", tools, alwaysOn = true))
 
     fun sendResponse(sessionId: String, message: String)
 }

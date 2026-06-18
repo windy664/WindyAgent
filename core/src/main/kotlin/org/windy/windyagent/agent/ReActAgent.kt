@@ -21,7 +21,7 @@ class ReActAgent(
             llmProvider,
             context.platform.systemPrompt,
             messages,
-            context.platform.tools,
+            context.effectiveTools,
             maxIterations
         )
 

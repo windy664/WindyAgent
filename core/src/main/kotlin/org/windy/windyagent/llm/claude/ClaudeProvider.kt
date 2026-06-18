@@ -122,6 +122,9 @@ class ClaudeProvider @JvmOverloads constructor(
             "max_tokens" -> LLMResponse.StopReason.MAX_TOKENS
             else -> LLMResponse.StopReason.END_TURN
         }
-        return LLMResponse(textContent, toolCalls, stopReason)
+        val usage = runCatching { response.usage() }.getOrNull()
+        val inTok = usage?.let { runCatching { it.inputTokens().toInt() }.getOrNull() } ?: -1
+        val outTok = usage?.let { runCatching { it.outputTokens().toInt() }.getOrNull() } ?: -1
+        return LLMResponse(textContent, toolCalls, stopReason, inTok, outTok)
     }
 }

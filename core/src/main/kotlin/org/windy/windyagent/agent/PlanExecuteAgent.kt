@@ -33,7 +33,7 @@ class PlanExecuteAgent(
         val messages = context.history.toMutableList()
         messages += LLMMessage.User(userMessageWithMemory(context))
 
-        val response = toolLoop(llmProvider, systemPrompt, messages, context.platform.tools, maxIterations)
+        val response = toolLoop(llmProvider, systemPrompt, messages, context.effectiveTools, maxIterations)
 
         context.syncHistory(messages)
         return response

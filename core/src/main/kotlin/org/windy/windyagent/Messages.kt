@@ -129,6 +129,28 @@ object Messages {
             // AgentLoop
             "agent.stopped" to "已停止：%1",
             "agent.max_iter" to "已达到最大迭代次数（%1），任务未完成",
+            // /usage
+            "cmd.usage.desc" to "查看 LLM 用量统计",
+            "cmd.usage.header" to "LLM 用量统计：",
+            "cmd.usage.calls" to "总调用",
+            "cmd.usage.input" to "输入 token",
+            "cmd.usage.output" to "输出 token",
+            "cmd.usage.latency" to "总延迟",
+            "cmd.usage.daily" to "近 %1 天每日用量：",
+            "cmd.usage.day" to "日",
+            "cmd.usage.enabled" to "用量追踪已启用",
+            "cmd.usage.disabled" to "用量追踪未启用",
+            "cmd.rate_limited" to "[WindyAgent] 请求太频繁，请稍后再试。",
+            // /compress
+            "cmd.compress.desc" to "手动压缩当前会话上下文",
+            "cmd.compress.done" to "上下文已压缩：%1 条 → %2 条",
+            "cmd.compress.noop" to "当前上下文无需压缩（%1 条）",
+            "cmd.compress.disabled" to "上下文压缩未启用",
+            // /profile
+            "cmd.profile.desc" to "查看当前用户画像",
+            "cmd.profile.empty" to "暂无用户画像数据",
+            // /memory scope
+            "cmd.memory.scope_player" to "[玩家]",
         ),
         "en" to mapOf(
             "cmd.usage" to "[WindyAgent] Usage: /ai <message>",
@@ -220,6 +242,24 @@ object Messages {
             "behavior.player_not_found" to "Player「%1」not found (may not have behavior data yet)",
             "agent.stopped" to "Stopped: %1",
             "agent.max_iter" to "Max iterations reached (%1), task incomplete",
+            "cmd.usage.desc" to "View LLM usage statistics",
+            "cmd.usage.header" to "LLM Usage Statistics:",
+            "cmd.usage.calls" to "Total Calls",
+            "cmd.usage.input" to "Input Tokens",
+            "cmd.usage.output" to "Output Tokens",
+            "cmd.usage.latency" to "Total Latency",
+            "cmd.usage.daily" to "Last %1 days daily usage:",
+            "cmd.usage.day" to "Day",
+            "cmd.usage.enabled" to "Usage tracking enabled",
+            "cmd.usage.disabled" to "Usage tracking disabled",
+            "cmd.rate_limited" to "[WindyAgent] Too many requests, please try again later.",
+            "cmd.compress.desc" to "Manually compress session context",
+            "cmd.compress.done" to "Context compressed: %1 → %2 messages",
+            "cmd.compress.noop" to "No compression needed (%1 messages)",
+            "cmd.compress.disabled" to "Context compression disabled",
+            "cmd.profile.desc" to "View current user profile",
+            "cmd.profile.empty" to "No user profile data yet",
+            "cmd.memory.scope_player" to "[Player]",
         )
     )
 }

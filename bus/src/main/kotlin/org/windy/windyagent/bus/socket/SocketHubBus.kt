@@ -48,6 +48,9 @@ class SocketHubBus(
     private val timeoutExec = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "windyagent-sockethub-timeout").apply { isDaemon = true }
     }
+    private val heartbeatExec = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "windyagent-sockethub-heartbeat").apply { isDaemon = true }
+    }
 
     private class Conn(val socket: Socket, val out: DataOutputStream, val input: DataInputStream) {
         @Volatile var server: String? = null
@@ -62,8 +65,17 @@ class SocketHubBus(
         ss.bind(InetSocketAddress(bindHost, port))
         serverSocket = ss
         Thread({ acceptLoop(ss) }, "windyagent-sockethub-accept").apply { isDaemon = true }.start()
+        // 每 30s 发 PING 探活，死连接及时清理
+        heartbeatExec.scheduleAtFixedRate({
+            connections.forEach { (name, conn) ->
+                runCatching { FrameCodec.write(conn.out, Frame(type = FrameType.PING)) }
+                    .onFailure { log.fine("PING 子服「$name」失败: ${it.message}") }
+            }
+        }, 30, 30, TimeUnit.SECONDS)
         log.info("SocketHubBus 监听 $bindHost:$port")
     }
+
+    companion object { private const val MAX_CONNECTIONS = 32 }
 
     private fun acceptLoop(ss: ServerSocket) {
         while (running) {
@@ -72,6 +84,11 @@ class SocketHubBus(
             } catch (e: Exception) {
                 if (running) log.warning("SocketHubBus accept 中断: ${e.message}")
                 break
+            }
+            if (connections.size >= MAX_CONNECTIONS) {
+                log.warning("连接数已达上限($MAX_CONNECTIONS)，拒绝 ${socket.inetAddress}")
+                runCatching { socket.close() }
+                continue
             }
             runCatching {
                 socket.tcpNoDelay = true
@@ -112,6 +129,9 @@ class SocketHubBus(
                     frame.type == FrameType.ERROR && frame.errorJson != null ->
                         runCatching { errorHandler?.invoke(frame.errorJson) }
                             .onFailure { log.warning("处理子服「${conn.server}」目录失败: ${it.message}") }
+                    frame.type == FrameType.PING ->
+                        runCatching { FrameCodec.write(conn.out, Frame(type = FrameType.PONG)) }
+                    // PONG 收到即说明活连接，无需额外处理
                 }
             }
         } catch (e: Exception) {
@@ -169,5 +189,6 @@ class SocketHubBus(
         connections.values.forEach { runCatching { it.socket.close() } }
         connections.clear()
         runCatching { timeoutExec.shutdownNow() }
+        runCatching { heartbeatExec.shutdownNow() }
     }
 }

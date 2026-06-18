@@ -426,6 +426,8 @@ const LANGS={
   'kpi.active7d':'活跃玩家','kpi.recent7':'近7天','kpi.new_today':'今日新增','kpi.today':'今日','kpi.avgtime':'人均时长','kpi.deaths':'玩家死亡','kpi.cumulative':'累计','kpi.blocks':'破坏方块','kpi.advancements':'成就达成',
   // 行为分布
   'behav.build':'建造','behav.explore':'探索','behav.combat':'战斗','behav.craft':'合成',
+  'tag.newbie':'萌新','tag.normal':'常规玩家','tag.regular':'常驻玩家','tag.hardcore':'肝帝','tag.builder':'建筑党','tag.miner':'挖矿党','tag.explorer':'探索者','tag.crafter':'合成狂','tag.squishy':'脆皮','tag.long_session':'长时在线','tag.churn_risk':'流失风险','tag.active_recent':'近期活跃','tag.new_join':'新加入','tag.unknown':'未知',
+  'seg.new_player':'新玩家','seg.core':'核心(在线≥%1分)','seg.active':'活跃(近%1天)','seg.churn_risk':'流失风险(>%1天未见)',
   // 事件
   'event.join':'加入了游戏','event.quit':'离开了','event.death':'死亡','event.advancement':'解锁成就 ',
   // 时间
@@ -467,6 +469,8 @@ const LANGS={
   'overview.active':'Online/Active','overview.total':'Total Players','overview.today':'New Today','overview.avgtime':'Avg Playtime(min)',
   'kpi.active7d':'Active Players','kpi.recent7':'7 days','kpi.new_today':'New Today','kpi.today':'Today','kpi.avgtime':'Avg Playtime','kpi.deaths':'Deaths','kpi.cumulative':'Total','kpi.blocks':'Blocks Broken','kpi.advancements':'Advancements',
   'behav.build':'Build','behav.explore':'Explore','behav.combat':'Combat','behav.craft':'Craft',
+  'tag.newbie':'Newbie','tag.normal':'Casual','tag.regular':'Regular','tag.hardcore':'Hardcore','tag.builder':'Builder','tag.miner':'Miner','tag.explorer':'Explorer','tag.crafter':'Crafter','tag.squishy':'Squishy','tag.long_session':'Long Session','tag.churn_risk':'Churn Risk','tag.active_recent':'Recently Active','tag.new_join':'New Arrival','tag.unknown':'Unknown',
+  'seg.new_player':'New Players','seg.core':'Core(≥%1min online)','seg.active':'Active(last %1d)','seg.churn_risk':'Churn Risk(>%1d offline)',
   'event.join':'joined the game','event.quit':'left the game','event.death':'died','event.advancement':'unlocked advancement ',
   'time.just_now':'just now','time.min_ago':'m ago','time.hour_ago':'h ago','time.day_ago':'d ago','time.d':'d ','time.h':'h ','time.m':'m',
   'common.loading':'Loading…','common.error':'Error: ','common.none':'None','common.confirm':'Confirm','common.cancel':'Cancel','common.save':'Save','common.delete':'Delete','common.edit':'Edit',
@@ -484,6 +488,16 @@ const LANGS={
 let lang=localStorage.getItem('wa_lang')||'zh-CN';
 const T=k=>{const t=(LANGS[lang]||LANGS['zh-CN'])[k];return t!=null?t:k;};
 const Tf=(k,...a)=>{let s=T(k);a.forEach((v,i)=>{s=s.replace('%s',v)});return s;};
+/* 后端标签翻译：后端始终发中文标签（behavior 模块不依赖 i18n），dashboard 切英文时需要映射 */
+const BACKEND_LABELS={
+  '萌新':'tag.newbie','常规玩家':'tag.normal','常驻玩家':'tag.regular','肝帝':'tag.hardcore',
+  '建筑党':'tag.builder','挖矿党':'tag.miner','探索者':'tag.explorer','合成狂':'tag.crafter',
+  '脆皮':'tag.squishy','长时在线':'tag.long_session','流失风险':'tag.churn_risk','近期活跃':'tag.active_recent','新加入':'tag.new_join',
+  '建造':'behav.build','探索':'behav.explore','生存挂机':'behav.afk','战斗':'behav.combat','未知':'tag.unknown',
+  '新玩家':'seg.new_player',
+};
+const SEG_PATTERNS=[[/^核心\(在线≥(\d+)分\)$/,(m)=>Tf('seg.core',m[1])],[/^活跃\(近(\d+)天\)$/,(m)=>Tf('seg.active',m[1])],[/^流失风险\(>(\d+)天未见\)$/,(m)=>Tf('seg.churn_risk',m[1])]];
+function Tlabel(s){if(!s)return s;if(BACKEND_LABELS[s])return T(BACKEND_LABELS[s]);for(const[re,fn]of SEG_PATTERNS){const m=s.match(re);if(m)return fn(m);}return s;}
 function setLang(l){lang=l;localStorage.setItem('wa_lang',l);document.documentElement.lang=T('html.lang');document.title=T('title');applyLang();}
 function applyLang(){
   // 静态 data-i18n 元素
@@ -495,7 +509,7 @@ function applyLang(){
 }
 
 const $=id=>document.getElementById(id);
-const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const fmt=n=>(n==null?'0':Number(n).toLocaleString());
 const ago=ts=>{if(!ts)return'-';const d=Date.now()-ts,m=6e4,h=36e5,day=864e5;return d<m?T('time.just_now'):d<h?Math.floor(d/m)+T('time.min_ago'):d<day?Math.floor(d/h)+T('time.hour_ago'):Math.floor(d/day)+T('time.day_ago');};
 function md(t){let s=esc(t);s=s.replace(/```([\s\S]*?)```/g,(m,c)=>`<pre><code>${c.trim()}</code></pre>`);s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');s=s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm,'<b>$1</b>');s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');s=s.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<i>$2</i>');s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank">$1</a>');s=s.replace(/^\s*[-*]\s+(.+)$/gm,'• $1');return s.replace(/\n/g,'<br>');}
@@ -839,7 +853,7 @@ function renderKpis(s){const it=[['🟢',T('kpi.active7d'),s.active7d,T('kpi.rec
   $('kpis').innerHTML=it.map(([i,k,v,d],ix)=>`<div class="kpi glass anim-in" style="animation-delay:${ix*55}ms"><div class="ic">${i}</div><div class="v">${fmt(v)}</div><div class="k">${k}</div>${d?`<div class="d muted">${d}</div>`:''}</div>`).join('');}
 function donut(el,labels,data,inst){if(inst)inst.destroy();return new Chart(el,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:PAL,borderColor:'rgba(0,0,0,.25)',borderWidth:2,hoverOffset:6}]},options:{cutout:'60%',plugins:{legend:{position:'right',labels:{usePointStyle:true,padding:11,boxWidth:8,font:{weight:700}}}}}});}
 function renderBehPie(s){behPie=donut($('behPie'),[T('behav.build'),T('behav.explore'),T('behav.combat'),T('behav.craft')],[(s.totalBlocksBroken||0)+(s.totalBlocksPlaced||0),(s.totalAdvancements||0)*5,(s.totalDeaths||0)*3,(s.totalCrafts||0)],behPie);}
-function renderSegBar(seg){const l=Object.keys(seg),d=Object.values(seg);if(segBar)segBar.destroy();
+function renderSegBar(seg){const l=Object.keys(seg).map(Tlabel),d=Object.values(seg);if(segBar)segBar.destroy();
   segBar=new Chart($('segBar'),{type:'bar',data:{labels:l,datasets:[{data:d,backgroundColor:PAL,borderRadius:8,barThickness:20}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.07)'},border:{display:false}},y:{grid:{display:false},border:{display:false},ticks:{color:'#f3f0ff',font:{weight:700}}}}}});}
 function renderCmdBar(w){if(cmdBar)cmdBar.destroy();const top=(w||[]).slice(0,10);
   if(!top.length){$('cmdBar').parentElement.querySelector('canvas').style.display='none';return;}
@@ -848,8 +862,8 @@ function renderTop(top){if(topChart)topChart.destroy();const ctx=$('topChart').g
   topChart=new Chart($('topChart'),{type:'bar',data:{labels:top.map(t=>t.name),datasets:[{data:top.map(t=>t.playtimeMin),backgroundColor:g,borderRadius:7,barThickness:15}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.07)'},border:{display:false}},y:{grid:{display:false},border:{display:false},ticks:{color:'#f3f0ff',font:{weight:700}}}}}});}
 async function searchPlayer(){const sv=$('server').value,name=$('pname').value.trim();if(!sv||!name)return;
   try{const p=await api('/api/player?server='+sv+'&name='+encodeURIComponent(name));if(p.error){$('player').innerHTML=`<p class="err">${esc(p.error)}</p>`;return;}
-    const tags=(p.tags||[]).map(t=>`<span class="tag2">${esc(t)}</span>`).join('');
-    const rows=[[T('profile.style'),p.playstyle||'-'],[T('profile.active_period'),p.activePeriod||'-'],[T('profile.playtime'),fmt(p.playtimeMin)+' min'],[T('profile.sessions'),fmt(p.sessions)],[T('profile.death_rate'),(p.deathsPerHour||0)+' /h'],[T('profile.blocks'),fmt(p.blocksBroken)],[T('profile.advancements'),fmt(p.advancements)],[T('profile.age'),fmt(p.ageDays)+' d'],[T('profile.last_seen'),ago(p.lastSeen)]];
+    const tags=(p.tags||[]).map(t=>`<span class="tag2">${esc(Tlabel(t))}</span>`).join('');
+    const rows=[[T('profile.style'),Tlabel(p.playstyle)||'-'],[T('profile.active_period'),Tlabel(p.activePeriod)||'-'],[T('profile.playtime'),fmt(p.playtimeMin)+' min'],[T('profile.sessions'),fmt(p.sessions)],[T('profile.death_rate'),(p.deathsPerHour||0)+' /h'],[T('profile.blocks'),fmt(p.blocksBroken)],[T('profile.advancements'),fmt(p.advancements)],[T('profile.age'),fmt(p.ageDays)+' d'],[T('profile.last_seen'),ago(p.lastSeen)]];
     $('player').innerHTML=`<div style="margin-bottom:10px">${tags}</div><table><tr><td>${T('profile.player')}</td><td>${esc(p.name)}</td></tr>`+rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')+'</table>';}
   catch(e){$('player').innerHTML=`<p class="err">${esc(e.message)}</p>`;}}
 async function exportData(){const s=$('server').value;if(!s)return;try{const d=await api('/api/stats?server='+s);

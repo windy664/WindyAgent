@@ -26,7 +26,8 @@ class AgentCommand(
     private val platform: VelocityPlatform,
     private val sessions: SessionManager,
     private val router: AgentCommandRouter,
-    private val logger: Logger
+    private val logger: Logger,
+    private val rateLimiter: org.windy.windyagent.safety.RateLimiter? = null
 ) : RawCommand {
 
     override fun execute(invocation: RawCommand.Invocation) {
@@ -38,6 +39,13 @@ class AgentCommand(
         }
 
         val sessionId = if (source is Player) source.username else "console"
+
+        // 速率限制
+        if (rateLimiter != null && !rateLimiter.tryAcquire(sessionId)) {
+            source.sendMessage(Component.text(Messages.t("cmd.rate_limited")))
+            return
+        }
+
         val trust = if (source.hasPermission("windyagent.admin")) TrustLevel.TRUSTED else TrustLevel.UNTRUSTED
         source.sendMessage(Component.text(Messages.t("cmd.processing")))
 

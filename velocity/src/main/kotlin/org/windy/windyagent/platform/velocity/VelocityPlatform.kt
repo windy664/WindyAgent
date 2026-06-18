@@ -17,6 +17,7 @@ class VelocityPlatform(
     extraTools: List<AgentTool> = emptyList()
 ) : Platform {
     override val name = "velocity"
+    override var personality: String = ""
     override val tools: List<AgentTool> = listOf(
         BroadcastTool(server),
         GetOnlinePlayersTool(server),

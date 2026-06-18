@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.windy.windyagent.llm.EmbeddingProvider
+import org.windy.windyagent.llm.LLMException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -37,8 +38,12 @@ class OpenAICompatEmbeddingProvider(
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         http.newCall(request).execute().use { resp ->
-            val node = mapper.readTree(resp.body!!.string())
-            val data = node["data"] ?: error("embedding 响应缺少 data：${node.toString().take(200)}")
+            val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+            if (bodyBytes.size > 8 * 1024 * 1024) throw IllegalStateException("Embedding 响应超过 8MB")
+            val bodyStr = String(bodyBytes, Charsets.UTF_8)
+            if (!resp.isSuccessful) throw LLMException("Embedding HTTP ${resp.code}: ${bodyStr.take(200)}")
+            val node = mapper.readTree(bodyStr)
+            val data = node["data"] ?: error("embedding 响应缺少 data：${bodyStr.take(200)}")
             // 按 index 对齐输入顺序
             return data.sortedBy { it["index"]?.asInt() ?: 0 }.map { item ->
                 val arr = item["embedding"]

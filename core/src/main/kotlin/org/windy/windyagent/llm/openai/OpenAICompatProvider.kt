@@ -5,6 +5,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.agent.StreamingProvider
 import org.windy.windyagent.llm.*
 import java.util.concurrent.TimeUnit
 
@@ -16,7 +17,7 @@ class OpenAICompatProvider(
     baseUrl: String,
     private val model: String,
     private val apiKey: String
-) : LLMProvider {
+) : LLMProvider, StreamingProvider {
 
     private val chatUrl = baseUrl.trimEnd('/') + "/chat/completions"
     private val http = OkHttpClient.Builder()
@@ -71,11 +72,13 @@ class OpenAICompatProvider(
             .build()
 
         http.newCall(request).execute().use { resp ->
+            val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+            if (bodyBytes.size > 8 * 1024 * 1024) throw LLMException("LLM 响应超过 8MB")
+            val bodyStr = String(bodyBytes, Charsets.UTF_8)
             if (!resp.isSuccessful) {
-                val body = runCatching { resp.body?.string() }.getOrNull() ?: ""
-                throw LLMException("LLM HTTP ${resp.code}: ${body.take(200)}")
+                throw LLMException("LLM HTTP ${resp.code}: ${bodyStr.take(200)}")
             }
-            return parseResponse(resp.body!!.string())
+            return parseResponse(bodyStr)
         }
     }
 
@@ -98,6 +101,96 @@ class OpenAICompatProvider(
             "length" -> LLMResponse.StopReason.MAX_TOKENS
             else -> LLMResponse.StopReason.END_TURN
         }
-        return LLMResponse(content, toolCalls, stopReason)
+        val usage = node["usage"]
+        val inTok = usage?.get("prompt_tokens")?.asInt(-1) ?: -1
+        val outTok = usage?.get("completion_tokens")?.asInt(-1) ?: -1
+        return LLMResponse(content, toolCalls, stopReason, inTok, outTok)
+    }
+
+    // ── 流式输出 ──
+
+    override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
+        val stream = ChatStream()
+        val allMessages = buildMessages(systemPrompt, messages)
+        val body = mutableMapOf<String, Any>("model" to model, "messages" to allMessages, "stream" to true)
+        if (tools.isNotEmpty()) body["tools"] = buildToolDefs(tools)
+
+        val json = mapper.writeValueAsString(body)
+        val request = Request.Builder()
+            .url(chatUrl)
+            .header("Authorization", "Bearer $apiKey")
+            .post(json.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        // 异步执行 SSE 读取
+        http.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: java.io.IOException) {
+                stream.emit(StreamChunk.Error(e.message ?: "request failed"))
+            }
+            override fun onResponse(call: Call, response: Response) {
+                response.use { resp ->
+                    if (!resp.isSuccessful) {
+                        stream.emit(StreamChunk.Error("HTTP ${resp.code}"))
+                        return
+                    }
+                    val reader = resp.body?.source() ?: run {
+                        stream.emit(StreamChunk.Error("empty body"))
+                        return
+                    }
+                    try {
+                        while (!reader.exhausted()) {
+                            val line = reader.readUtf8Line() ?: break
+                            if (!line.startsWith("data: ")) continue
+                            val data = line.removePrefix("data: ").trim()
+                            if (data == "[DONE]") break
+                            val chunk = runCatching { mapper.readTree(data) }.getOrNull() ?: continue
+                            val delta = chunk["choices"]?.get(0)?.get("delta") ?: continue
+                            delta["content"]?.asText()?.takeIf { it.isNotBlank() }?.let {
+                                stream.emit(StreamChunk.Text(it))
+                            }
+                            delta["tool_calls"]?.forEach { tc ->
+                                val fn = tc["function"]
+                                if (tc["index"]?.asInt() == 0 && fn?.get("name")?.asText() != null) {
+                                    stream.emit(StreamChunk.ToolCallStart(tc["id"]?.asText() ?: "", fn["name"].asText()))
+                                }
+                                fn?.get("arguments")?.asText()?.takeIf { it.isNotBlank() }?.let {
+                                    stream.emit(StreamChunk.ToolCallDelta(tc["id"]?.asText() ?: "", it))
+                                }
+                            }
+                        }
+                        stream.emit(StreamChunk.Done)
+                    } catch (e: Exception) {
+                        stream.emit(StreamChunk.Error(e.message ?: "stream read error"))
+                    }
+                }
+            }
+        })
+        return stream
+    }
+
+    private fun buildMessages(systemPrompt: String, messages: List<LLMMessage>): List<Map<String, Any>> {
+        val all = mutableListOf<Map<String, Any>>()
+        all += mapOf("role" to "system", "content" to systemPrompt)
+        for (msg in messages) when (msg) {
+            is LLMMessage.User -> all += mapOf("role" to "user", "content" to msg.content)
+            is LLMMessage.Assistant -> {
+                if (msg.toolCalls.isEmpty()) all += mapOf("role" to "assistant", "content" to (msg.content ?: ""))
+                else all += mapOf("role" to "assistant", "content" to (msg.content ?: ""),
+                    "tool_calls" to msg.toolCalls.map { tc ->
+                        mapOf("id" to tc.id, "type" to "function", "function" to mapOf("name" to tc.name, "arguments" to tc.inputJson))
+                    })
+            }
+            is LLMMessage.ToolResults -> msg.results.forEach { r ->
+                all += mapOf("role" to "tool", "tool_call_id" to r.toolCallId, "content" to r.content)
+            }
+        }
+        return all
+    }
+
+    private fun buildToolDefs(tools: List<AgentTool>): List<Map<String, Any>> {
+        return tools.map { t ->
+            mapOf("type" to "function", "function" to mapOf("name" to t.name, "description" to t.description,
+                "parameters" to mapper.readValue(t.inputSchema, Map::class.java)))
+        }
     }
 }

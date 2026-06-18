@@ -107,9 +107,11 @@ class RedisBus(
             .onFailure { log.warning("Redis publish 失败($channel): ${it.message}") }
     }
 
-    /** 在独立守护线程上阻塞订阅，断线 2s 后自动重连。 */
+    /** 在独立守护线程上阻塞订阅，断线后指数退避重连（2s→4s→8s→…→60s 上限）。 */
     private fun startSubscriber(channel: String, onMessage: (String) -> Unit) {
         val thread = Thread({
+            var backoff = 2000L
+            val maxBackoff = 60_000L
             while (running) {
                 try {
                     pool.resource.use { jedis ->
@@ -117,10 +119,13 @@ class RedisBus(
                             override fun onMessage(ch: String, msg: String) = onMessage(msg)
                         }, channel)
                     }
+                    // subscribe 正常返回（unsubscribe）→ 重置退避
+                    backoff = 2000L
                 } catch (e: Exception) {
                     if (running) {
-                        log.warning("Redis 订阅中断($channel)，2s 后重连: ${e.message}")
-                        runCatching { Thread.sleep(2000) }
+                        log.warning("Redis 订阅中断($channel)，${backoff / 1000}s 后重连: ${e.message}")
+                        runCatching { Thread.sleep(backoff) }
+                        backoff = (backoff * 2).coerceAtMost(maxBackoff)
                     }
                 }
             }
