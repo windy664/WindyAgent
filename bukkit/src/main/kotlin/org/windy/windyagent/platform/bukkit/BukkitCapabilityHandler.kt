@@ -8,6 +8,7 @@ import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillArgs
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
+import org.windy.windyagent.profile.ProfileDataRegistry
 import org.windy.windyagent.skill.SkillRegistry
 
 /**
@@ -22,7 +23,8 @@ class BukkitCapabilityHandler(
     private val items: ItemService?,
     private val behavior: BehaviorService? = null,
     private val skills: SkillRegistry? = null,
-    private val skillEngine: SkillEngine? = null
+    private val skillEngine: SkillEngine? = null,
+    private val profileRegistry: ProfileDataRegistry? = null
 ) {
 
     private val mapper = ObjectMapper()
@@ -152,6 +154,12 @@ class BukkitCapabilityHandler(
                 val s = skills ?: return fail(req, "本服未启用技能")
                 val count = s.reload(); onSkillsChanged()
                 ToolReply(req.requestId, true, mapper.createObjectNode().put("count", count).toString())
+            }
+            // 画像数据（中心查子服的玩家画像快照，走缓存不查 CMI）
+            "player_profile" -> {
+                val name = args["player"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 player 参数")
+                val data = profileRegistry?.snapshot(name) ?: emptyMap()
+                ToolReply(req.requestId, true, mapper.writeValueAsString(data))
             }
             else -> fail(req, "未知动作：${req.action}")
         }

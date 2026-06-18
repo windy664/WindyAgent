@@ -3,6 +3,7 @@ package org.windy.windyagent.platform.bukkit.integration
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.platform.bukkit.cmi.CmiIntegration
+import org.windy.windyagent.profile.ProfileDataRegistry
 import org.windy.windyagent.safety.AuditLog
 
 /**
@@ -15,8 +16,8 @@ import org.windy.windyagent.safety.AuditLog
 object IntegrationRegistry {
 
     /** 所有已注册的插件集成（新增插件在这里加一行）。 */
-    private fun allIntegrations(plugin: JavaPlugin): List<PluginIntegration> = listOf(
-        CmiIntegration(plugin)
+    private fun allIntegrations(plugin: JavaPlugin, profileRegistry: ProfileDataRegistry?): List<PluginIntegration> = listOf(
+        CmiIntegration(plugin, profileRegistry)
         // EssentialsIntegration(plugin),   // TODO
         // LuckPermsIntegration(plugin),    // TODO
         // WorldGuardIntegration(plugin),   // TODO
@@ -26,9 +27,9 @@ object IntegrationRegistry {
      * 扫描所有已注册集成，返回已安装插件的工具列表。
      * 未安装的插件自动跳过（零开销）。
      */
-    fun discoverAndRegister(plugin: JavaPlugin, audit: AuditLog): List<AgentTool> {
+    fun discoverAndRegister(plugin: JavaPlugin, audit: AuditLog, profileRegistry: ProfileDataRegistry? = null): List<AgentTool> {
         val tools = mutableListOf<AgentTool>()
-        for (integration in allIntegrations(plugin)) {
+        for (integration in allIntegrations(plugin, profileRegistry)) {
             if (!integration.isAvailable()) continue
             runCatching {
                 val pluginTools = integration.createTools(audit)
