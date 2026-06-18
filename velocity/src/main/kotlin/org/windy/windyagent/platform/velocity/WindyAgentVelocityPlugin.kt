@@ -377,6 +377,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 srv.register(org.windy.windyagent.web.handlers.SkillHandler(srv, skills, draftSkill, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用" }, bus, cfg.remoteTimeoutMs(), connectedServers))
                 srv.register(org.windy.windyagent.web.handlers.UsageHandler(srv, usageTracker, systemHealth))
                 srv.register(org.windy.windyagent.web.handlers.SetupHandler(srv, cfg))   // 已配置时返回 configured:true
+                srv.register(org.windy.windyagent.web.handlers.PurchaseHandler(srv))     // 充值管理（WindyPurchase 可选）
                 srv.start()
             }
         }
