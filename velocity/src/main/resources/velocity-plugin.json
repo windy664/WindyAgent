@@ -4,5 +4,11 @@
   "version": "1.0-SNAPSHOT",
   "main": "org.windy.windyagent.platform.velocity.WindyAgentVelocityPlugin",
   "description": "AI Agent for Minecraft server management",
-  "authors": ["windy664"]
+  "authors": ["windy664"],
+  "dependencies": [
+    {
+      "id": "windypurchase",
+      "optional": true
+    }
+  ]
 }

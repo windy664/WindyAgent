@@ -127,8 +127,8 @@
 
   /* 看板页 */
   .board{padding:20px}
-  .bhead{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
-  .bhead h2{margin:0;font-size:21px}.bhead p{margin:3px 0 0;color:var(--mut);font-size:13px}
+  .bhead{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;background:rgba(0,0,0,.35);padding:12px 16px;border-radius:12px;backdrop-filter:blur(8px)}
+  .bhead h2{margin:0;font-size:21px}.bhead p{margin:3px 0 0;color:var(--mut);font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
   .bhead .tools{display:flex;gap:9px;align-items:center}
   .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:18px}
   .kpi{border-radius:16px;padding:15px}
@@ -374,7 +374,7 @@
     <!-- 充值管理（WindyPurchase 可选） -->
     <div id="page-econ" class="page">
       <div class="board">
-        <div class="bhead"><div><h2>🛒 充值管理</h2><p>WindyPurchase 支付订单 · 商品 · 统计</p></div>
+        <div class="bhead"><div><h2>🛒 充值管理</h2><p>WindyPurchase 充值记录 · 统计</p></div>
           <div class="tools"><button class="btn ghost sm" onclick="loadPurchase()">刷新</button></div></div>
         <div id="purNotAvail" class="build" style="display:none"><div class="big">🔌</div><h2>未安装 WindyPurchase</h2><p>请先安装 WindyPurchase 插件以启用充值管理功能</p></div>
         <div id="purMain" style="display:none">
@@ -386,7 +386,6 @@
           </div>
           <div style="display:flex;gap:8px;margin-bottom:14px">
             <button class="btn sm purTab on" data-tab="orders">📋 订单</button>
-            <button class="btn sm ghost purTab" data-tab="products">🛍️ 商品</button>
             <button class="btn sm ghost purTab" data-tab="ranking">🏆 排行</button>
             <button class="btn sm ghost purTab" data-tab="grant">➕ 补单</button>
           </div>
@@ -404,15 +403,6 @@
               </table>
             </div>
             <div id="poPages" style="display:flex;gap:6px;justify-content:center;margin-top:10px"></div>
-          </div>
-          <div class="purPanel" id="tp-products" style="display:none">
-            <div style="margin-bottom:10px"><button class="btn sm" onclick="openPurProduct()">➕ 新建商品</button></div>
-            <div class="panel glass" style="padding:0;overflow:hidden">
-              <table style="width:100%;border-collapse:collapse;font-size:13px">
-                <thead><tr style="background:rgba(255,255,255,.04)"><th style="padding:8px 12px;text-align:left">ID</th><th style="padding:8px 12px;text-align:left">名称</th><th style="padding:8px 12px;text-align:right">价格</th><th style="padding:8px 12px;text-align:left">命令</th><th style="padding:8px 12px;text-align:left">操作</th></tr></thead>
-                <tbody id="ppBody"></tbody>
-              </table>
-            </div>
           </div>
           <div class="purPanel" id="tp-ranking" style="display:none">
             <div class="panel glass" id="prList" style="padding:12px;max-width:500px"></div>
@@ -1148,20 +1138,6 @@ function renderPurOrders(d){
   const pages=Math.ceil((d.total||0)/15);$('poPages').innerHTML='';
   if(pages>1)for(let i=1;i<=pages&&i<=7;i++)$('poPages').innerHTML+=`<button class="btn sm ${i===purOrdersPage?'':'ghost'}" style="padding:4px 10px" onclick="purOrdersPage=${i};loadPurOrders()">${i}</button>`;}
 async function purAct(act,id){if(!confirm(act==='refund'?'确认退款？':'确认关闭？'))return;await purApi(`/orders/${id}/${act}`,{method:'POST'});loadPurOrders();}
-/* 商品 */
-async function loadPurProducts(){
-  try{const d=await purApi('/products');renderPurProducts(d);}
-  catch(e){$('ppBody').innerHTML=`<tr><td colspan="5" class="err" style="padding:12px">${esc(e.message)}</td></tr>`;}}
-function renderPurProducts(d){
-  const tb=$('ppBody');tb.innerHTML='';
-  if(!d||!d.length){tb.innerHTML='<tr><td colspan="5" class="muted" style="padding:16px;text-align:center">暂无商品</td></tr>';return;}
-  d.forEach(p=>{tb.innerHTML+=`<tr style="border-top:1px solid var(--line)"><td style="padding:8px 12px;font-family:monospace">${esc(p.id)}</td><td style="padding:8px 12px">${esc(p.name)}</td><td style="padding:8px 12px;text-align:right;font-family:monospace">¥${(p.price/100).toFixed(2)}</td><td style="padding:8px 12px;font-size:12px;color:var(--mut);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.commands||[]).join(' | '))}</td><td style="padding:8px 12px"><button class="btn sm ghost" onclick="purDelProd('${p.id}')">删除</button></td></tr>`;});}
-function openPurProduct(){
-  const name=prompt('商品名称');if(!name)return;const price=prompt('价格（元）');if(!price)return;
-  const id=prompt('商品ID',name.toLowerCase().replace(/\s+/g,'_'));if(!id)return;
-  const cmds=prompt('奖励命令（每行一条，\\n分隔）','give %player% diamond 64');if(cmds===null)return;
-  api('/api/purchase/products',{method:'POST',body:JSON.stringify({id,name,price:Math.round(parseFloat(price)*100),commands:cmds.split('\\n').filter(Boolean),description:''})}).then(loadPurProducts).catch(e=>alert(e.message));}
-async function purDelProd(id){if(!confirm('删除 '+id+'？'))return;await api('/api/purchase/products/'+id,{method:'DELETE'});loadPurProducts();}
 /* 排行 */
 async function loadPurRanking(){
   try{const d=await purApi('/revenue/ranking');renderPurRanking(d);}
@@ -1182,7 +1158,7 @@ document.querySelectorAll('.purTab').forEach(b=>{b.onclick=()=>{
   document.querySelectorAll('.purTab').forEach(t=>{t.classList.remove('on');t.classList.add('ghost');});b.classList.add('on');b.classList.remove('ghost');
   document.querySelectorAll('.purPanel').forEach(p=>p.style.display='none');
   const tab=b.dataset.tab;$('tp-'+tab).style.display='block';
-  if(tab==='orders')loadPurOrders();if(tab==='products')loadPurProducts();if(tab==='ranking')loadPurRanking();};});
+  if(tab==='orders')loadPurOrders();if(tab==='ranking')loadPurRanking();};});
 function fmtTs(ts){if(!ts)return'-';const d=new Date(ts);return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;}
 function p2(n){return n<10?'0'+n:n;}
 </script>

@@ -377,7 +377,19 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 srv.register(org.windy.windyagent.web.handlers.SkillHandler(srv, skills, draftSkill, { skillSync?.syncAll(connectedServers()) ?: "跨服总线未启用" }, bus, cfg.remoteTimeoutMs(), connectedServers))
                 srv.register(org.windy.windyagent.web.handlers.UsageHandler(srv, usageTracker, systemHealth))
                 srv.register(org.windy.windyagent.web.handlers.SetupHandler(srv, cfg))   // 已配置时返回 configured:true
-                srv.register(org.windy.windyagent.web.handlers.PurchaseHandler(srv))     // 充值管理（WindyPurchase 可选）
+                val wpLoader = try {
+                    val container = server.pluginManager.getPlugin("windypurchase").orElse(null)
+                    logger.info("WindyPurchase container: {}", container)
+                    val instance = container?.instance?.orElse(null)
+                    logger.info("WindyPurchase instance: {}", instance)
+                    val loader = instance?.javaClass?.classLoader
+                    logger.info("WindyPurchase classloader: {}", loader)
+                    loader
+                } catch (e: Exception) {
+                    logger.warn("Failed to get WindyPurchase classloader: {}", e.message)
+                    null
+                }
+                srv.register(org.windy.windyagent.web.handlers.PurchaseHandler(srv, org.windy.windyagent.web.handlers.PurchaseBridge(wpLoader)))     // 充值管理（WindyPurchase 可选）
                 srv.start()
             }
         }

@@ -18,6 +18,5 @@ dependencies {
     // slf4j 门面：运行时由宿主（Velocity / Paper）提供，仅编译期引入、不打包
     compileOnly 'org.slf4j:slf4j-api:1.7.36'
 
-    // WindyPurchase API（可选）：运行时由 WindyPurchase 插件提供，不打包
-    compileOnly files('E:/Project/WindyPurchase/core/build/libs/core-1.0-SNAPSHOT.jar')
+    // WindyPurchase 跨 classloader 桥接（PurchaseBridge），无编译期依赖
 }
