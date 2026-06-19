@@ -195,6 +195,7 @@ web:
   token: ""              # 留空=首启自动生成随机串写回本行；外网开放时务必用强 token
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
+deployment:
   # auto       自动判定（默认，推荐）：socket 探测到中枢（如装了 WindyAgent 的 Velocity）=当 provider；
   #            探测不到=当 standalone 单机跑。仅 transport: socket 时探测，redis 下 auto 直接当 provider。
   # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent。
