@@ -9,7 +9,12 @@ import org.windy.windyagent.llm.LLMProvider
  */
 class ReActAgent(
     private val llmProvider: LLMProvider,
-    private val maxIterations: Int = 10
+    private val maxIterations: Int = 10,
+    private val failureDetector: FailureDetector? = null,
+    private val toolResultCache: ToolResultCache? = null,
+    private val selfChecker: SelfChecker? = null,
+    private val trajectoryRecorder: TrajectoryRecorder? = null,
+    private val onToolCall: ((String, Long, Boolean) -> Unit)? = null
 ) : Agent {
     override val name = "react"
 
@@ -22,7 +27,14 @@ class ReActAgent(
             context.platform.systemPrompt,
             messages,
             context.effectiveTools,
-            maxIterations
+            maxIterations,
+            failureDetector,
+            toolResultCache,
+            selfChecker,
+            trajectoryRecorder,
+            context.sessionId,
+            context.userMessage,
+            onToolCall
         )
 
         context.syncHistory(messages)

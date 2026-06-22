@@ -12,11 +12,15 @@ import java.nio.file.StandardOpenOption
 
 /**
  * 聊天 API：/api/chat, /api/chat/stream, /api/chat/history
+ *
+ * @param streamChat 可选的流式聊天函数：(session, message, onChunk) -> 完整回复。
+ *   非 null 时 /api/chat/stream 走真流式（逐块推送）；null 时退化为假切片。
  */
 class ChatHandler(
     private val server: DashboardServer,
     private val chat: ((String, String) -> String)?,
-    private val dataDir: Path
+    private val dataDir: Path,
+    private val streamChat: ((String, String, (String) -> Unit) -> String)? = null
 ) : ApiHandler {
 
     override fun canHandle(path: String): Boolean = path.startsWith("/api/chat")
@@ -61,15 +65,26 @@ class ChatHandler(
 
         val writer = ex.responseBody.bufferedWriter(Charsets.UTF_8)
         try {
-            val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
-            var i = 0
-            while (i < reply.length) {
-                val chunk = reply.substring(i, (i + 20).coerceAtMost(reply.length))
-                writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("text", chunk))}\n\n")
-                writer.flush(); i += 20
+            if (streamChat != null) {
+                // 真流式：逐块推送
+                val fullReply = streamChat.invoke(sid, msg) { chunk ->
+                    writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("text", chunk))}\n\n")
+                    writer.flush()
+                }
+                writer.write("data: [DONE]\n\n"); writer.flush()
+                appendChatLog(sid, "u", msg, mapper); appendChatLog(sid, "a", fullReply, mapper)
+            } else {
+                // 假切片兜底：先拿完整回复，再按 20 字符切片
+                val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
+                var i = 0
+                while (i < reply.length) {
+                    val chunk = reply.substring(i, (i + 20).coerceAtMost(reply.length))
+                    writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("text", chunk))}\n\n")
+                    writer.flush(); i += 20
+                }
+                writer.write("data: [DONE]\n\n"); writer.flush()
+                appendChatLog(sid, "u", msg, mapper); appendChatLog(sid, "a", reply, mapper)
             }
-            writer.write("data: [DONE]\n\n"); writer.flush()
-            appendChatLog(sid, "u", msg, mapper); appendChatLog(sid, "a", reply, mapper)
         } catch (e: Exception) {
             writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("error", e.message))}\n\n"); writer.flush()
         } finally { writer.close() }

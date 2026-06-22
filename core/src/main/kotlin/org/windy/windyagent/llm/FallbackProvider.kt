@@ -19,7 +19,7 @@ import org.windy.windyagent.agent.AgentTool
  */
 class FallbackProvider(
     private val providers: List<LLMProvider>
-) : LLMProvider {
+) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
 
     private val log = LoggerFactory.getLogger(FallbackProvider::class.java)
     @Volatile private var activeIndex = 0
@@ -74,6 +74,22 @@ class FallbackProvider(
         }
         // 所有 Provider 都失败了
         throw LLMException("所有 LLM Provider 均不可用（已尝试 ${providers.size} 个）", lastException)
+    }
+
+    /** 流式：透传当前活跃 provider 的流式能力（支持时）；不支持则回退一次性 emit。
+     *  否则 FallbackProvider 会“吃掉” StreamingProvider 接口，使前端拿不到真流式。
+     *  注：流式路径暂不做跨 provider 故障转移（首块已推出后无法回滚），失败以 Error 块结束。 */
+    override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
+        maybeFailback()
+        val provider = providers[activeIndex]
+        (provider as? org.windy.windyagent.agent.StreamingProvider)?.let { return it.chatStream(systemPrompt, messages, tools) }
+        val stream = ChatStream()
+        Thread({
+            runCatching { provider.chat(systemPrompt, messages, tools).textContent ?: "" }
+                .onSuccess { stream.emit(StreamChunk.Text(it)); stream.emit(StreamChunk.Done) }
+                .onFailure { stream.emit(StreamChunk.Error(it.message ?: "chat failed")) }
+        }, "fallback-stream").apply { isDaemon = true }.start()
+        return stream
     }
 
     /** 定期尝试切回主 Provider。 */

@@ -54,8 +54,12 @@ class DashboardServer(
             val path = ex.requestURI.path
             val q = parseQuery(ex.requestURI.query)
 
-            // 静态资源
-            if (path == "/" || path == "/index.html") {
+            // 静态资源：/ 默认 Vue 新版（/next 保留为别名）
+            if (path == "/" || path == "/index.html" || path == "/next" || path == "/next.html") {
+                StaticHandler.serveNext(ex); return
+            }
+            // 旧版控制台降级到 /legacy 兜底（功能已全部迁到 Vue，留作回退）
+            if (path == "/legacy" || path == "/legacy.html") {
                 StaticHandler.serve(ex); return
             }
 

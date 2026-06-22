@@ -82,6 +82,10 @@ class WindyAgentVelocityPlugin @Inject constructor(
     private var scheduler: TaskScheduler? = null
     private var usageTrackerInst: LLMUsageTracker? = null
     private var configWatcherInst: org.windy.windyagent.ConfigWatcher? = null
+    // 新增组件（shutdown 需清理）
+    private var sessionStoreInst: org.windy.windyagent.platform.SessionStore? = null
+    private var consolidatorInst: org.windy.windyagent.memory.MemoryConsolidator? = null
+    private var trajectoryRecorderInst: org.windy.windyagent.agent.TrajectoryRecorder? = null
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -100,9 +104,13 @@ class WindyAgentVelocityPlugin @Inject constructor(
             logger.error(WindyLog.tag("LLM", "提供方初始化失败，插件未启用：{}"), it.message)
             return
         }
-        // 元任务（路由/扩展）便宜模型，省 token；未配则用主模型
-        val fastLlm = buildFastProvider(cfg)
-        if (fastLlm != null) logger.info(WindyLog.tag("LLM", "元任务便宜模型：{}"), cfg.fastModel())
+        // 用量追踪：包装主模型；下方 fast 模型也并入同一统计后端，使两者花费都计入 usage.db
+        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, dataDirectory).also { usageTrackerInst = it } else null
+        val effectiveLlm = usageTracker ?: llm
+        // 元任务（路由/扩展）便宜模型，省 token；未配则回退主模型。配了则同样纳入用量统计（model 字段区分）。
+        val fastLlmRaw = buildFastProvider(cfg)
+        val fastLlm = if (fastLlmRaw != null && usageTracker != null) usageTracker.track(fastLlmRaw) else fastLlmRaw
+        if (fastLlm != null) logger.info(WindyLog.tag("LLM", "元任务便宜模型：{}（已纳入用量统计）"), cfg.fastModel())
 
         val extraTools = mutableListOf<AgentTool>()
         var valueExecutor: org.windy.windyagent.command.ValueExecutor? = null
@@ -115,12 +123,20 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val pending = PendingApprovals()
         logger.info(WindyLog.tag("Safety", "安全护栏：mode={}"), cfg.safetyMode())
 
-        // 长期记忆（跨会话）：有则挂 remember 工具 + 自动召回
-        val memory = if (cfg.memoryEnabled()) FileLongTermMemory(dataDirectory.resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore()) else null
+        // 会话历史持久化（SQLite FTS5）：注入 FileLongTermMemory 供 recall 时搜历史原文
+        val sessionStore = if (cfg.sessionStoreEnabled()) {
+            org.windy.windyagent.platform.SessionStore(dataDirectory.resolve("sessions.db")).also { ss ->
+                sessionStoreInst = ss
+                logger.info(WindyLog.tag("SessionStore", "会话持久化已启用 — SQLite FTS5"))
+            }
+        } else null
+
+        // 长期记忆（跨会话）：有则挂 remember 工具 + 自动召回；注入 sessionStore 供 recall 搜历史原文
+        val memory = if (cfg.memoryEnabled()) FileLongTermMemory(dataDirectory.resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore(), sessionStore) else null
         memory?.let { extraTools += RememberTool(it); logger.info(WindyLog.tag("Memory", "长期记忆已启用")) }
 
         // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（用便宜模型，默认开，可关）
-        val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
+        val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: effectiveLlm) else null
 
         // 知识库（可读写 + 热重载，供 WebUI 编辑）：挂上 knowledge_search 工具
         val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"))
@@ -128,7 +144,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         extraTools += KnowledgeWriteTool(knowledge)   // 让 Agent 能写知识库（夜间整理沉淀用，仅 TRUSTED）
         logger.info(WindyLog.tag("Knowledge", "知识库已加载 — {} 条"), knowledge.size())
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
-        val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander)
+        val playerQa = PlayerQa(fastLlm ?: effectiveLlm, knowledge, expander)
 
         // 技能库（中心权威）：中心持有唯一技能库。**文字技能**（流程型）在中心直接挂为工具执行；
         // **脚本技能**在中心存源、由 SkillSync 经总线下发到子服执行（脚本需 Bukkit API）。首启释放默认技能。
@@ -214,7 +230,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 // 注册表的"曾见过"集。避免选/派到离线子服白等超时（"假在线"）。
                 val online = { b.onlineServers() ?: registry.servers() }
                 // value / 运维命令的远端执行后端：子服名取当前在线
-                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: llm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers(), online)
+                valueExecutor = RemoteValueExecutor(b, cfg.remoteTimeoutMs(), fastLlm ?: effectiveLlm, cfg.itemLlmBatchSize(), cfg.itemRarityTiers(), online)
                 connectedServers = online
                 bus = b
                 logger.info(WindyLog.tag("Bus", "跨服总线已启用 — transport: {}"), cfg.crossServerTransport())
@@ -241,7 +257,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                         }.getOrNull()
                     }
                     val notifier = CompositeNotifier(listOf(LogNotifier(), alerts))
-                    val adviser = fastLlm ?: llm
+                    val adviser = fastLlm ?: effectiveLlm
                     sentinel = HealthMonitor(online, probe,
                         HealthMonitor.Config(cfg.sentinelIntervalSec(), cfg.sentinelTpsMin(), cfg.sentinelMemPct(), cfg.sentinelPlayerDrop())
                     ) { inc ->
@@ -258,19 +274,61 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val platform = VelocityPlatform(server, audit, extraTools)
         platform.personality = personality
 
-        // 用量追踪（装饰器包装 LLMProvider）
-        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, dataDirectory).also { usageTrackerInst = it } else null
-        val effectiveLlm = usageTracker ?: llm
-
         // 上下文压缩器
         val compressor = if (cfg.compressionEnabled()) ContextCompressor(fastLlm ?: effectiveLlm, cfg.compressionThreshold(), cfg.compressionKeepRecent()) else null
 
         // 用户画像管理器
         val profileManager = if (cfg.profilesEnabled()) UserProfileManager(dataDirectory.resolve("profiles")) else null
 
+        // ── 新增组件接线 ──
+
+        // Prompt 版本化：加载自定义 system prompt（如有），追加到 personality
+        val promptVersioning = if (cfg.promptVersioningEnabled()) {
+            org.windy.windyagent.agent.PromptVersioning(dataDirectory.resolve("prompts")).also {
+                val loaded = it.load()
+                if (loaded.isNotBlank()) {
+                    platform.personality = if (platform.personality.isNotBlank()) platform.personality + "\n\n" + loaded else loaded
+                    logger.info(WindyLog.tag("Prompt", "已加载自定义 prompt（{} 字符）"), loaded.length)
+                }
+            }
+        } else null
+
+        // 记忆整合器：定期合并去重长期记忆
+        val consolidator = if (cfg.memoryConsolidateEnabled() && memory != null) {
+            org.windy.windyagent.memory.MemoryConsolidator(memory!!, fastLlm ?: effectiveLlm).also {
+                consolidatorInst = it
+                it.start(cfg.memoryConsolidateIntervalHours())
+            }
+        } else null
+
+        // 成本路由：按复杂度自动选便宜/贵模型
+        val costRouterLlm = if (cfg.costRouterEnabled() && fastLlm != null) {
+            org.windy.windyagent.agent.CostRouter(effectiveLlm, fastLlm).also {
+                logger.info(WindyLog.tag("LLM", "成本路由已启用 — cheap: ${fastLlm.name}, expensive: ${effectiveLlm.name}"))
+            }
+        } else effectiveLlm
+
+        // 失败检测 + 工具缓存 + 自检 + 轨迹记录
+        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.agent.FailureDetector() else null
+        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.agent.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
+        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.agent.SelfChecker(fastLlm ?: effectiveLlm) else null
+        val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
+            org.windy.windyagent.agent.TrajectoryRecorder(dataDirectory.resolve("trajectories")).also { trajectoryRecorderInst = it }
+        } else null
+
+        // 子任务并行编排器
+        val subAgent = if (cfg.subAgentEnabled()) {
+            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt)
+        } else null
+
         // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由；注入长期记忆做自动召回
-        val agent = AgentRouter(effectiveLlm, ReActAgent(effectiveLlm), PlanExecuteAgent(effectiveLlm), memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager)
         val sessions = SessionManager(cfg.maxHistory())
+        // SystemHealth 数据聚合（供 Dashboard /api/system）——早建以便工具回调注册
+        val systemHealth = org.windy.windyagent.ops.SystemHealth(usageTracker, sessions)
+        val toolCallRecorder: (String, Long, Boolean) -> Unit = { tool, latency, success -> systemHealth.recordToolCall(tool, latency, success) }
+        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, onToolCall = toolCallRecorder)
+        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, onToolCall = toolCallRecorder)
+        val agent = AgentRouter(costRouterLlm, react, plan, memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager, subAgent, cfg.profileUpdateMinIntervalSec() * 1000L)
 
         // 定时任务调度器：broadcast/command 走总线下发；**agent 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。
         // 建在 agent 之后（agent 任务要用它）；需跨服总线（下发/取数走总线）。内置一条凌晨 0 点的知识整理任务。
@@ -328,8 +386,6 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         // AI 管理控制台（WebUI）：聊天接 router/agent（多轮靠 SessionManager），知识库接 KnowledgeManager，
         // 行为看板经总线。放最后装配（依赖 agent/会话）；webEnabled 即开，与跨服是否启用无关。
-        // 系统健康数据聚合（供 Dashboard /api/system）
-        val systemHealth = org.windy.windyagent.ops.SystemHealth(usageTracker, sessions)
 
         var webUrl: String? = null   // 供启动横幅展示；null = 未开启
         if (cfg.webEnabled()) {
@@ -341,14 +397,32 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 router.dispatch(msg, sid, TrustLevel.TRUSTED) ?: run {
                     val resp = agent.run(AgentContext(sid, msg, platform, sessions.getHistory(sid), TrustLevel.TRUSTED))
                     sessions.trimHistory(sid); resp.message ?: "(无回复)"
-                }
+                }.also { reply -> sessionStore?.let { it.append(sid, "user", msg); it.append(sid, "assistant", reply) } }
             }
+            // 流式聊天：LLM 实现 StreamingProvider 时启用真流式（逐块推送）
+            val streamChat: ((String, String, (String) -> Unit) -> String)? =
+                (costRouterLlm as? org.windy.windyagent.agent.StreamingProvider)?.let { sp ->
+                    { sid, msg, onChunk ->
+                        val stream = sp.chatStream(platform.systemPrompt, listOf(LLMMessage.User(msg)), emptyList())
+                        val sb = StringBuilder()
+                        while (true) {
+                            val chunk = stream.read() ?: break
+                            when (chunk) {
+                                is org.windy.windyagent.llm.StreamChunk.Text -> { sb.append(chunk.text); onChunk(chunk.text) }
+                                is org.windy.windyagent.llm.StreamChunk.Done -> break
+                                is org.windy.windyagent.llm.StreamChunk.Error -> break
+                                else -> {}
+                            }
+                        }
+                        sb.toString()
+                    }
+                }
             val draftSys = "你帮服主把一段话整理成一条服务器知识库条目。只输出 JSON：" +
                 "{\"title\":简短标题,\"content\":正文,\"tags\":[2-4个关键词]}。不要解释、不要代码块标记。"
-            val draft: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            val draft: (String) -> String = { nl -> (fastLlm ?: effectiveLlm).chat(draftSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             // AI 整理：把服主一句话需求润成给 Agent 执行的清晰任务描述
             val refineSys = "把服主的一句话需求整理成给运维 AI 执行的清晰任务描述。只输出整理后的任务描述本身（一段话），不要解释、不要步骤编号、不要客套。"
-            val refine: (String) -> String = { nl -> (fastLlm ?: llm).chat(refineSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            val refine: (String) -> String = { nl -> (fastLlm ?: effectiveLlm).chat(refineSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             // 脚本编译：把需求描述编译成"待执行步骤"JSON 数组（创建时跑一次 LLM，到点确定性执行，不再调 LLM）
             val cmapper = ObjectMapper()
             val compileScript: (String, String) -> String = { desc, server ->
@@ -356,7 +430,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                     "broadcast(向玩家广播一句话，payload=文案)、command(在子服后台执行一条控制台命令，payload=命令不带斜杠)。" +
                     "target 填子服名（默认用「${server.ifBlank { "*" }}」），或 * 表示全部已连子服。" +
                     "严格只输出 JSON 数组，每项 {\"action\":\"broadcast或command\",\"target\":\"...\",\"payload\":\"...\"}，不要解释、不要代码块标记。"
-                val raw = runCatching { (fastLlm ?: llm).chat(sys, listOf(LLMMessage.User(desc))).textContent }.getOrNull().orEmpty()
+                val raw = runCatching { (fastLlm ?: effectiveLlm).chat(sys, listOf(LLMMessage.User(desc))).textContent }.getOrNull().orEmpty()
                 val i = raw.indexOf('['); val j = raw.lastIndexOf(']')
                 val arr = if (i in 0 until j) raw.substring(i, j + 1) else "[]"
                 runCatching { cmapper.readTree(arr).takeIf { it.isArray }?.toString() }.getOrNull() ?: "[]"
@@ -367,10 +441,20 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 "再 --- 结束，之后是 markdown 正文，写清 Agent 应遵循的操作步骤。" +
                 "正文可引用现有工具名，如 get_balance / run_command_on_server / knowledge_search / remember 等，让 Agent 用它们办事而非写代码。" +
                 "只输出 SKILL.md 内容本身，不要解释、不要代码块围栏。"
-            val draftSkill: (String) -> String = { nl -> (fastLlm ?: llm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
+            val draftSkill: (String) -> String = { nl -> (fastLlm ?: effectiveLlm).chat(draftSkillSys, listOf(LLMMessage.User(nl))).textContent ?: "" }
             web = DashboardServer(cfg.webHost(), cfg.webPort(), webToken).also { srv ->
-                srv.register(org.windy.windyagent.web.handlers.ServerHandler(srv, bus, cfg.remoteTimeoutMs(), connectedServers, alerts) { sentinel?.snapshotsJson() ?: "[]" })
-                srv.register(org.windy.windyagent.web.handlers.ChatHandler(srv, chat, dataDirectory))
+                val proxyMeta = {
+                    val mapper = ObjectMapper()
+                    val obj = mapper.createObjectNode()
+                    obj.put("name", cfg.serverName().ifBlank { "WindyAgent" })
+                    obj.put("platform", "Velocity")
+                    obj.put("proxyVersion", "${server.version.name} ${server.version.version}")
+                    obj.put("onlinePlayers", server.playerCount)
+                    obj.put("connectedServers", connectedServers().size)
+                    obj.toString()
+                }
+                srv.register(org.windy.windyagent.web.handlers.ServerHandler(srv, bus, cfg.remoteTimeoutMs(), connectedServers, alerts, { sentinel?.snapshotsJson() ?: "[]" }, proxyMeta))
+                srv.register(org.windy.windyagent.web.handlers.ChatHandler(srv, chat, dataDirectory, streamChat))
                 srv.register(org.windy.windyagent.web.handlers.KnowledgeHandler(srv, knowledge, draft))
                 srv.register(org.windy.windyagent.web.handlers.TaskHandler(srv, scheduler, refine, compileScript))
                 srv.register(org.windy.windyagent.web.handlers.ApprovalHandler(srv, pending))
@@ -516,6 +600,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
         scheduler?.stop(); scheduler = null
         chatWords?.stop(); chatWords = null
         usageTrackerInst?.close(); usageTrackerInst = null
+        consolidatorInst?.stop(); consolidatorInst = null
+        trajectoryRecorderInst?.close(); trajectoryRecorderInst = null
+        sessionStoreInst?.close(); sessionStoreInst = null
         web?.stop(); web = null
         bus?.close()
         bus = null

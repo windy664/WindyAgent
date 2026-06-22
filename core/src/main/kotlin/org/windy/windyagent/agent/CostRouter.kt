@@ -17,7 +17,7 @@ import org.windy.windyagent.llm.LLMProvider
 class CostRouter(
     private val expensive: LLMProvider,
     private val cheap: LLMProvider
-) : LLMProvider {
+) : LLMProvider, StreamingProvider {
 
     override val name: String get() = "cost-router(${cheap.name}/${expensive.name})"
 
@@ -27,6 +27,20 @@ class CostRouter(
     override fun chat(systemPrompt: String, messages: List<org.windy.windyagent.llm.LLMMessage>, tools: List<AgentTool>): org.windy.windyagent.llm.LLMResponse {
         val provider = selectProvider(messages, tools)
         return provider.chat(systemPrompt, messages, tools)
+    }
+
+    /** 流式同样按复杂度选 provider，并透传其流式能力；选中的不支持流式则回退一次性 emit。
+     *  否则 CostRouter 会“吃掉” StreamingProvider 接口，使前端拿不到真流式。 */
+    override fun chatStream(systemPrompt: String, messages: List<org.windy.windyagent.llm.LLMMessage>, tools: List<AgentTool>): org.windy.windyagent.llm.ChatStream {
+        val provider = selectProvider(messages, tools)
+        (provider as? StreamingProvider)?.let { return it.chatStream(systemPrompt, messages, tools) }
+        val stream = org.windy.windyagent.llm.ChatStream()
+        Thread({
+            runCatching { provider.chat(systemPrompt, messages, tools).textContent ?: "" }
+                .onSuccess { stream.emit(org.windy.windyagent.llm.StreamChunk.Text(it)); stream.emit(org.windy.windyagent.llm.StreamChunk.Done) }
+                .onFailure { stream.emit(org.windy.windyagent.llm.StreamChunk.Error(it.message ?: "chat failed")) }
+        }, "costrouter-stream-fallback").apply { isDaemon = true }.start()
+        return stream
     }
 
     private fun selectProvider(messages: List<org.windy.windyagent.llm.LLMMessage>, tools: List<AgentTool>): LLMProvider {

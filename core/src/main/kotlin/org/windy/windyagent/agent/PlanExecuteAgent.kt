@@ -15,7 +15,12 @@ import org.windy.windyagent.llm.LLMProvider
  */
 class PlanExecuteAgent(
     private val llmProvider: LLMProvider,
-    private val maxIterations: Int = 16
+    private val maxIterations: Int = 16,
+    private val failureDetector: FailureDetector? = null,
+    private val toolResultCache: ToolResultCache? = null,
+    private val selfChecker: SelfChecker? = null,
+    private val trajectoryRecorder: TrajectoryRecorder? = null,
+    private val onToolCall: ((String, Long, Boolean) -> Unit)? = null
 ) : Agent {
     override val name = "plan-execute"
     private val logger = LoggerFactory.getLogger(PlanExecuteAgent::class.java)
@@ -33,7 +38,11 @@ class PlanExecuteAgent(
         val messages = context.history.toMutableList()
         messages += LLMMessage.User(userMessageWithMemory(context))
 
-        val response = toolLoop(llmProvider, systemPrompt, messages, context.effectiveTools, maxIterations)
+        val response = toolLoop(
+            llmProvider, systemPrompt, messages, context.effectiveTools, maxIterations,
+            failureDetector, toolResultCache, selfChecker, trajectoryRecorder,
+            context.sessionId, context.userMessage, onToolCall
+        )
 
         context.syncHistory(messages)
         return response

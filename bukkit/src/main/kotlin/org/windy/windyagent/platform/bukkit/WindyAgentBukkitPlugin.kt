@@ -18,27 +18,22 @@ import org.windy.windyagent.ui.WindyLog
 import org.windy.windyagent.profile.ProfileDataRegistry
 import org.windy.windyagent.platform.bukkit.cmi.CmiProfileSource
 import org.windy.windyagent.platform.bukkit.profile.PlayerProfileListener
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
 
 /**
  * WindyAgent Bukkit 插件入口。**配置与 Velocity 统一**：只读插件数据目录下的
  * windyagent-config.yml（首启动从 jar 内模板释放），不再用 Bukkit 原生 config.yml。
  *
- * 按 `deployment.mode` 决定形态：
- *  - provider（默认）：纯能力提供方，连总线（redis/socket 客户端）执行中心下发的动作。
- *  - standalone：本机嵌入式 Agent，无总线（单台 Paper 服）。
+ * 形态由 `deployment.mode` **显式指定**（服主自己选，不再自动探测）：
+ *  - standalone（默认）：本机嵌入式 Agent，无总线（单台 Paper 服）。
+ *  - provider：纯能力提供方，连总线（redis/socket 客户端）执行中心下发的动作（Velocity 主导群组）。
  *  - hub：嵌入式 Agent + 总线中枢（socket/redis 中心侧），服务本服并派发到其它子服。
  */
 class WindyAgentBukkitPlugin : JavaPlugin() {
 
     private var bus: MessageBus? = null
     private var behavior: BehaviorService? = null
-    /** auto 模式下 standalone 启动的 Agent runner，探测到中枢后需要 shutdown。 */
+    /** standalone 模式启动的 Agent runner，关服时需 shutdown。 */
     private var standaloneRunner: BukkitAgentRunner? = null
-    /** auto-standalone 后台探测调度器。 */
-    private var switchProbe: ScheduledExecutorService? = null
     /** 画像数据注册表（CMI / LuckPerms / … 各 Source 自管缓存）。 */
     private val profileRegistry = ProfileDataRegistry()
 
@@ -48,10 +43,10 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             return
         }
         Messages.init(cfg.language())
-        // 角色判定：mode=auto 时探测中枢自动选 provider/standalone；显式 mode 直接用
-        val (mode, note) = resolveMode(cfg)
-        // auto→provider 且未命名：自动命名为 server-<端口> 写回配置（中心按子服自报名寻址，无需预先登记）
-        if (cfg.mode() == "auto" && mode == "provider" && cfg.serverName().isBlank()) {
+        // 角色由配置显式指定（不再自动探测中枢）
+        val mode = resolveMode(cfg)
+        // provider 未命名：自动命名为 server-<端口> 写回配置（中心按子服自报名寻址，无需预先登记）
+        if (mode == "provider" && cfg.serverName().isBlank()) {
             cfg.ensureServerName("server-${server.port}")
         }
         val role = when (mode) {
@@ -61,7 +56,6 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         }
         logger.info(WindyLog.banner(buildList {
             add("角色" to role)
-            add("判定" to note)
             add("子服名" to cfg.serverName().ifBlank { "(未设)" })
             if (mode != "standalone") add("传输" to cfg.crossServerTransport())
         }))
@@ -73,40 +67,24 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         server.pluginManager.registerEvents(PlayerProfileListener(profileRegistry), this)
         logger.info(WindyLog.tag("Profile", "画像数据源已注册 — ${profileRegistry.available().size} 个可用"))
         when (mode) {
-            "standalone" -> {
-                startStandalone(cfg)
-                // auto 模式下 standalone = 中枢暂未上线，后台持续探测，上线后自动切 provider
-                if (cfg.mode() == "auto") scheduleAutoSwitchProbe(cfg)
-            }
+            "standalone" -> startStandalone(cfg)
             "hub" -> startHub(cfg)
             else -> startProvider(cfg)
         }
     }
 
     /**
-     * 解析部署角色。返回 (实际角色, 判定说明)。
-     * - 显式 provider/standalone/hub：原样返回。
-     * - auto：仅 transport=socket 时对中枢地址做一次短超时 TCP 探测——连得上=provider，连不上=standalone；
-     *   非 socket（redis）下 auto 直接当 provider（redis=有意搭集群）。
+     * 读取显式部署角色。合法值：provider / standalone / hub。
+     * 非法或遗留值（如已移除的 auto）→ 警告并回落 standalone，提示服主在配置里显式选择。
      */
-    private fun resolveMode(cfg: AgentConfig): Pair<String, String> {
-        val raw = cfg.mode()
-        if (raw != "auto") return raw to "显式配置 mode: $raw"
-        val transport = cfg.crossServerTransport()
-        if (transport != "socket") return "provider" to "auto：transport=$transport（非 socket）→ provider"
-        val host = cfg.socketHost().let { if (it == "0.0.0.0") "127.0.0.1" else it }
-        val port = cfg.socketPort()
-        return if (hubReachable(host, port))
-            "provider" to "auto：探测到中枢 $host:$port → provider"
-        else
-            "standalone" to "auto：未探测到中枢（$host:$port）→ standalone 单机"
+    private fun resolveMode(cfg: AgentConfig): String = when (val raw = cfg.mode()) {
+        "provider", "standalone", "hub" -> raw
+        else -> {
+            logger.warning(WindyLog.tag("Boot",
+                "deployment.mode=\"$raw\" 不是合法值（auto 自动判定已移除）。请在 windyagent-config.yml 显式设为 provider/standalone/hub。本次按 standalone 启动。"))
+            "standalone"
+        }
     }
-
-    /** 对中枢地址做一次短超时 TCP 探测，判断 SocketHubBus 是否在监听。 */
-    private fun hubReachable(host: String, port: Int, timeoutMs: Int = 1200): Boolean =
-        runCatching {
-            java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), timeoutMs); true }
-        }.getOrDefault(false)
 
     /** provider：连总线 + 能力 handler。 */
     private fun startProvider(cfg: AgentConfig) {
@@ -198,70 +176,7 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         else -> SocketHubBus(cfg.socketHost(), cfg.socketPort(), cfg.socketSecret().ifBlank { null })
     }
 
-    /**
-     * auto-standalone 后台探测：每 30s TCP 探中枢，连上后自动切换到 provider。
-     * 探测到后停止探测器，切换完成。
-     */
-    private fun scheduleAutoSwitchProbe(cfg: AgentConfig) {
-        val transport = cfg.crossServerTransport()
-        if (transport != "socket") return
-        val host = cfg.socketHost().let { if (it == "0.0.0.0") "127.0.0.1" else it }
-        val port = cfg.socketPort()
-        val probe = Executors.newSingleThreadScheduledExecutor { r ->
-            Thread(r, "windyagent-autoswitch-probe").apply { isDaemon = true }
-        }
-        switchProbe = probe
-        probe.scheduleAtFixedRate({
-            runCatching {
-                if (hubReachable(host, port)) {
-                    logger.info(WindyLog.tag("Switch", "探测到中枢 $host:$port 已上线，自动切换到 provider 模式"))
-                    probe.shutdown()
-                    switchProbe = null
-                    // 切换：关 standalone 壳 → 起 provider 壳（共用组件 behavior 不动）
-                    standaloneRunner?.shutdown()
-                    standaloneRunner = null
-                    startProviderWithBus(cfg)
-                }
-            }
-        }, 30, 30, TimeUnit.SECONDS)
-        logger.info(WindyLog.tag("Switch", "auto 模式：后台每 30s 探测中枢 $host:$port，上线后自动切 provider"))
-    }
-
-    /** 切换用的 provider 启动：复用 onEnable 已创建的 behavior，其余与 startProvider 一致。 */
-    private fun startProviderWithBus(cfg: AgentConfig) {
-        val serverName = cfg.serverName().takeIf { it.isNotBlank() }
-        if (serverName == null) {
-            // auto→provider 且未命名：自动命名
-            cfg.ensureServerName("server-${server.port}")
-        }
-        val finalName = cfg.serverName()
-        val transport = cfg.crossServerTransport()
-        val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")), PendingApprovals())
-        val itemService = ItemService.build(this, cfg)?.also { it.warmup() }
-        val skills = if (cfg.skillsEnabled())
-            SkillRegistry(dataFolder.toPath().resolve(cfg.skillsDir()).toFile()) else null
-        val skillEngine = skills?.let { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
-        skills?.let { logger.info(WindyLog.tag("Skill", "技能已加载 — ${it.reload()} 个（skills/ 目录）")) }
-        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior, skills, skillEngine, profileRegistry)
-        bus = runCatching {
-            buildClientBus(cfg, transport).also { it.listen(finalName) { req -> handler.handle(req) } }
-        }.getOrElse {
-            logger.severe(WindyLog.tag("Bus", "总线启动失败，切换回 provider 未完成：${it.message}"))
-            null
-        }
-        bus?.let { b ->
-            logger.info(WindyLog.tag("Provider", "已切换到 provider 模式 — server-name: $finalName, transport: $transport"))
-            val capSync = CapabilitySync(this, actions, finalName, { cat -> b.publishCatalog(CapabilitySync.toJson(cat)) },
-                { skills?.let { it.reload(); it.all().map { d -> d.toCapabilityCommand() } } ?: emptyList() }
-            )
-            handler.onSkillsChanged = { capSync.rebuildSoon() }
-            capSync.start()
-        }
-    }
-
     override fun onDisable() {
-        switchProbe?.shutdownNow()
-        switchProbe = null
         standaloneRunner?.shutdown()
         standaloneRunner = null
         behavior?.stop()
