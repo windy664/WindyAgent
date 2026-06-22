@@ -1,104 +1,49 @@
-# WindyAgent 配置文件
-# 修改后重启服务器生效
+# ════════════════════════════════════════════════════════════════
+#  WindyAgent 配置文件   ·   修改后重启服务器生效
+# ────────────────────────────────────────────────────────────────
+#  快速上手：只需配好【1. LLM 接入】里的 api-key / model 即可跑起来。
+#  下面其余各段都有合理默认值，按需再调。
+#  分段：1 LLM接入 · 2 Agent基础 · 3 控制台与部署 · 4 增强开关 · 5 检索与扩展 · 6 业务功能
+# ════════════════════════════════════════════════════════════════
 
 # 语言 / Language: zh_cn (中文) | en (English)
 language: zh_cn
 
-# 用量追踪：统计 LLM token 消耗 /api/usage
-usage:
-  enabled: true
 
-# 人格文件：自定义 Agent 语气/风格（放在数据目录下 personality.md）
-# personality: personality.md
-
-# 上下文压缩：历史消息超阈值时用 LLM 摘要旧消息
-context:
-  compress:
-    enabled: true
-    threshold: 16      # 超过多少条消息触发压缩
-    keep-recent: 6     # 保留最近多少条原样消息
-
-# 用户画像：跨会话理解用户偏好（存 profiles/<session>.json）
-# 画像更新是一次后台 LLM 调用（不阻塞回复）；下方间隔用于节流，避免每条消息都更。
-profiles:
-  enabled: true
-  update-min-interval-sec: 60   # 同一会话两次画像更新最小间隔(秒)；0=每条都更
-
-# 速率限制：每玩家令牌桶防滥用
-rate-limit:
-  enabled: true
-  bucket-size: 5     # 桶容量（最大突发请求数）
-  refill-rate: 0.1   # 每秒补充令牌（0.1 = 每10秒恢复1个）
-
-# 工具结果缓存：相同工具+参数短时间内不重复调用
-tool-cache:
-  enabled: true
-  ttl-seconds: 300   # 缓存有效期（秒）
-  max-size: 128      # LRU 最大条目
-
-# 失败模式检测：循环/反复失败/累计超限自动中止
-failure-detect:
-  enabled: true
-
-# 自我检查：回复前检查幻觉/泄露/完整性（用 fast-model 做轻量检查）
-self-check:
-  enabled: true
-
-# 轨迹记录：记录交互轨迹到 trajectories/ 目录，可导出 SFT 训练数据
-trajectory:
-  enabled: true
-
-# 会话历史持久化 + 全文搜索（SQLite FTS5）
-session-store:
-  enabled: true
-
-# 记忆整合：定期用 LLM 合并/去重长期记忆
-memory-consolidate:
-  enabled: true
-  interval-hours: 24  # 每多少小时整合一次
-
-# 成本路由：按任务复杂度自动选便宜/贵模型（需配 fast-model）
-cost-router:
-  enabled: false
-
-# 子任务并行：复杂请求自动拆分子任务并行执行（LLM 成本较高，默认关）
-sub-agent:
-  enabled: false
-
-# Prompt 版本化：system prompt 存文件+历史归档（数据目录 prompts/）
-prompt-versioning:
-  enabled: true
-
+# ════════════════════════ 1. LLM 接入（必填） ════════════════════════
+# 唯一必须配置的一段：填好 api-key 和 model 就能用。
 llm:
   # 供应商: claude | openai | ollama
-  #   claude  — 使用 Anthropic 官方 SDK（或兼容代理）
+  #   claude  — Anthropic 官方 SDK（或兼容代理）
   #   openai  — 任意 OpenAI 兼容协议（mimo、讯飞、智谱等）
   #   ollama  — 本地 Ollama
   provider: openai
 
-  # API Key（claude 和 openai 时必填）
+  # API Key（claude / openai 必填；ollama 不需要）
   # 注意：此为随 jar 分发的默认模板，切勿写入真实密钥；
   # 真实密钥只填在各自数据目录下生成的 windyagent-config.yml（不入库、不分发）。
   api-key: ""
 
   # API 接入地址
   #   openai  示例: https://token-plan-cn.xiaomimimo.com/v1
-  #   claude  留空则使用 Anthropic 官方接口；填写则走对应代理
+  #   claude  留空=Anthropic 官方接口；填写则走对应代理
   api-base-url: "https://token-plan-cn.xiaomimimo.com/v1"
 
   # 模型名称
-  #   openai  示例: mimo-v2.5-pro
-  #   claude  示例: claude-opus-4-8
-  #   ollama  示例: llama3.2
+  #   openai  示例: mimo-v2.5-pro    claude 示例: claude-opus-4-8    ollama 示例: llama3.2
   model: "mimo-v2.5-pro"
 
   # Ollama 服务地址（仅 provider: ollama 时生效）
   ollama-url: "http://localhost:11434"
 
-  # 便宜模型（可选）：路由分类/查询扩展等元任务用它省 token；留空=与主模型相同
+  # ── 便宜模型（省钱关键）──
+  # 路由分类 / 查询扩展 / 画像 / 摘要等「元任务」改用它，省主模型 token。留空=都用主模型。
+  # 配上它并开启下方【cost-router】后，闲聊也会自动走便宜模型 —— 这是最大的成本杠杆。
+  # 它的花费同样计入用量统计（/api/usage 里按 model 区分）。
   fast-model: ""
 
-  # 故障转移（可选）：主 Provider 挂了（额度用完/过载/超时）自动切备用，对话不中断。
+  # ── 故障转移（可选）──
+  # 主 Provider 挂了（额度用完 / 过载 / 超时）自动切备用，对话不中断；
   # 主 Provider 恢复后自动切回（每 5 分钟健康检查）。
   # fallback:
   #   enabled: true
@@ -110,23 +55,215 @@ llm:
   #     - provider: ollama
   #       model: "llama3.2"            # 本地兜底，永远不欠费
 
+
+# ════════════════════════ 2. Agent 基础 ════════════════════════
 agent:
-  # 触发前缀
-  trigger: "!ai"
+  trigger: "!ai"         # 触发前缀（游戏内 / 控制台）
+  max-history: 20        # 单次会话最大历史消息数
 
-  # 单次会话最大历史消息数
-  max-history: 20
+# 人格文件：自定义 Agent 语气/风格（放在数据目录下 personality.md）
+# personality: personality.md
 
-# 长期记忆（跨会话，默认开）：Agent 用 remember 记下玩家稳定偏好/服务器约定，
-#   每次提问自动召回相关记忆拼进上下文。存 <数据目录>/memory/memories.json，重启不丢。
-#   recall-top-k：每次召回条数；max-entries：上限，超出按最旧淘汰。关掉则无长期记忆。
+# 长期记忆（跨会话）：Agent 用 remember 记下玩家稳定偏好/服务器约定，每次提问自动召回拼进上下文。
+#   存 <数据目录>/memory/memories.json，重启不丢。关掉则无长期记忆。
 memory:
   enabled: true
-  recall-top-k: 3
-  max-entries: 500
+  recall-top-k: 3         # 每次召回条数
+  max-entries: 500        # 上限，超出按最旧淘汰
   recall-min-score: 2     # 召回最低相关度，低于此的弱命中不召回（挡垃圾进上下文、省 token）
 
-# 模组物品估值（解析 mods/ 的静态数据建 SQLite 物品库，沿合成树递归算成本）。
+
+# ════════════════════════ 3. 控制台 / 部署 / 网络 ════════════════════════
+
+# AI 管理控制台（WebUI，仅 Velocity 读取）：浏览器访问，含 AI 对话(流式)、运维总览、
+#   知识库、技能扩展、定时任务、充值管理、用量统计、操作审批等完整面板。
+web:
+  enabled: true          # 默认开启；浏览器开 http://<host>:<port>/。设 false 关闭
+  host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
+  port: 8080             # 控制台端口，可自定义
+  token: ""              # 访问令牌；留空=首启自动生成随机串写回本行。外网开放时务必用强 token
+
+# 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
+deployment:
+  # 自己选角色（不再自动探测）。三选一：
+  # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。← 默认
+  # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent（Velocity 主导的多服群组里用）。
+  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。
+  mode: standalone
+  # 本节点在总线上注册的名字（provider 用；留空则自动命名为 server-<端口> 并写回本行）。
+  server-name: ""
+
+# 跨服总线：中心 ↔ 子服通信。
+#   Velocity：由下方 enabled 开关决定是否当中枢。
+#   Bukkit：由上方 deployment.mode 决定角色（provider 连入 / hub 当中枢 / standalone 不用）。
+# 寻址完全基于子服自报的 server-name，不依赖 Velocity 的玩家信道或服务器注册表。
+cross-server:
+  enabled: false
+
+  # 传输实现：
+  #   socket     — 默认/即插即用：自建 TCP 中枢，本端当 broker、子服主动连入，无需任何外部服务
+  #   redis      — 进阶：Redis pub/sub（复用 RedisBungee 的 Redis），适合多代理集群；需自备 Redis
+  #   inprocess  — 测试：进程内回显 stub，仅在单 Velocity 实例里验证中心侧链路（不跨进程）
+  transport: socket
+
+  # 子服无响应的超时时间（毫秒）
+  timeout-ms: 5000
+
+  # 仅 transport: redis 时生效
+  redis:
+    host: "127.0.0.1"
+    port: 6379
+    password: ""
+
+  # 仅 transport: socket 时生效
+  #   host 按本节点角色理解：中枢(Velocity / Bukkit hub) = 监听地址（跨机器用 0.0.0.0）；
+  #                          提供方(Bukkit provider) = 要连接的中枢地址。
+  #   secret 为共享密钥（两端须一致；留空表示不校验，仅建议内网使用）。
+  socket:
+    host: "127.0.0.1"
+    port: 25599
+    secret: ""
+
+
+# ════════════════════════ 4. Agent 增强开关 ════════════════════════
+# 以下都是 Agent 的增强组件，多数保持默认即可。按主题分了三组。
+
+# ── 4a. 上下文 & 成本控制 ──
+
+# 上下文压缩：历史消息超阈值时用 LLM 摘要旧消息，省后续请求的 input token。
+context:
+  compress:
+    enabled: true
+    threshold: 16      # 超过多少条消息触发压缩
+    keep-recent: 6     # 保留最近多少条原样消息
+
+# 成本路由：按任务复杂度自动选便宜/贵模型（闲聊走便宜、复杂走主模型）。
+#   ★ 省钱主开关：需先配 llm.fast-model 才生效。在意成本就把它设 true。
+cost-router:
+  enabled: false
+
+# 子任务并行：复杂请求自动拆分子任务并行执行（多打几次 LLM、成本较高，默认关）。
+sub-agent:
+  enabled: false
+
+# 用户画像：跨会话理解用户偏好（存 profiles/<session>.json）。
+#   画像更新是一次后台 LLM 调用（不阻塞回复）；下方间隔用于节流，避免每条消息都更。
+profiles:
+  enabled: true
+  update-min-interval-sec: 60   # 同一会话两次画像更新最小间隔(秒)；0=每条都更
+
+# ── 4b. 质量 & 可靠性 ──
+
+# 自我检查：回复前检查幻觉/泄露/完整性（用 fast-model 做轻量检查）。
+self-check:
+  enabled: true
+
+# 失败模式检测：循环/反复失败/累计超限自动中止，防失控烧 token。
+failure-detect:
+  enabled: true
+
+# 工具结果缓存：相同工具+参数短时间内不重复调用。
+tool-cache:
+  enabled: true
+  ttl-seconds: 300   # 缓存有效期（秒）
+  max-size: 128      # LRU 最大条目
+
+# 记忆整合：定期用 LLM 合并/去重长期记忆。
+memory-consolidate:
+  enabled: true
+  interval-hours: 24  # 每多少小时整合一次
+
+# ── 4c. 运维 & 记录 ──
+
+# 用量追踪：统计 LLM token 消耗，供控制台 /api/usage 查看成本。
+usage:
+  enabled: true
+
+# 速率限制：每玩家令牌桶防滥用。
+rate-limit:
+  enabled: true
+  bucket-size: 5     # 桶容量（最大突发请求数）
+  refill-rate: 0.1   # 每秒补充令牌（0.1 = 每10秒恢复1个）
+
+# 轨迹记录：记录交互轨迹到 trajectories/ 目录，可导出 SFT 训练数据。
+trajectory:
+  enabled: true
+
+# Prompt 版本化：system prompt 存文件+历史归档（数据目录 prompts/）。
+prompt-versioning:
+  enabled: true
+
+# 会话历史持久化 + 全文搜索（SQLite FTS5）。
+session-store:
+  enabled: true
+
+
+# ════════════════════════ 5. 检索 / 知识 / 扩展 ════════════════════════
+
+# RAG 查询扩展（无 embedding 的语义增强，默认开）：
+#   稀疏检索命中不足时，用 chat 模型把中文意图扩成检索关键词（含中英/同义）再检索，
+#   填补「中文 ↔ 英文/规范词」鸿沟。仅 miss 时触发，多数查询零额外 LLM、成本可控。
+rag:
+  query-expansion: true
+  min-hits: 1             # 命中数低于此才触发扩展
+
+# 语义检索（L3 RAG，可选）：把各子服命令目录嵌入向量，search_capabilities 走语义匹配
+#   （中文「传送/经济」也能命中 /tp /money 等英文命令）。关闭则走关键词检索（L2）。
+#   默认复用上面 llm 的 api-base-url / api-key，只需填 embedding 模型名。
+embedding:
+  enabled: false
+  model: ""               # 例：你的 mimo embedding 模型名
+  api-base-url: ""        # 留空=复用 llm.api-base-url
+  api-key: ""             # 留空=复用 llm.api-key
+
+# 技能（skill，可选，默认开）：服主在插件数据目录的 skills/ 下放技能，给 Agent 加新能力。
+#   对齐 Anthropic Agent Skills，两类：
+#   ① 纯文字技能 —— 一套操作流程，Agent 读懂后用「现有工具」执行（不写代码）。如审退款的标准步骤。
+#   ② 脚本+文字技能 —— SKILL.md 说清「何时/怎么用」，再配 Groovy 脚本干现有工具做不到的事
+#      （直接调装过来插件的 API）。脚本注入变量：server / plugins / actions / args / log，return 回报 Agent。
+#   文件形态（三选一）：
+#     skills/<名>/SKILL.md (+ 可选脚本，frontmatter 里 script: xxx.groovy 指明)   ← 推荐
+#     skills/<名>.md       （纯文字，YAML frontmatter + 正文）
+#     skills/<名>.groovy   （纯脚本，头部 // name / // description / // arg 声明）
+#   安全：能往 skills/ 放文件的就是服主 → 视为「已审过的确定性扩展」，不过命令护栏、无人值守也可调，
+#   但每次执行记 audit。脚本在主线程跑、带 timeout-sec 看门狗。
+#   WebUI「🧪 技能扩展」可直接增删改 + 测试运行（保存即热重载）。
+skills:
+  enabled: true
+  dir: "skills"          # 相对插件数据目录
+  timeout-sec: 5         # 单次技能主线程执行超时（秒），解除 Agent 等待；不强杀脚本
+
+# MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent。
+#   与跨服总线正交——总线调自家子服能力，MCP 接第三方/外部标准化工具。
+#   每项一个 server；headers 可选（如鉴权头）。留空则不接入。
+mcp:
+  servers: []
+
+
+# ════════════════════════ 6. 业务功能 ════════════════════════
+
+# 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
+#   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦
+#   command-denylist 留空则用内置默认表（stop/op/ban/kill/reload 等）；可按需增删。
+#   含 @a/@e/@r 群体选择器的命令无论是否在表内都判高危。每条执行(含被拒)记入数据目录 audit.log。
+safety:
+  mode: enforce
+  command-denylist: []
+
+# 玩家行为分析：子服采集（防卡：监听器只计数、后台单线程批量落库），汇总经总线给控制台行为看板。
+behavior:
+  enabled: true
+  flush-interval-sec: 60   # 多久把内存计数批量写库一次
+  retention-days: 30       # 原始事件(死亡/成就)保留天数；画像长存
+  churn-days: 7            # 超过这么多天未上线 = 流失风险
+  active-minutes: 300      # 累计在线 ≥ 这么多分钟 = 核心玩家
+  newbie-days: 3           # 首次上线在这么多天内 = 新玩家
+  # 聊天词云：混合端(Youer/Mohist)的 AsyncPlayerChatEvent 在主线程触发会刷错，保持 false；仅 Paper 系子服可设 true。
+  # 命令词云不受此开关影响，始终采集。
+  track-chat: false
+
+# ── 模组物品估值 ──（数据较多，放最后；不用此功能可整段忽略）
+# 解析 mods/ 的静态数据建 SQLite 物品库，沿合成树递归算成本。
 #   base-values：基础材料在本服货币下的基准价（判断项，按你服经济调）；
 #   default-base-value：未配基材的默认价；pack-discount：礼包按估值合计打的折。
 item-valuation:
@@ -207,118 +344,3 @@ item-valuation:
     # 模组经济"原料根"（挖矿/掉落、无配方）：按你装的模组改。例(神秘农业)：
     # "mysticalagriculture:inferium_essence": 2
     # "mysticalagriculture:prosperity_shard": 4
-
-# 玩家行为分析：子服采集（防卡：监听器只计数、后台单线程批量落库），汇总经总线给 VC 看板。
-behavior:
-  enabled: true
-  flush-interval-sec: 60   # 多久把内存计数批量写库一次
-  retention-days: 30       # 原始事件(死亡/成就)保留天数；画像长存
-  churn-days: 7            # 超过这么多天未上线 = 流失风险
-  active-minutes: 300      # 累计在线 ≥ 这么多分钟 = 核心玩家
-  newbie-days: 3           # 首次上线在这么多天内 = 新玩家
-  # 聊天词云：混合端(Youer/Mohist)的 AsyncPlayerChatEvent 在主线程触发会刷错，保持 false；仅 Paper 系子服可设 true。
-  # 命令词云不受此开关影响，始终采集。
-  track-chat: false
-
-# 安全护栏：拦住 AI 自动执行破坏性命令（幻觉/误解/玩家提示注入都可能触发）。
-#   mode: enforce 命中即拒 | warn 放行但记审计告警 | off 不拦
-#   command-denylist 留空则用内置默认表（stop/op/ban/kill/reload 等）；可按需增删。
-#   含 @a/@e/@r 群体选择器的命令无论是否在表内都判高危。每条执行(含被拒)记入数据目录 audit.log。
-safety:
-  mode: enforce
-  command-denylist: []
-
-# AI 管理控制台（WebUI，仅 Velocity 读取）：浏览器看玩家行为看板（以后加 AI 对话 + 知识库编辑）。
-web:
-  enabled: true          # 默认开启；浏览器开 http://<host>:<port>/。设 false 关闭
-  host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
-  port: 8080
-  token: ""              # 留空=首启自动生成随机串写回本行；外网开放时务必用强 token
-
-# 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
-deployment:
-  # 自己选角色（不再自动探测）。三选一：
-  # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。← 默认
-  # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent（Velocity 主导的多服群组里用）。
-  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。
-  mode: standalone
-  # 本节点在总线上注册的名字（provider 用；留空则自动命名为 server-<端口> 并写回本行）。
-  server-name: ""
-
-# 跨服总线：中心 ↔ 子服通信。
-#   Velocity：由下方 enabled 开关决定是否当中枢。
-#   Bukkit：由上方 deployment.mode 决定角色（provider 连入 / hub 当中枢 / standalone 不用）。
-# 寻址完全基于子服自报的 server-name，不依赖 Velocity 的玩家信道或服务器注册表。
-cross-server:
-  enabled: false
-
-  # 传输实现：
-  #   socket     — 默认/即插即用：自建 TCP 中枢，本端当 broker、子服主动连入，无需任何外部服务
-  #   redis      — 进阶：Redis pub/sub（复用 RedisBungee 的 Redis），适合多代理集群；需自备 Redis
-  #   inprocess  — 测试：进程内回显 stub，无需 Redis、无需第二个服务端，
-  #                仅用于在单个 Velocity 实例里验证中心侧链路（不跨进程）
-  transport: socket
-
-  # 子服无响应的超时时间（毫秒）
-  timeout-ms: 5000
-
-  # 仅 transport: redis 时生效
-  redis:
-    host: "127.0.0.1"
-    port: 6379
-    password: ""
-
-  # 仅 transport: socket 时生效
-  #   host 按本节点角色理解：中枢(Velocity / Bukkit hub) = 监听地址（跨机器用 0.0.0.0）；
-  #                          提供方(Bukkit provider) = 要连接的中枢地址。
-  #   secret 为共享密钥（两端须一致；留空表示不校验，仅建议内网使用）。
-  socket:
-    host: "127.0.0.1"
-    port: 25599
-    secret: ""
-
-# RAG 查询扩展（无 embedding 的语义增强，默认开）：
-#   稀疏检索命中不足时，用 chat 模型把中文意图扩成检索关键词（含中英/同义）再检索，
-#   填补「中文 ↔ 英文/规范词」鸿沟。仅 miss 时触发，多数查询零额外 LLM、成本可控。
-rag:
-  query-expansion: true
-  min-hits: 1             # 命中数低于此才触发扩展
-
-# 语义检索（L3 RAG，可选）：把各子服命令目录嵌入向量，search_capabilities 走语义匹配
-#   （中文「传送/经济」也能命中 /tp /money 等英文命令）。关闭则走关键词检索（L2）。
-#   默认复用上面 llm 的 api-base-url / api-key，只需填 embedding 模型名。
-embedding:
-  enabled: false
-  model: ""               # 例：你的 mimo embedding 模型名
-  api-base-url: ""        # 留空=复用 llm.api-base-url
-  api-key: ""             # 留空=复用 llm.api-key
-
-# 技能（skill，可选，默认开）：服主在插件数据目录的 skills/ 下放技能，给 Agent 加新能力。
-#   对齐 Anthropic Agent Skills，两类：
-#   ① 纯文字技能 —— 一套操作流程，Agent 读懂后用「现有工具」执行（不写代码）。如审退款的标准步骤。
-#   ② 脚本+文字技能 —— SKILL.md 说清「何时/怎么用」，再配 Groovy 脚本干现有工具做不到的事
-#      （直接调装过来插件的 API）。脚本注入变量：server / plugins / actions / args / log，return 回报 Agent。
-#   文件形态（三选一）：
-#     skills/<名>/SKILL.md (+ 可选脚本，frontmatter 里 script: xxx.groovy 指明)   ← 推荐
-#     skills/<名>.md       （纯文字，YAML frontmatter + 正文）
-#     skills/<名>.groovy   （纯脚本，头部 // name / // description / // arg 声明）
-#   SKILL.md 头部：name / description / script（省略=纯文字）/ args（- 名: 类型 说明）。
-#   安全：能往 skills/ 放文件的就是服主 → 视为「已审过的确定性扩展」，不过命令护栏、无人值守也可调，
-#   但每次执行记 audit。脚本在主线程跑、带 timeout-sec 看门狗。provider 技能随能力目录推回中心，
-#   中心用 search_capabilities 查、run_skill_on_server 调；standalone/hub 本机技能直接成为本地工具。
-#   WebUI「🧪 技能扩展」可直接增删改 + 测试运行（保存即热重载）。
-skills:
-  enabled: true
-  dir: "skills"          # 相对插件数据目录
-  timeout-sec: 5         # 单次技能主线程执行超时（秒），解除 Agent 等待；不强杀脚本
-
-# MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent。
-# 与跨服总线正交——总线调自家子服能力，MCP 接第三方/外部标准化工具。
-# 每项一个 server；headers 可选（如鉴权头）。留空则不接入。
-mcp:
-  servers: []
-  # 示例：
-  # - name: economy
-  #   url: "http://127.0.0.1:8080/mcp"
-  #   headers:
-  #     Authorization: "Bearer your-token"

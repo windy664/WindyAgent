@@ -39,12 +39,19 @@ class LLMUsageTracker private constructor(
             val src = sp.chatStream(systemPrompt, messages, tools)
             Thread({
                 val sb = StringBuilder()
+                var realIn = -1
+                var realOut = -1
                 while (true) {
                     val chunk = src.read() ?: break
-                    if (chunk is StreamChunk.Text) sb.append(chunk.text)
-                    out.emit(chunk)
+                    when (chunk) {
+                        is StreamChunk.Text -> sb.append(chunk.text)
+                        is StreamChunk.Usage -> { realIn = chunk.inputTokens; realOut = chunk.outputTokens }
+                        else -> {}
+                    }
+                    // Usage 帧是内部统计信号，不往下游前端透传
+                    if (chunk !is StreamChunk.Usage) out.emit(chunk)
                     if (chunk is StreamChunk.Done || chunk is StreamChunk.Error) {
-                        recordStream(target.name, systemPrompt, messages, sb.toString(), start); break
+                        recordStream(target.name, systemPrompt, messages, sb.toString(), start, realIn, realOut); break
                     }
                 }
             }, "usage-stream").apply { isDaemon = true }.start()
@@ -61,11 +68,12 @@ class LLMUsageTracker private constructor(
         return out
     }
 
-    /** 记录一次流式调用的用量（input 由消息估算，output 由累积文本估算）。 */
-    private fun recordStream(model: String, systemPrompt: String, messages: List<LLMMessage>, output: String, startMs: Long) {
+    /** 记录一次流式调用的用量。realIn/realOut>=0 时用 provider 回报的精确值，否则用 estimate 兜底。 */
+    private fun recordStream(model: String, systemPrompt: String, messages: List<LLMMessage>, output: String, startMs: Long, realIn: Int = -1, realOut: Int = -1) {
         val latency = System.currentTimeMillis() - startMs
-        queue.offer(UsageRecord(System.currentTimeMillis(), "", model,
-            estimateTokens(systemPrompt, messages), estimateTokens(output), latency))
+        val inTok = if (realIn >= 0) realIn else estimateTokens(systemPrompt, messages)
+        val outTok = if (realOut >= 0) realOut else estimateTokens(output)
+        queue.offer(UsageRecord(System.currentTimeMillis(), "", model, inTok, outTok, latency))
     }
 
     private val log = LoggerFactory.getLogger(LLMUsageTracker::class.java)

@@ -1,0 +1,23 @@
+{
+  "name": "windyagent-web-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WindyAgent 管理控制台前端（Vue 3 + Vite）。构建产物是单文件 dashboard-next.html，由 :web 模块的 gradle 任务自动打进 jar。",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.6",
+    "marked": "^14.1.4",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}

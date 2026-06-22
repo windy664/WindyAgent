@@ -112,7 +112,9 @@ class OpenAICompatProvider(
     override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
         val stream = ChatStream()
         val allMessages = buildMessages(systemPrompt, messages)
-        val body = mutableMapOf<String, Any>("model" to model, "messages" to allMessages, "stream" to true)
+        val body = mutableMapOf<String, Any>("model" to model, "messages" to allMessages, "stream" to true,
+            // 让 API 在流末尾回报真实 token 用量（OpenAI 兼容协议），统计走精确值而非估算
+            "stream_options" to mapOf("include_usage" to true))
         if (tools.isNotEmpty()) body["tools"] = buildToolDefs(tools)
 
         val json = mapper.writeValueAsString(body)
@@ -144,6 +146,12 @@ class OpenAICompatProvider(
                             val data = line.removePrefix("data: ").trim()
                             if (data == "[DONE]") break
                             val chunk = runCatching { mapper.readTree(data) }.getOrNull() ?: continue
+                            // 末尾 usage 帧：choices 为空数组、带 usage 字段。先于 delta 处理。
+                            chunk["usage"]?.takeIf { !it.isNull }?.let { u ->
+                                val inTok = u["prompt_tokens"]?.asInt(-1) ?: -1
+                                val outTok = u["completion_tokens"]?.asInt(-1) ?: -1
+                                if (inTok >= 0 || outTok >= 0) stream.emit(StreamChunk.Usage(inTok, outTok))
+                            }
                             val delta = chunk["choices"]?.get(0)?.get("delta") ?: continue
                             delta["content"]?.asText()?.takeIf { it.isNotBlank() }?.let {
                                 stream.emit(StreamChunk.Text(it))

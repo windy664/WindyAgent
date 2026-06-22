@@ -390,7 +390,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         var webUrl: String? = null   // 供启动横幅展示；null = 未开启
         if (cfg.webEnabled()) {
             // 默认开启 web：token 为空则首启自动生成随机串写回配置，避免裸奔
+            val tokenWasBlank = cfg.webToken().isBlank()
             val webToken = cfg.ensureWebToken()
+            if (tokenWasBlank && webToken.isNotBlank()) {
+                // 不在日志打印 token 本身（防截图/上传泄漏）；只提示去配置文件查看
+                logger.info(WindyLog.tag("Web", "首次启动已自动生成访问令牌并写入 windyagent-config.yml 的 web.token —— 请从配置文件查看（日志不显示以防泄漏）。"))
+            }
             val webHostShown = if (cfg.webHost() == "0.0.0.0") "<本机IP>" else cfg.webHost()
             webUrl = "http://$webHostShown:${cfg.webPort()}/"
             val chat: (String, String) -> String = { sid, msg ->
@@ -527,8 +532,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
             logger.warn(WindyLog.banner(buildList {
                 add("状态" to "⚠ 尚未配置 LLM API Key —— 进入配置向导")
                 add("配置页" to url)
-                add("token" to token)
-                add("手动改" to "或编辑 plugins/windyagent/windyagent-config.yml 的 llm.api-key")
+                // 不在日志打印 token 本身（防截图/上传泄漏）；token 看配置文件 web.token 行
+                add("token" to "见 plugins/windyagent/windyagent-config.yml 的 web.token")
+                add("手动改" to "或编辑同文件的 llm.api-key")
                 add("生效" to "配好后重启 Velocity 代理")
             }))
         } else {
