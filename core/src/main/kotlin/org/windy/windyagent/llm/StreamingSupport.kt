@@ -43,6 +43,8 @@ sealed class StreamChunk {
     data class ToolCallStart(val id: String, val name: String) : StreamChunk()
     /** 工具调用参数增量。 */
     data class ToolCallDelta(val id: String, val delta: String) : StreamChunk()
+    /** 真实用量（provider 在流末尾回报，如 OpenAI stream_options.include_usage）。 */
+    data class Usage(val inputTokens: Int, val outputTokens: Int) : StreamChunk()
     /** 流正常结束。 */
     object Done : StreamChunk()
     /** 流异常结束。 */

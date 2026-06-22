@@ -42,8 +42,8 @@ dependencies {
     // Vault 经济 API：运行时由 Vault 插件提供（softdepend），编译期可见即可，不打包
     compileOnly 'com.github.MilkBowl:VaultAPI:1.7'
 
-    // CMI API：运行时由 CMI 插件提供，编译期可见即可，不打包
-    compileOnly files('E:/Minecraft-server/Youer 26.2/plugins/CMI-9.8.4.17.jar')
+
+    compileOnly 'com.github.Zrips:CMI-API:9.8.6.4'
 
     // core（Agent/LLM/工具）+ bus（总线），及其传递依赖均被下方 shadowJar 打进 fat jar。
     // core 已 api 暴露 bus，故依赖 core 即含 bus；provider 模式也只多打不用到的 Agent 类，无害。

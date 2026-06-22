@@ -40,9 +40,10 @@ class DashboardServer(
         s.start()
         server = s
         if (token.isBlank()) log.warn("[Web] token 为空——接口无鉴权，强烈建议设 web.token 并仅绑 127.0.0.1")
-        log.info("[Web] 管理控制台已启动：http://{}:{}/ （{} 个 handler，token={}）",
+        // 不在日志中打印 token（日志常被截图/上传，避免泄漏）；token 看 windyagent-config.yml 的 web.token
+        log.info("[Web] 管理控制台已启动：http://{}:{}/ （{} 个 handler，鉴权：{}）",
             if (host == "0.0.0.0") "<本机IP>" else host, port, handlers.size,
-            if (token.isBlank()) "无" else token)
+            if (token.isBlank()) "关闭" else "开启（token 见配置文件 web.token）")
     }
 
     fun stop() { server?.stop(0); server = null }

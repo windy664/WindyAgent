@@ -29,3 +29,10 @@ build.gradle.neoforge-backup
 
 # 落地部署样例（模板配置，非源码；技能副本已在 core/resources/skills/ 管理）
 deploy/
+
+# 第三方依赖 jar（CMI 等，构建走 jitpack/compileOnly，不入库）
+libs/
+
+# 前端构建产物与依赖（web-ui 源码入库，node_modules/dist 不入库）
+web/web-ui/node_modules/
+web/web-ui/dist/
