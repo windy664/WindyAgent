@@ -6,6 +6,8 @@ import org.windy.windyagent.llm.LLMProvider
 import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.safety.RequestContext
 import org.windy.windyagent.safety.TrustLevel
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 /**
  * 在 [ReActAgent]（简单任务）与 [PlanExecuteAgent]（复杂多步任务）之间自动选择。
@@ -26,10 +28,40 @@ class AgentRouter(
     /** 元任务（复杂度分类）用的便宜模型；null=用主模型。 */
     private val fastLlm: LLMProvider? = null,
     private val compressor: ContextCompressor? = null,
-    private val profileManager: UserProfileManager? = null
+    private val profileManager: UserProfileManager? = null,
+    /** 子任务并行编排器（可选）：复杂请求先尝试拆分子任务并行执行。 */
+    private val subAgent: SubAgentOrchestrator? = null,
+    /** 同一会话两次画像更新的最小间隔（毫秒）；<=0=每条都更。画像更新已改为后台异步，节流进一步降负载。 */
+    private val profileUpdateMinIntervalMs: Long = 60_000
 ) : Agent {
     override val name = "router"
     private val logger = LoggerFactory.getLogger(AgentRouter::class.java)
+
+    /** 画像更新后台线程池：守护线程，不阻塞回复返回，也不阻塞 JVM 退出。 */
+    private val profilePool = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "windyagent-profile").apply { isDaemon = true }
+    }
+    /** 每会话上次画像更新时间戳，用于节流。 */
+    private val lastProfileUpdate = ConcurrentHashMap<String, Long>()
+
+    /**
+     * 后台异步更新用户画像：不阻塞回复返回。
+     * 按 [profileUpdateMinIntervalMs] 节流——距上次更新太近则跳过（省一次 LLM 调用）。
+     */
+    private fun updateProfileAsync(sessionId: String, userMessage: String, reply: String) {
+        val pm = profileManager ?: return
+        val now = System.currentTimeMillis()
+        if (profileUpdateMinIntervalMs > 0) {
+            val last = lastProfileUpdate[sessionId]
+            if (last != null && now - last < profileUpdateMinIntervalMs) return
+        }
+        lastProfileUpdate[sessionId] = now
+        val fast = fastLlm ?: llmProvider
+        profilePool.execute {
+            runCatching { pm.updateFromConversation(sessionId, userMessage, reply, fast) }
+                .onFailure { logger.debug("画像后台更新失败（可忽略）：{}", it.message) }
+        }
+    }
 
     override fun run(context: AgentContext): AgentResponse {
         // 请求级上下文：信任级别 + 会话 id，供深层工具（安全护栏分权 / remember 作用域）读取
@@ -61,17 +93,27 @@ class AgentRouter(
                     "$profileText\n\n${context.recalled}" else profileText
             }
 
-            // 6. 选择 Agent 执行
+            // 6. 尝试子任务并行（仅 TRUSTED 且 subAgent 可用时）
+            //    门控：先用廉价启发式过滤——明显简单（问候/闲聊/短消息）的请求直接跳过，
+            //    不为它们白跑一次拆分 LLM（否则"你好"也要等一次 plan 往返）。
+            val sa = subAgent
+            if (sa != null && context.trust == TrustLevel.TRUSTED && heuristic(context.userMessage) != Verdict.SIMPLE) {
+                val subTasks = runCatching { sa.plan(context.userMessage) }.getOrNull()
+                if (subTasks != null && subTasks.size >= 2) {
+                    logger.info("Router → sub-agent 并行 ({} 个子任务) for session {}", subTasks.size, context.sessionId)
+                    val result = sa.execute(subTasks)
+                    updateProfileAsync(context.sessionId, context.userMessage, result.take(500))
+                    return AgentResponse(result, true, listOf("sub-agent"))
+                }
+            }
+
+            // 7. 选择 Agent 执行
             val chosen = select(context.userMessage)
             logger.info("Router → {} for session {} (trust={})", chosen.name, context.sessionId, context.trust)
             val response = chosen.run(context)
 
-            // 7. 异步更新用户画像
-            profileManager?.let { pm ->
-                val reply = response.message.take(500)
-                val fast = fastLlm ?: llmProvider
-                runCatching { pm.updateFromConversation(context.sessionId, context.userMessage, reply, fast) }
-            }
+            // 8. 后台异步更新用户画像（不阻塞本次回复返回）
+            updateProfileAsync(context.sessionId, context.userMessage, response.message.take(500))
 
             return response
         } finally {

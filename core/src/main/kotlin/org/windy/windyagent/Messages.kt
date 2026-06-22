@@ -129,6 +129,7 @@ object Messages {
             // AgentLoop
             "agent.stopped" to "已停止：%1",
             "agent.max_iter" to "已达到最大迭代次数（%1），任务未完成",
+            "agent.too_many_calls" to "工具调用次数过多（%1 次），已中止以防止失控",
             // /usage
             "cmd.usage.desc" to "查看 LLM 用量统计",
             "cmd.usage.header" to "LLM 用量统计：",
@@ -242,6 +243,7 @@ object Messages {
             "behavior.player_not_found" to "Player「%1」not found (may not have behavior data yet)",
             "agent.stopped" to "Stopped: %1",
             "agent.max_iter" to "Max iterations reached (%1), task incomplete",
+            "agent.too_many_calls" to "Too many tool calls (%1), aborted to prevent runaway",
             "cmd.usage.desc" to "View LLM usage statistics",
             "cmd.usage.header" to "LLM Usage Statistics:",
             "cmd.usage.calls" to "Total Calls",

@@ -3,7 +3,15 @@
 //   不依赖任何具体载体：只靠注入的 MessageBus + 供给函数工作，
 //   故 velocity 现在挂载它，未来 Bukkit-hub 也能挂。被载体模块依赖并 shade。
 //   Java 8 基线（HttpServer 自 Java 6 起内置），与 core/bus 一致，便于跨载体复用。
+//
+//   前端：web-ui/（Vue 3 + Vite）。node-gradle 插件在构建时**自动下载 node**，
+//   跑 vite 把前端打成单文件，产物 dashboard-next.html 进 resources、随 jar 发布。
+//   运行时不需要 node，也不另起进程——仍是 Velocity 内嵌 HttpServer 发一个 html。
 // ============================================================
+
+plugins {
+    id 'com.github.node-gradle.node' version '7.1.0'
+}
 
 // 覆盖根 subprojects 的 Java 11 默认 → 8
 java.toolchain.languageVersion = JavaLanguageVersion.of(8)
@@ -19,4 +27,50 @@ dependencies {
     compileOnly 'org.slf4j:slf4j-api:1.7.36'
 
     // WindyPurchase 跨 classloader 桥接（PurchaseBridge），无编译期依赖
+}
+
+// ── 前端构建（Vue + Vite，node 自动下载）─────────────────────
+def webUiDir = file("${projectDir}/web-ui")
+
+node {
+    version = '20.18.0'
+    download = true                 // 自动下载 node 到 .gradle 缓存，无需系统装 node
+    nodeProjectDir = webUiDir       // package.json 所在
+    // node 二进制走淘宝(npmmirror)镜像，国内不用挂 nodejs.org 干等
+    distBaseUrl = 'https://registry.npmmirror.com/-/binary/node'
+}
+
+// npm run build → web-ui/dist/index.html（vite-plugin-singlefile 内联成单文件）
+tasks.register('buildWebUi', com.github.gradle.node.npm.task.NpmTask) {
+    group = 'web'
+    description '构建 Vue 前端为单文件 html'
+    dependsOn tasks.named('npmInstall')
+    npmCommand = ['run', 'build']
+    inputs.dir("${webUiDir}/src")
+    inputs.files(
+        "${webUiDir}/index.html",
+        "${webUiDir}/package.json",
+        "${webUiDir}/vite.config.ts",
+        "${webUiDir}/tsconfig.json",
+    )
+    outputs.file("${webUiDir}/dist/index.html")
+}
+
+// 复制并改名到 build 下的生成目录（不污染源码树）：dist/index.html → dashboard-next.html
+def generatedWebDir = layout.buildDirectory.dir('generated/webui')
+tasks.register('syncWebUi', Copy) {
+    group = 'web'
+    description '把前端产物同步进生成资源目录（dashboard-next.html）'
+    dependsOn tasks.named('buildWebUi')
+    from("${webUiDir}/dist/index.html")
+    into(generatedWebDir)
+    rename { 'dashboard-next.html' }
+}
+
+// 把生成目录注册为额外的 resources 源 → 随 jar 打包，运行时从 classpath 读到 /dashboard-next.html
+sourceSets.main.resources.srcDir(generatedWebDir)
+
+// 打包前确保前端已构建并同步
+tasks.named('processResources') {
+    dependsOn tasks.named('syncWebUi')
 }

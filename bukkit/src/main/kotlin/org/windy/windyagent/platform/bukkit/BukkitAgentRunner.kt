@@ -58,8 +58,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
     private var chatListener: BukkitChatListener? = null
     private var logWatcher: org.windy.windyagent.ops.LogWatcher? = null
 
-    /** 关闭 standalone 模式注册的所有组件（命令入口、聊天监听、日志监控）。
-     *  用于 auto 模式下探测到中枢后切换到 provider 前的清理。 */
+    /** 关闭 standalone 模式注册的所有组件（命令入口、聊天监听、日志监控）。关服时调用。 */
     fun shutdown() {
         // 注销 /ai 命令
         aiCommand?.setExecutor(null)
@@ -119,8 +118,13 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             extraTools += org.windy.windyagent.agent.RemoteSkillTool(remoteBus, remoteTimeoutMs, audit)
             remoteBus.onCatalog { registry.accept(it) }
         }
-        // 长期记忆（跨会话）
-        val memory = if (cfg.memoryEnabled()) FileLongTermMemory(plugin.dataFolder.toPath().resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore()) else null
+        // 会话历史持久化
+        val sessionStore = if (cfg.sessionStoreEnabled()) {
+            org.windy.windyagent.platform.SessionStore(plugin.dataFolder.toPath().resolve("sessions.db"))
+        } else null
+
+        // 长期记忆（跨会话）：注入 sessionStore 供 recall 搜历史原文
+        val memory = if (cfg.memoryEnabled()) FileLongTermMemory(plugin.dataFolder.toPath().resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore(), sessionStore) else null
         memory?.let { extraTools += RememberTool(it) }
         // MCP 工具接入（可选）
         extraTools += McpLoader.load(cfg.mcpServers())
@@ -198,7 +202,46 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val compressor = if (cfg.compressionEnabled()) ContextCompressor(fastLlm ?: effectiveLlm, cfg.compressionThreshold(), cfg.compressionKeepRecent()) else null
         val profileManager = if (cfg.profilesEnabled()) UserProfileManager(plugin.dataFolder.toPath().resolve("profiles")) else null
 
-        val agent = AgentRouter(effectiveLlm, ReActAgent(effectiveLlm), PlanExecuteAgent(effectiveLlm), memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager)
+        // ── 新增组件接线 ──
+
+        // Prompt 版本化：加载自定义 prompt，追加到 personality
+        val promptVersioning = if (cfg.promptVersioningEnabled()) {
+            org.windy.windyagent.agent.PromptVersioning(plugin.dataFolder.toPath().resolve("prompts")).also {
+                val loaded = it.load()
+                if (loaded.isNotBlank()) {
+                    platform.personality = if (platform.personality.isNotBlank()) platform.personality + "\n\n" + loaded else loaded
+                }
+            }
+        } else null
+
+        // 记忆整合器
+        if (cfg.memoryConsolidateEnabled() && memory != null) {
+            org.windy.windyagent.memory.MemoryConsolidator(memory!!, fastLlm ?: effectiveLlm).also {
+                it.start(cfg.memoryConsolidateIntervalHours())
+            }
+        }
+
+        // 成本路由
+        val costRouterLlm = if (cfg.costRouterEnabled() && fastLlm != null) {
+            org.windy.windyagent.agent.CostRouter(effectiveLlm, fastLlm)
+        } else effectiveLlm
+
+        // 失败检测 + 工具缓存 + 自检 + 轨迹记录
+        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.agent.FailureDetector() else null
+        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.agent.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
+        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.agent.SelfChecker(fastLlm ?: effectiveLlm) else null
+        val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
+            org.windy.windyagent.agent.TrajectoryRecorder(plugin.dataFolder.toPath().resolve("trajectories"))
+        } else null
+
+        // 子任务并行编排器
+        val subAgent = if (cfg.subAgentEnabled()) {
+            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt)
+        } else null
+
+        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder)
+        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder)
+        val agent = AgentRouter(costRouterLlm, react, plan, memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager, subAgent, cfg.profileUpdateMinIntervalSec() * 1000L)
         val sessions = SessionManager(cfg.maxHistory())
 
         // 载体无关的元命令路由

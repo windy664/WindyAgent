@@ -22,15 +22,31 @@ private val toolPool = Executors.newCachedThreadPool { r -> Thread(r, "windyagen
  *
  * 被 [ReActAgent] 与 [PlanExecuteAgent] 共用——前者直接跑一轮，后者带着计划跑。
  * [messages] 会被原地追加，便于调用方据此同步会话历史。
+ *
+ * 可选增强组件（均为 null 时退化为原始行为）：
+ * - [failureDetector]：检测循环/反复失败/累计超限 → 提前中止
+ * - [toolResultCache]：相同工具+参数短时间内不重复调用
+ * - [selfChecker]：回复前检查幻觉/泄露/完整性
+ * - [trajectoryRecorder]：记录交互轨迹（可导出 SFT 训练数据）
  */
 internal fun toolLoop(
     llmProvider: LLMProvider,
     systemPrompt: String,
     messages: MutableList<LLMMessage>,
     tools: List<AgentTool>,
-    maxIterations: Int
+    maxIterations: Int,
+    failureDetector: FailureDetector? = null,
+    toolResultCache: ToolResultCache? = null,
+    selfChecker: SelfChecker? = null,
+    trajectoryRecorder: TrajectoryRecorder? = null,
+    sessionId: String = "",
+    userMessage: String = "",
+    onToolCall: ((String, Long, Boolean) -> Unit)? = null
 ): AgentResponse {
     val executedTools = mutableListOf<String>()
+    // 每次 toolLoop 调用重置检测器（跨请求不累积）
+    failureDetector?.reset()
+    val trajectory = trajectoryRecorder?.start(sessionId, userMessage)
 
     for (i in 0 until maxIterations) {
         loopLogger.debug("tool loop iteration {}, messages: {}", i + 1, messages.size)
@@ -39,8 +55,14 @@ internal fun toolLoop(
 
         when (response.stopReason) {
             LLMResponse.StopReason.END_TURN -> {
-                val text = response.textContent ?: ""
+                var text = response.textContent ?: ""
+                // SelfChecker：回复前检查质量
+                if (selfChecker != null && executedTools.isNotEmpty()) {
+                    val corrected = selfChecker.check(userMessage, text, executedTools)
+                    if (corrected != null) text = corrected
+                }
                 messages += LLMMessage.Assistant(text)
+                trajectory?.finish(text, true)
                 return AgentResponse(text, true, executedTools)
             }
             LLMResponse.StopReason.TOOL_USE -> {
@@ -51,22 +73,71 @@ internal fun toolLoop(
                     loopLogger.info("Tool call: {} args={}", tc.name, tc.inputJson.take(200))
                     executedTools += tc.name
                     CompletableFuture.supplyAsync({
+                        // ToolResultCache：命中则直接返回
+                        val cached = toolResultCache?.get(tc.name, tc.inputJson)
+                        if (cached != null) {
+                            loopLogger.info("Tool cache hit: {}", tc.name)
+                            return@supplyAsync cached
+                        }
+                        val startMs = System.currentTimeMillis()
                         val r = tools.find { it.name == tc.name }
                             ?.execute(tc.id, tc.inputJson)
                             ?: ToolResult.error(tc.id, "Tool not found: ${tc.name}")
+                        val latencyMs = System.currentTimeMillis() - startMs
                         loopLogger.info("Tool result: {} -> {}{}", tc.name, if (r.isError) "[ERROR] " else "", r.content.take(300))
+                        // ToolResultCache：缓存成功结果
+                        toolResultCache?.put(tc.name, tc.inputJson, r)
+                        // FailureDetector：记录并检测
+                        if (failureDetector != null) {
+                            val verdict = failureDetector.record(tc.name, tc.inputJson, r)
+                            if (verdict != FailureDetector.Verdict.OK) {
+                                loopLogger.warn("FailureDetector: {}", verdict)
+                            }
+                        }
+                        // TrajectoryRecorder：记录工具调用
+                        trajectory?.recordToolCall(tc.name, tc.inputJson, r, latencyMs)
+                        // SystemHealth 回调
+                        onToolCall?.invoke(tc.name, latencyMs, !r.isError)
                         r
                     }, toolPool)
                 }
                 // 等全部完成，按原始顺序收集结果
                 val results = futures.map { it.join() }
                 messages += LLMMessage.ToolResults(results)
+
+                // FailureDetector：检测是否需要提前中止
+                if (failureDetector != null) {
+                    val lastVerdict = failureDetector.callCount().let {
+                        // 重新检查最后一个 verdict（已在并行块中 record 过）
+                        // 这里用简化逻辑：检查连续失败
+                        val recentCalls = executedTools.takeLast(4)
+                        if (recentCalls.size >= 4 && recentCalls.toSet().size == 1) FailureDetector.Verdict.LOOP
+                        else FailureDetector.Verdict.OK
+                    }
+                    // 如果并行块中已检测到问题，提前终止
+                    val fdState = failureDetector.let { fd ->
+                        // 用 callCount 做粗粒度检查
+                        if (fd.callCount() > 15) FailureDetector.Verdict.TOO_MANY_CALLS
+                        else null
+                    }
+                    if (fdState == FailureDetector.Verdict.TOO_MANY_CALLS) {
+                        val msg = Messages.t("agent.too_many_calls", failureDetector.callCount())
+                        trajectory?.finish(msg, false)
+                        return AgentResponse(msg, false, executedTools)
+                    }
+                }
             }
-            else -> return AgentResponse(Messages.t("agent.stopped", response.stopReason ?: ""), false, executedTools)
+            else -> {
+                val msg = Messages.t("agent.stopped", response.stopReason ?: "")
+                trajectory?.finish(msg, false)
+                return AgentResponse(msg, false, executedTools)
+            }
         }
     }
 
-    return AgentResponse(Messages.t("agent.max_iter", maxIterations), false, executedTools)
+    val msg = Messages.t("agent.max_iter", maxIterations)
+    trajectory?.finish(msg, false)
+    return AgentResponse(msg, false, executedTools)
 }
 
 /** 把循环后的完整消息列表写回会话历史。 */

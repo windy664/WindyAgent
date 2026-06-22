@@ -19,14 +19,55 @@ context:
     keep-recent: 6     # 保留最近多少条原样消息
 
 # 用户画像：跨会话理解用户偏好（存 profiles/<session>.json）
+# 画像更新是一次后台 LLM 调用（不阻塞回复）；下方间隔用于节流，避免每条消息都更。
 profiles:
   enabled: true
+  update-min-interval-sec: 60   # 同一会话两次画像更新最小间隔(秒)；0=每条都更
 
 # 速率限制：每玩家令牌桶防滥用
 rate-limit:
   enabled: true
   bucket-size: 5     # 桶容量（最大突发请求数）
   refill-rate: 0.1   # 每秒补充令牌（0.1 = 每10秒恢复1个）
+
+# 工具结果缓存：相同工具+参数短时间内不重复调用
+tool-cache:
+  enabled: true
+  ttl-seconds: 300   # 缓存有效期（秒）
+  max-size: 128      # LRU 最大条目
+
+# 失败模式检测：循环/反复失败/累计超限自动中止
+failure-detect:
+  enabled: true
+
+# 自我检查：回复前检查幻觉/泄露/完整性（用 fast-model 做轻量检查）
+self-check:
+  enabled: true
+
+# 轨迹记录：记录交互轨迹到 trajectories/ 目录，可导出 SFT 训练数据
+trajectory:
+  enabled: true
+
+# 会话历史持久化 + 全文搜索（SQLite FTS5）
+session-store:
+  enabled: true
+
+# 记忆整合：定期用 LLM 合并/去重长期记忆
+memory-consolidate:
+  enabled: true
+  interval-hours: 24  # 每多少小时整合一次
+
+# 成本路由：按任务复杂度自动选便宜/贵模型（需配 fast-model）
+cost-router:
+  enabled: false
+
+# 子任务并行：复杂请求自动拆分子任务并行执行（LLM 成本较高，默认关）
+sub-agent:
+  enabled: false
+
+# Prompt 版本化：system prompt 存文件+历史归档（数据目录 prompts/）
+prompt-versioning:
+  enabled: true
 
 llm:
   # 供应商: claude | openai | ollama
@@ -196,13 +237,12 @@ web:
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
 deployment:
-  # auto       自动判定（默认，推荐）：socket 探测到中枢（如装了 WindyAgent 的 Velocity）=当 provider；
-  #            探测不到=当 standalone 单机跑。仅 transport: socket 时探测，redis 下 auto 直接当 provider。
-  # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent。
-  # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。
-  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。auto 不会选 hub，需显式指定。
-  mode: auto
-  # 本节点在总线上注册的名字（provider 用；留空则 auto/provider 自动命名为 server-<端口> 并写回本行）。
+  # 自己选角色（不再自动探测）。三选一：
+  # standalone 嵌入式 Agent：本机直接跑 Agent，无需代理/总线（单台 Paper 服）。← 默认
+  # provider   纯能力提供方：连总线、执行中心下发的动作，本机不跑 Agent（Velocity 主导的多服群组里用）。
+  # hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（无 Velocity 的多服群组）。
+  mode: standalone
+  # 本节点在总线上注册的名字（provider 用；留空则自动命名为 server-<端口> 并写回本行）。
   server-name: ""
 
 # 跨服总线：中心 ↔ 子服通信。

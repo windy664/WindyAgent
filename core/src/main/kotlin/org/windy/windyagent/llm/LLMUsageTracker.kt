@@ -21,9 +21,52 @@ import java.util.concurrent.TimeUnit
 class LLMUsageTracker private constructor(
     private val delegate: LLMProvider,
     private val dbPath: Path
-) : LLMProvider {
+) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
 
     override val name: String get() = delegate.name
+
+    /** 透传底层的流式能力并统计 token；底层不支持流式则回退一次性 emit。 */
+    override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream =
+        trackedStream(delegate, systemPrompt, messages, tools)
+
+    /** 透传任意 target 的流式能力并统计 token（target 不支持则回退一次性 chat）。两条路径都计入成本，
+     *  使流式对话同样统计（SSE 通常不带 usage，用与 chat() 同款 estimate 兜底）。 */
+    private fun trackedStream(target: LLMProvider, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
+        val start = System.currentTimeMillis()
+        val out = ChatStream()
+        val sp = target as? org.windy.windyagent.agent.StreamingProvider
+        if (sp != null) {
+            val src = sp.chatStream(systemPrompt, messages, tools)
+            Thread({
+                val sb = StringBuilder()
+                while (true) {
+                    val chunk = src.read() ?: break
+                    if (chunk is StreamChunk.Text) sb.append(chunk.text)
+                    out.emit(chunk)
+                    if (chunk is StreamChunk.Done || chunk is StreamChunk.Error) {
+                        recordStream(target.name, systemPrompt, messages, sb.toString(), start); break
+                    }
+                }
+            }, "usage-stream").apply { isDaemon = true }.start()
+        } else {
+            Thread({
+                runCatching { target.chat(systemPrompt, messages, tools).textContent ?: "" }
+                    .onSuccess {
+                        recordStream(target.name, systemPrompt, messages, it, start)
+                        out.emit(StreamChunk.Text(it)); out.emit(StreamChunk.Done)
+                    }
+                    .onFailure { out.emit(StreamChunk.Error(it.message ?: "chat failed")) }
+            }, "usage-stream-fallback").apply { isDaemon = true }.start()
+        }
+        return out
+    }
+
+    /** 记录一次流式调用的用量（input 由消息估算，output 由累积文本估算）。 */
+    private fun recordStream(model: String, systemPrompt: String, messages: List<LLMMessage>, output: String, startMs: Long) {
+        val latency = System.currentTimeMillis() - startMs
+        queue.offer(UsageRecord(System.currentTimeMillis(), "", model,
+            estimateTokens(systemPrompt, messages), estimateTokens(output), latency))
+    }
 
     private val log = LoggerFactory.getLogger(LLMUsageTracker::class.java)
     private val queue = java.util.concurrent.ConcurrentLinkedQueue<UsageRecord>()
@@ -53,26 +96,35 @@ class LLMUsageTracker private constructor(
         flusher.scheduleAtFixedRate({ flush() }, 5, 30, TimeUnit.SECONDS)
     }
 
-    override fun chat(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse {
+    override fun chat(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse =
+        trackedChat(delegate, "", systemPrompt, messages, tools)
+
+    /** 带 session 标记的 chat（供 AgentRouter 传入 sessionId）。 */
+    fun chatWithSession(sessionId: String, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse =
+        trackedChat(delegate, sessionId, systemPrompt, messages, tools)
+
+    /** 统计任意 target 的一次 chat。 */
+    private fun trackedChat(target: LLMProvider, session: String, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse {
         val start = System.currentTimeMillis()
-        val response = delegate.chat(systemPrompt, messages, tools)
+        val response = target.chat(systemPrompt, messages, tools)
         val latency = System.currentTimeMillis() - start
         // 估算 token（provider 未返回时用字符数/4 近似）
         val inTok = if (response.inputTokens > 0) response.inputTokens else estimateTokens(systemPrompt, messages)
         val outTok = if (response.outputTokens > 0) response.outputTokens else estimateTokens(response.textContent ?: "")
-        queue.offer(UsageRecord(System.currentTimeMillis(), "", delegate.name, inTok, outTok, latency))
+        queue.offer(UsageRecord(System.currentTimeMillis(), session, target.name, inTok, outTok, latency))
         return response
     }
 
-    /** 带 session 标记的 chat（供 AgentRouter 传入 sessionId）。 */
-    fun chatWithSession(sessionId: String, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse {
-        val start = System.currentTimeMillis()
-        val response = delegate.chat(systemPrompt, messages, tools)
-        val latency = System.currentTimeMillis() - start
-        val inTok = if (response.inputTokens > 0) response.inputTokens else estimateTokens(systemPrompt, messages)
-        val outTok = if (response.outputTokens > 0) response.outputTokens else estimateTokens(response.textContent ?: "")
-        queue.offer(UsageRecord(System.currentTimeMillis(), sessionId, delegate.name, inTok, outTok, latency))
-        return response
+    /** 用同一统计后端包装第二个 provider（如 fast-model）：用量并入同一 usage.db，靠 model 字段区分。
+     *  共享同一 queue/flusher/连接，避免多连接写同库的 SQLite 锁问题。 */
+    fun track(other: LLMProvider): LLMProvider = SecondaryTracked(other)
+
+    private inner class SecondaryTracked(private val d: LLMProvider) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
+        override val name: String get() = d.name
+        override fun chat(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse =
+            trackedChat(d, "", systemPrompt, messages, tools)
+        override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream =
+            trackedStream(d, systemPrompt, messages, tools)
     }
 
     private fun flush() {
@@ -89,7 +141,11 @@ class LLMUsageTracker private constructor(
                 }
                 ps.executeBatch()
             }
-        }.onFailure { log.warn("用量数据写入失败：{}", it.message) }
+        }.onFailure {
+            // 写失败：把已出队的这批放回队列，下次 flush 重试，避免成本被少算（数据已 poll 出，不放回就永久丢）
+            log.warn("用量数据写入失败，将重试：{}", it.message)
+            batch.forEach { r -> queue.offer(r) }
+        }
     }
 
     /** 查询用量统计：按天聚合。 */

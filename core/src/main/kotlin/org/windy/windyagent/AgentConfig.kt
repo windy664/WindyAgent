@@ -36,8 +36,31 @@ class AgentConfig private constructor(
     fun compressionThreshold() = (getNode("context.compress.threshold") as? Number)?.toInt() ?: 16
     fun compressionKeepRecent() = (getNode("context.compress.keep-recent") as? Number)?.toInt() ?: 6
     fun profilesEnabled() = (getNode("profiles.enabled") as? Boolean) ?: true
-    fun sessionStoreEnabled() = (getNode("session-store.enabled") as? Boolean) ?: false
+    /** 同一会话两次画像更新的最小间隔（秒）；<=0 表示每条都更。画像更新是后台 LLM 调用，节流可省成本、降负载。 */
+    fun profileUpdateMinIntervalSec() = (getNode("profiles.update-min-interval-sec") as? Number)?.toInt() ?: 60
+    fun sessionStoreEnabled() = (getNode("session-store.enabled") as? Boolean) ?: true
     fun rateLimitEnabled() = (getNode("rate-limit.enabled") as? Boolean) ?: true
+
+    // 工具增强组件
+    /** 工具结果缓存：相同工具+参数短时间内不重复调用。 */
+    fun toolCacheEnabled() = (getNode("tool-cache.enabled") as? Boolean) ?: true
+    fun toolCacheTtlSeconds() = (getNode("tool-cache.ttl-seconds") as? Number)?.toLong() ?: 300L
+    fun toolCacheMaxSize() = (getNode("tool-cache.max-size") as? Number)?.toInt() ?: 128
+    /** 失败模式检测：循环/反复失败/累计超限自动中止。 */
+    fun failureDetectEnabled() = (getNode("failure-detect.enabled") as? Boolean) ?: true
+    /** 自我检查：回复前检查幻觉/泄露/完整性。 */
+    fun selfCheckEnabled() = (getNode("self-check.enabled") as? Boolean) ?: true
+    /** 轨迹记录：记录交互轨迹，可导出 SFT 训练数据。 */
+    fun trajectoryEnabled() = (getNode("trajectory.enabled") as? Boolean) ?: true
+    /** 记忆整合：定期 LLM 合并去重长期记忆。 */
+    fun memoryConsolidateEnabled() = (getNode("memory-consolidate.enabled") as? Boolean) ?: true
+    fun memoryConsolidateIntervalHours() = (getNode("memory-consolidate.interval-hours") as? Number)?.toLong() ?: 24L
+    /** 成本路由：按复杂度自动选便宜/贵模型（需配 fast-model）。 */
+    fun costRouterEnabled() = (getNode("cost-router.enabled") as? Boolean) ?: false
+    /** 子任务并行：复杂请求自动拆分子任务并行执行。 */
+    fun subAgentEnabled() = (getNode("sub-agent.enabled") as? Boolean) ?: false
+    /** Prompt 版本化：system prompt 存文件+历史归档。 */
+    fun promptVersioningEnabled() = (getNode("prompt-versioning.enabled") as? Boolean) ?: true
     fun rateLimitBucketSize() = (getNode("rate-limit.bucket-size") as? Number)?.toInt() ?: 5
     fun rateLimitRefillRate() = (getNode("rate-limit.refill-rate") as? Number)?.toDouble() ?: 0.1
     fun provider() = getString("llm.provider", "claude")
@@ -61,12 +84,12 @@ class AgentConfig private constructor(
     fun maxHistory() = (getNode("agent.max-history") as? Number)?.toInt() ?: 20
 
     // 部署形态（仅 Bukkit 读取；Velocity 固定为中心 Agent，忽略本段）
-    /** auto（自动判定角色）/ provider / standalone / hub。默认 auto：socket 探测到中枢=provider，否则 standalone。 */
-    fun mode() = getString("deployment.mode", "auto").lowercase()
+    /** provider / standalone / hub，由服主显式指定（不再自动判定）。默认 standalone（单台 Paper 本机跑 Agent）。 */
+    fun mode() = getString("deployment.mode", "standalone").lowercase()
     /** 本节点在总线上的名字（provider 必填，须与中枢侧期望一致）。 */
     fun serverName() = getString("deployment.server-name", "")
 
-    /** 取总线注册名；为空则用 [default] 写回 deployment.server-name 并返回（auto→provider 自动命名用）。 */
+    /** 取总线注册名；为空则用 [default] 写回 deployment.server-name 并返回（provider 未命名时自动命名用）。 */
     fun ensureServerName(default: String): String {
         val cur = serverName()
         if (cur.isNotBlank()) return cur

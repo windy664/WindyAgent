@@ -83,6 +83,14 @@
   /* 聊天页 */
   .chatmain{flex:1;min-width:0;display:flex;flex-direction:column;padding:20px}
   .rightbar{width:300px;flex-shrink:0;overflow:auto;padding:16px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
+  .conv-item{padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:2px;transition:background .15s,border-color .15s;border:1px solid transparent}
+  .conv-item:hover{background:rgba(255,255,255,.05);border-color:var(--bd)}
+  .conv-item.active{background:rgba(183,155,255,.1);border-color:rgba(183,155,255,.3)}
+  .conv-item .ct{font-size:13px;font-weight:700;color:#e8e0f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv-item .cm{font-size:11px;color:var(--mut);margin-top:3px;display:flex;justify-content:space-between;align-items:center}
+  .conv-item .cd{opacity:0;transition:opacity .15s;font-size:11px;color:var(--pink);cursor:pointer}
+  .conv-item:hover .cd{opacity:1}
+  .conv-empty{text-align:center;color:var(--mut);font-size:12px;padding:40px 16px}
   .card{border-radius:16px;padding:15px}
   .card h4{margin:0 0 11px;font-size:13.5px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
   .card h4 a{font-size:12px;color:var(--violet);cursor:pointer;font-weight:700}
@@ -107,6 +115,7 @@
   .msg{max-width:80%;padding:11px 15px;border-radius:17px;line-height:1.55;white-space:pre-wrap;word-break:break-word;font-size:14.5px}
   .msg.u{align-self:flex-end;background:linear-gradient(120deg,var(--pink),var(--violet));border-bottom-right-radius:6px}
   .msg.a{align-self:flex-start;background:rgba(20,15,40,.72);backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%);border:1px solid var(--bd);border-bottom-left-radius:6px}
+  .typing-cursor{animation:blink .8s step-end infinite;color:var(--violet)}@keyframes blink{50%{opacity:0}}
   .msg b{color:#fff;font-weight:800}.msg a{color:var(--gold)}.msg code{background:rgba(0,0,0,.3);padding:1px 6px;border-radius:5px;font-family:Consolas,monospace;font-size:13px}
   .msg pre{background:rgba(0,0,0,.32);padding:9px 11px;border-radius:9px;overflow:auto;margin:6px 0}.msg pre code{background:none;padding:0}
   .composer{display:flex;gap:10px;align-items:flex-end;padding-top:12px;border-top:1px solid var(--line)}
@@ -252,11 +261,12 @@
     <div class="nav" data-v="event"><span class="i">⏰</span><span class="tx" data-i18n="sidebar.event">定时任务</span></div>
     <div class="nav" data-v="skill"><span class="i">🧪</span><span class="tx" data-i18n="sidebar.skill">技能扩展</span></div>
     <div class="nav" data-v="settings"><span class="i">⚙️</span><span class="tx" data-i18n="sidebar.settings">设置中心</span></div>
+    <div class="nav" data-v="sys"><span class="i">🖥️</span><span class="tx" data-i18n="sidebar.sys">系统健康</span></div>
     <div class="grow1"></div>
     <div class="srvpanel glass">
-      <div class="nm">🟢 <span id="srvName">earth</span></div>
-      <div class="rw"><span data-i18n="sidebar.state">运行状态</span><span id="srvState" data-i18n="sidebar.running">运行中</span></div>
-      <div class="rw"><span data-i18n="sidebar.platform">服务端</span><span>MC 1.21 · Youer</span></div>
+      <div class="nm">🟢 <span id="srvName">WindyAgent</span></div>
+      <div class="rw"><span data-i18n="sidebar.players_online">在线</span><span id="srvState">—</span></div>
+      <div class="rw"><span data-i18n="sidebar.platform">服务端</span><span id="srvPlatform">—</span></div>
     </div>
   </aside>
 
@@ -297,17 +307,15 @@
         </div>
       </div>
       <aside class="rightbar">
-        <div class="card glass"><h4>📈 <span data-i18n="right.overview">服务器概览</span> <a onclick="go('board')" data-i18n="right.more">更多数据</a></h4>
-          <div class="mini" id="ovMini"></div></div>
-        <div class="card glass"><h4 data-i18n="right.actions">⚡ 快捷操作</h4>
-          <div class="qa">
-            <button class="btn ghost sm" onclick="quick(T('quick.broadcast_cmd'))" data-i18n="quick.broadcast">📢 广播消息</button>
-            <button class="btn ghost sm" onclick="quick(T('quick.cleanup_cmd'))" data-i18n="quick.cleanup">🧹 清理掉落物</button>
-            <button class="btn ghost sm" onclick="quick(T('quick.backup_cmd'))" data-i18n="quick.backup">💾 备份存档</button>
-            <button class="btn ghost sm" onclick="quick(T('quick.restart_cmd'))" data-i18n="quick.restart">🔄 重启服务器</button>
-          </div></div>
-        <div class="card glass"><h4>📜 <span data-i18n="right.recent_log">最近日志</span> <a onclick="go('board')" data-i18n="right.view_all">查看全部</a></h4>
-          <div class="log" id="recentLog"><span class="muted" data-i18n="right.no_log">暂无（需接入服务器事件日志）</span></div></div>
+        <div class="card glass" style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 15px 10px;border-bottom:1px solid var(--line)">
+            <h4 style="margin:0" data-i18n="right.history">💬 对话记录</h4>
+            <button class="btn ghost sm" onclick="clearAllConvs()" style="font-size:11px;padding:4px 10px" data-i18n="right.clear_all">清空</button>
+          </div>
+          <div id="convList" style="flex:1;overflow-y:auto;padding:6px 8px"></div>
+        </div>
+        <!-- 保留隐藏引用，防止其他 JS 崩 -->
+        <div style="display:none"><div id="ovMini"></div><div id="recentLog"></div></div>
       </aside>
     </div>
 
@@ -440,6 +448,14 @@
       </div>
     </div>
     <div id="page-settings" class="page"><div class="build"><div class="big">⚙️</div><h2 data-i18n="wip.settings">设置中心</h2><p data-i18n="wip.settings_desc">令牌 / 背景 / 主题 —— 建设中（令牌在配置 web.token，背景改 dashboard.html 顶部 BG）。</p></div></div>
+    <div id="page-sys" class="page">
+      <div class="g3" id="sysKpi"></div>
+      <div class="g2">
+        <div class="panel glass" id="sysLlm"><h3>🤖 LLM 用量</h3><div id="sysLlmBody" class="ph">加载中…</div></div>
+        <div class="panel glass" id="sysTools"><h3>🔧 工具热力图</h3><div id="sysToolsBody" class="ph">加载中…</div></div>
+      </div>
+      <div class="panel glass" id="sysError"><h3>📈 错误率趋势（24h）</h3><div id="sysErrorBody" class="ph" style="height:120px">加载中…</div></div>
+    </div>
   </main>
 </div>
 
@@ -456,7 +472,8 @@ const LANGS={
   // 顶部栏
   'topbar.online':'在线','topbar.pending':'待审','topbar.alerts':'运维告警','topbar.logout':'退出登录','topbar.lang':'🌐 中/EN',
   // 侧边栏
-  'sidebar.subtitle':'MC服务器智能助手','sidebar.ops':'运维总览','sidebar.chat':'AI 对话','sidebar.board':'行为看板','sidebar.kb':'知识库','sidebar.players':'玩家管理','sidebar.econ':'经济分析','sidebar.event':'定时任务','sidebar.skill':'技能扩展','sidebar.settings':'设置中心','sidebar.state':'运行状态','sidebar.running':'运行中','sidebar.platform':'服务端',
+  'sidebar.subtitle':'MC服务器智能助手','sidebar.ops':'运维总览','sidebar.chat':'AI 对话','sidebar.board':'行为看板','sidebar.kb':'知识库','sidebar.players':'玩家管理','sidebar.econ':'经济分析','sidebar.event':'定时任务','sidebar.skill':'技能扩展','sidebar.settings':'设置中心','sidebar.sys':'系统健康','sidebar.state':'运行状态','sidebar.running':'运行中','sidebar.players_online':'在线','sidebar.platform':'服务端',
+  'right.history':'对话记录','right.clear_all':'清空',
   // 运维总览
   'ops.title':'🛰️ 运维总览','ops.subtitle':'主动运维哨兵实时巡检 · 异常自动告警与处置建议','ops.sentinel':'哨兵','ops.btn_refresh':'刷新','ops.servers_title':'🖥️ 服务器','ops.servers_tag':'点击卡片看详情','ops.no_server':'暂无已连接子服','ops.alerts_title':'🚨 运维告警 / 处置过程','ops.alerts_tag':'哨兵自动','ops.no_alert':'暂无告警 — 服务器一切正常 🎐','ops.kpi_servers':'在线子服','ops.kpi_players':'在线玩家','ops.kpi_alarms':'活跃告警','ops.kpi_sentinel':'哨兵','ops.kpi_running':'运行中',
   // 聊天页
@@ -520,7 +537,8 @@ const LANGS={
   // First-run setup wizard
   'setup.title':'Setup Wizard','setup.hint':'First run — configure an LLM provider','setup.provider':'Provider','setup.key':'API Key','setup.key_ph':'sk-... / your key','setup.base':'API Base URL (optional)','setup.model':'Model','setup.fast':'Cheap model (optional, saves tokens)','setup.fast_ph':'blank = same as main model','setup.save':'Save','setup.saving':'Saving…','setup.saved':'✅ Saved! Restart the Velocity proxy to apply.','setup.err_key':'API Key is required','setup.err_model':'Model name is required','setup.err_save':'Save failed: ',
   'topbar.online':'Online','topbar.pending':'Pending','topbar.alerts':'Alerts','topbar.logout':'Logout','topbar.lang':'🌐 EN/中',
-  'sidebar.subtitle':'MC Server Assistant','sidebar.ops':'Dashboard','sidebar.chat':'AI Chat','sidebar.board':'Analytics','sidebar.kb':'Knowledge Base','sidebar.players':'Players','sidebar.econ':'Economy','sidebar.event':'Scheduled Tasks','sidebar.skill':'Skills','sidebar.settings':'Settings','sidebar.state':'Status','sidebar.running':'Running','sidebar.platform':'Platform',
+  'sidebar.subtitle':'MC Server Assistant','sidebar.ops':'Dashboard','sidebar.chat':'AI Chat','sidebar.board':'Analytics','sidebar.kb':'Knowledge Base','sidebar.players':'Players','sidebar.econ':'Economy','sidebar.event':'Scheduled Tasks','sidebar.skill':'Skills','sidebar.settings':'Settings','sidebar.sys':'System Health','sidebar.state':'Status','sidebar.running':'Running','sidebar.players_online':'Online','sidebar.platform':'Platform',
+  'right.history':'Conversations','right.clear_all':'Clear',
   'ops.title':'🛰️ Dashboard','ops.subtitle':'Proactive sentinel monitoring · Auto alerts & response suggestions','ops.sentinel':'Sentinel','ops.btn_refresh':'Refresh','ops.servers_title':'🖥️ Servers','ops.servers_tag':'Click card for details','ops.no_server':'No connected servers','ops.alerts_title':'🚨 Alerts & Response','ops.alerts_tag':'Auto sentinel','ops.no_alert':'No alerts — all servers healthy 🎐','ops.kpi_servers':'Online Servers','ops.kpi_players':'Online Players','ops.kpi_alarms':'Active Alerts','ops.kpi_sentinel':'Sentinel','ops.kpi_running':'Running',
   'chat.welcome_title':'Hello, Admin 🌸','chat.welcome_desc':'I\'m WindyAgent. I can manage players, search info, store knowledge, and follow commands. Multi-turn conversations supported.','chat.cat_player':'🧑 Player Mgmt','chat.cat_player_l1':'Online / Kick / Balance','chat.cat_player_l2':'Player profiles & behavior','chat.cat_shop':'🛒 Shop & Items','chat.cat_shop_l1':'Item valuation / Bundles','chat.cat_shop_l2':'Price & product suggestions','chat.cat_info':'🔎 Info Query','chat.cat_info_l1':'Server status / Switch server','chat.cat_info_l2':'Knowledge base Q&A','chat.cat_memory':'🧠 Memory','chat.cat_memory_l1':'Remember preferences & rules','chat.cat_memory_l2':'Cross-session long-term memory','chat.placeholder':'Say something… (type / for commands, Enter to send, Shift+Enter for newline)','chat.btn_new':'New Chat','chat.btn_send':'Send ✨','chat.thinking':'Thinking…','chat.err':'Error: ','chat.empty':'(empty)','chat.target_all':'🌐 Main (VC)',
   'quick.broadcast':'📢 Broadcast','quick.cleanup':'🧹 Clear Drops','quick.backup':'💾 Backup','quick.restart':'🔄 Restart Server','quick.broadcast_cmd':'broadcast ','quick.cleanup_cmd':'run kill @e[type=item] on earth','quick.backup_cmd':'backup earth','quick.restart_cmd':'restart earth',
@@ -604,6 +622,7 @@ async function afterAuth(){
   let st=null; try{st=await api('/api/setup/state');}catch(e){if(e.message==='unauthorized')throw e;/* 旧 jar 无此接口 → 当作已配置 */}
   if(st&&st.configured===false){$('gate').style.display='none';showSetup(st);return;}
   await loadServers();$('gate').style.display='none';$('setup').style.display='none';onServer();
+  loadProxyStatus();renderConvs();
 }
 function suProviderChange(){
   const p=$('suProvider').value;
@@ -628,9 +647,18 @@ async function saveSetup(){
   catch(e){msg.style.color='#ff7a98';msg.textContent=T('setup.err_save')+e.message;}
 }
 
+/* 代理状态：左下角面板 */
+async function loadProxyStatus(){
+  try{const d=await api('/api/status');
+    if(d.name)$('srvName').textContent=d.name;
+    if(d.proxyVersion||d.platform)$('srvPlatform').textContent=d.proxyVersion||d.platform;
+    if(d.onlinePlayers!=null)$('srvState').textContent=d.onlinePlayers+' online';
+  }catch(e){/* 静默失败 */}
+}
+
 /* 导航 */
-const PAGE_KEYS={ops:'sidebar.ops',chat:'sidebar.chat',board:'sidebar.board',kb:'sidebar.kb',players:'sidebar.players',econ:'sidebar.econ',event:'sidebar.event',skill:'sidebar.skill',settings:'sidebar.settings'};
-const PAGE_ICONS={ops:'🛰️',chat:'💬',board:'📊',kb:'📚',players:'🧑',econ:'🛒',event:'⏰',skill:'🧪',settings:'⚙️'};
+const PAGE_KEYS={ops:'sidebar.ops',chat:'sidebar.chat',board:'sidebar.board',kb:'sidebar.kb',players:'sidebar.players',econ:'sidebar.econ',event:'sidebar.event',skill:'sidebar.skill',settings:'sidebar.settings',sys:'sidebar.sys'};
+const PAGE_ICONS={ops:'🛰️',chat:'💬',board:'📊',kb:'📚',players:'🧑',econ:'🛒',event:'⏰',skill:'🧪',settings:'⚙️',sys:'🖥️'};
 function renderNavLabels(){document.querySelectorAll('.nav .tx').forEach(el=>{const p=el.closest('.nav');if(p&&p.dataset.v)el.textContent=T(PAGE_KEYS[p.dataset.v]);});}
 function logout(){localStorage.removeItem('wa_token');location.reload();}
 function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.v===v));
@@ -638,7 +666,7 @@ function go(v){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('
   const pt=$('pageTitle');if(pt&&PAGE_KEYS[v])pt.textContent=PAGE_ICONS[v]+' '+T(PAGE_KEYS[v]);
   $('alertPop').style.display='none';
   animateIn('page-'+v);
-  if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks(); if(v==='skill')loadSkills(); if(v==='econ')loadPurchase();}
+  if(v==='ops')loadOps(); if(v==='board')loadBoard(); if(v==='kb')loadKb(); if(v==='event')loadTasks(); if(v==='skill')loadSkills(); if(v==='econ')loadPurchase(); if(v==='sys')loadSys();}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.v));
 
 /* 切页：面板错峰淡入上滑（重置后重放，每次进页都活一下） */
@@ -857,28 +885,111 @@ function quick(t){go('chat');$('chatIn').value=t;$('chatIn').focus();}
 let chatStarted=false;
 function bubble(c,t){const m=$('msgs');if(!chatStarted){m.innerHTML='';chatStarted=true;}const d=document.createElement('div');d.className='msg '+c;d.textContent=t;m.appendChild(d);m.scrollTop=m.scrollHeight;return d;}
 function chatSession(){const t=$('chatTarget').value;return t?'web-'+t:'web-console';}
-/* 聊天记录本地持久化（按会话/子服分别存）：刷新/切回不丢。仅前端展示用，AI 上下文仍由后端 SessionManager 管。 */
-const WELCOME=$('msgs').innerHTML;   // 开场白原样存档，空会话时还原
-function chatKey(){return 'wa_chat_'+chatSession();}
+/* 聊天记录本地持久化（按对话 ID 存）：刷新/切回不丢。后端上下文由 backendSession() 固定维护。 */
+const WELCOME=$('msgs').innerHTML;
 function loadHist(){return JSON.parse(localStorage.getItem(chatKey())||'[]');}
 function pushHist(role,text){const h=loadHist();h.push({role,text});localStorage.setItem(chatKey(),JSON.stringify(h.slice(-120)));}
 async function renderHist(){const m=$('msgs');let h=null;
-  try{h=await api('/api/chat/history?session='+encodeURIComponent(chatSession()));}catch(e){h=null;}   // 后端存盘=跨刷新跨设备
-  if(h){localStorage.setItem(chatKey(),JSON.stringify(h.slice(-120)));}else{h=loadHist();}            // 拉不到(旧 jar/离线)→本地兜底
+  try{h=await api('/api/chat/history?session='+encodeURIComponent(chatSession()));}catch(e){h=null;}
+  if(h){localStorage.setItem(chatKey(),JSON.stringify(h.slice(-120)));}else{h=loadHist();}
   if(!h.length){m.innerHTML=WELCOME;chatStarted=false;return;}
   m.innerHTML='';chatStarted=true;
   h.forEach(e=>{const d=document.createElement('div');d.className='msg '+(e.role==='u'?'u':'a');
     if(e.role==='u')d.textContent=e.text;else d.innerHTML=md(e.text);m.appendChild(d);});
   m.scrollTop=m.scrollHeight;}
-function targetNote(){localStorage.setItem('wa_target',$('chatTarget').value);renderHist();}   // 切子服=存选择+切到该会话各自的聊天记录
+function targetNote(){
+  activeConvId=null;  // 手动切子服 = 开新对话
+  localStorage.setItem('wa_target',$('chatTarget').value);
+  const m=$('msgs');m.innerHTML=WELCOME;chatStarted=false;
+  renderConvs();}
+
+/* 对话记录（右侧栏） */
+const CONV_KEY='wa_convs';
+function loadConvs(){try{return JSON.parse(localStorage.getItem(CONV_KEY)||'[]')}catch(e){return[]}}
+function saveConvs(c){localStorage.setItem(CONV_KEY,JSON.stringify(c))}
+
+let activeConvId=null;
+
+// 后端 session 名（固定，保证上下文连续）
+function backendSession(){const t=$('chatTarget').value;return t?'web-'+t:'web-console';}
+// localStorage key：按前端对话 ID 存
+function chatKey(){return 'wa_chat_'+(activeConvId||backendSession());}
+
+function addConv(title){
+  const c=loadConvs();const now=Date.now();
+  if(activeConvId){const i=c.findIndex(x=>x.id===activeConvId);
+    if(i>=0){if(title)c[i].title=title;c[i].ts=now;saveConvs(c);renderConvs();return;}}
+  activeConvId='conv-'+now;
+  c.unshift({id:activeConvId,title:title||'新对话',ts:now,target:$('chatTarget').value});
+  if(c.length>50)c.length=50;saveConvs(c);renderConvs();}
+
+function renderConvs(){const el=$('convList');if(!el)return;const c=loadConvs();
+  if(!c.length){el.innerHTML='<div class="conv-empty">还没有对话记录<br><span style="font-size:11px;color:var(--mut)">发送消息开始对话</span></div>';return;}
+  let html='';
+  for(let i=0;i<c.length;i++){const x=c[i];const cls=x.id===activeConvId?' active':'';
+    html+='<div class="conv-item'+cls+'" data-cid="'+x.id+'"><div class="ct">'+esc(x.title)+'</div><div class="cm"><span>'+fmtAgo(x.ts)+'</span><span class="cd" data-did="'+x.id+'">删除</span></div></div>';}
+  el.innerHTML=html;
+  // 事件委托：点击切换 / 删除
+  el.onclick=function(e){
+    const del=e.target.closest('[data-did]');
+    if(del){e.stopPropagation();delConv(del.dataset.did);return;}
+    const item=e.target.closest('[data-cid]');
+    if(item)switchConv(item.dataset.cid);};}
+
+function switchConv(id){
+  const c=loadConvs().find(x=>x.id===id);if(!c)return;
+  activeConvId=id;
+  $('chatTarget').value=c.target||'';
+  go('chat');
+  renderConvHist();renderConvs();}
+
+// 从 localStorage 渲染当前对话的消息
+function renderConvHist(){
+  const m=$('msgs');const h=loadHist();
+  if(!h.length){m.innerHTML=WELCOME;chatStarted=false;m.scrollTop=0;return;}
+  m.innerHTML='';chatStarted=true;
+  for(let i=0;i<h.length;i++){const e=h[i];const d=document.createElement('div');d.className='msg '+(e.role==='u'?'u':'a');
+    if(e.role==='u')d.textContent=e.text;else d.innerHTML=md(e.text);m.appendChild(d);}
+  m.scrollTop=m.scrollHeight;}
+
+function delConv(id){saveConvs(loadConvs().filter(c=>c.id!==id));localStorage.removeItem('wa_chat_'+id);if(activeConvId===id)activeConvId=null;renderConvs();}
+function clearAllConvs(){if(!confirm('清空所有对话记录？'))return;loadConvs().forEach(c=>localStorage.removeItem('wa_chat_'+c.id));saveConvs([]);activeConvId=null;renderConvs();}
+function fmtAgo(ts){const d=Date.now()-ts;if(d<60000)return'刚刚';if(d<3600000)return Math.floor(d/60000)+'分钟前';if(d<86400000)return Math.floor(d/3600000)+'小时前';return Math.floor(d/86400000)+'天前';}
+
 async function send(){const inp=$('chatIn'),msg=inp.value.trim();if(!msg)return;inp.value='';inp.style.height='auto';$('cmdPop').style.display='none';
   const tgt=$('chatTarget').value,isCmd=msg.startsWith('/');
-  // 斜杠命令直发路由（不加"默认子服"前缀，否则前缀会顶掉命令词）；自然语言才按子服加前缀
   const apiMsg=(tgt&&!isCmd)?`（默认子服:${tgt}，涉及子服的操作就用它）${msg}`:msg;
-  bubble('u',msg);pushHist('u',msg);const t=bubble('a',T('chat.thinking'));
-  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({message:apiMsg,display:msg,session:chatSession()})});t.innerHTML=md(r.reply||T('chat.empty'));pushHist('a',r.reply||T('chat.empty'));}
-  catch(e){t.textContent=T('chat.err')+e.message;t.classList.add('err');}$('msgs').scrollTop=$('msgs').scrollHeight;}
-function newChat(){api('/api/chat',{method:'POST',body:JSON.stringify({message:'clear',session:chatSession()})}).catch(()=>{});localStorage.removeItem(chatKey());chatStarted=false;location.reload();}
+  // 没有活跃对话 → 立即创建，标题=首条消息前 20 字
+  if(!activeConvId)addConv(msg.slice(0,20));
+  const isFirstMsg=loadHist().length===0;
+  bubble('u',msg);pushHist('u',msg);
+  const t=bubble('a','');t.innerHTML='<span class="typing-cursor">▊</span>';
+  try{
+    const resp=await fetch('/api/chat/stream',{method:'POST',headers:{'X-Token':TK(),'Content-Type':'application/json'},body:JSON.stringify({message:apiMsg,display:msg,session:backendSession()})});
+    if(resp.status===401){showGate(T('login.err_token'));return;}
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const reader=resp.body.getReader();const decoder=new TextDecoder();let full='';let buf='';
+    while(true){const{done,value}=await reader.read();if(done)break;buf+=decoder.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop()||'';
+      for(const line of lines){if(!line.startsWith('data: '))continue;const d=line.slice(6).trim();
+        if(d==='[DONE]')break;try{const j=JSON.parse(d);if(j.text){full+=j.text;t.innerHTML=md(full);}}catch(e){}}}
+    if(!full)full=T('chat.empty');t.innerHTML=md(full);pushHist('a',full);
+    // 首条回复后，异步 AI 总结标题（不阻塞）
+    if(isFirstMsg){summarizeTitle(msg,full).then(title=>{if(title)addConv(title);});}
+  }catch(e){t.textContent=T('chat.err')+e.message;t.classList.add('err');}$('msgs').scrollTop=$('msgs').scrollHeight;}
+
+// AI 总结标题（异步，不阻塞主流程）
+async function summarizeTitle(q,a){
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({
+    message:'用10个字以内概括这段对话的标题，只输出标题：\n用户：'+q+'\n回复：'+(a||'').slice(0,150),
+    session:'title-summary',display:''})});
+    return(r.reply||'').replace(/["""]/g,'').slice(0,20)||null;}
+  catch(e){return null;}}
+
+function newChat(){
+  activeConvId=null;chatStarted=false;
+  const m=$('msgs');m.innerHTML=WELCOME;
+  renderConvs();}
 
 /* 命令提示面板：输入 / 弹出可用命令，↑↓选 / Enter·Tab 补全 / Esc 关。命令裸词或 / 前缀均可。 */
 const CMDS=[
@@ -1161,6 +1272,38 @@ document.querySelectorAll('.purTab').forEach(b=>{b.onclick=()=>{
   if(tab==='orders')loadPurOrders();if(tab==='ranking')loadPurRanking();};});
 function fmtTs(ts){if(!ts)return'-';const d=new Date(ts);return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;}
 function p2(n){return n<10?'0'+n:n;}
+
+/* ===== 系统健康 ===== */
+async function loadSys(){
+  try{
+    const d=await api('/api/system');
+    // KPI 卡片
+    const upH=Math.floor((d.uptimeMs||0)/3600000),upM=Math.floor(((d.uptimeMs||0)%3600000)/60000);
+    $('sysKpi').innerHTML=[
+      kpiCard('⏱️',upH+'h '+upM+'m','运行时间'),
+      kpiCard('💾',(d.heapUsedMb||0)+' / '+(d.heapMaxMb||0)+' MB','堆内存'),
+      kpiCard('💬',d.activeSessions||0,'活跃会话'),
+    ].join('');
+    // LLM 用量
+    const llm=d.llm||{};
+    $('sysLlmBody').innerHTML=llm.totalCalls!=null?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+      <div><span class="muted">总调用</span><br><b>${llm.totalCalls}</b></div>
+      <div><span class="muted">平均延迟</span><br><b>${llm.avgLatencyMs||0}ms</b></div>
+      <div><span class="muted">输入 token</span><br><b>${(llm.totalInputTokens||0).toLocaleString()}</b></div>
+      <div><span class="muted">输出 token</span><br><b>${(llm.totalOutputTokens||0).toLocaleString()}</b></div>
+    </div>${(llm.daily||[]).length?`<div style="margin-top:10px;font-size:12px"><span class="muted">近7天：</span>${llm.daily.map(x=>x.day+'('+x.calls+'次)').join(' · ')}</div>`:''}`:'<span class="muted">未启用用量追踪</span>';
+    // 工具热力图
+    const tools=d.tools||{};const tKeys=Object.keys(tools);
+    $('sysToolsBody').innerHTML=tKeys.length?`<table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr style="color:var(--mut)"><td style="padding:4px">工具</td><td>调用</td><td>延迟</td><td>错误率</td></tr>
+      ${tKeys.map(k=>{const t=tools[k];return `<tr><td style="padding:4px">${k}</td><td>${t.calls}</td><td>${t.avgLatencyMs}ms</td><td style="color:${t.errorRate>.2?'var(--pink)':'var(--mint)'}">${(t.errorRate*100).toFixed(1)}%</td></tr>`;}).join('')}
+    </table>`:'<span class="muted">暂无工具调用记录</span>';
+    // 错误率趋势
+    const errArr=d.errorTrend||[];const maxErr=Math.max(1,...errArr.map(x=>x.errors||0));
+    $('sysErrorBody').innerHTML=`<div style="display:flex;align-items:end;gap:3px;height:80px">${errArr.map(x=>{const h=((x.errors||0)/maxErr*70+8);return `<div style="flex:1;background:linear-gradient(var(--pink),var(--violet));border-radius:3px 3px 0 0;height:${h}px" title="${x.errors||0} 错误"></div>`;}).join('')}</div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:4px"><span>24h前</span><span>现在</span></div>`;
+  }catch(e){$('sysKpi').innerHTML='';$('sysLlmBody').innerHTML='<span class="err">'+esc(e.message)+'</span>';}
+}
+function kpiCard(ic,v,k){return `<div class="kpi glass"><div class="ic">${ic}</div><div class="v">${v}</div><div class="k">${k}</div></div>`;}
 </script>
 </body>
 </html>

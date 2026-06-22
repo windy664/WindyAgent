@@ -14,7 +14,8 @@ class ServerHandler(
     private val timeoutMs: Long,
     private val connectedServers: () -> Set<String>,
     private val alerts: AlertCenter?,
-    private val health: (() -> String)?
+    private val health: (() -> String)?,
+    private val proxyInfo: (() -> String)? = null
 ) : ApiHandler {
 
     override fun canHandle(path: String): Boolean = path in PATHS
@@ -24,6 +25,7 @@ class ServerHandler(
             "/api/servers" -> json(ex, 200, "[" + connectedServers().sorted().joinToString(",") { mapper.writeValueAsString(it) } + "]")
             "/api/health" -> json(ex, 200, runCatching { health?.invoke() }.getOrNull() ?: "[]")
             "/api/alerts" -> json(ex, 200, alerts?.json() ?: "[]")
+            "/api/status" -> json(ex, 200, proxyInfo?.invoke() ?: """{"name":"unknown","platform":"Velocity","mcVersion":"?"}""")
             "/api/mods" -> proxyText(ex, query, "server_mods", mapper)
             "/api/dimtps" -> proxyText(ex, query, "dimension_tps", mapper)
             "/api/serverdetail" -> proxy(ex, query, "server_detail", mapper)
@@ -58,6 +60,6 @@ class ServerHandler(
     }
 
     companion object {
-        private val PATHS = setOf("/api/servers", "/api/health", "/api/alerts", "/api/mods", "/api/dimtps", "/api/serverdetail")
+        private val PATHS = setOf("/api/servers", "/api/health", "/api/alerts", "/api/status", "/api/mods", "/api/dimtps", "/api/serverdetail")
     }
 }

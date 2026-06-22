@@ -29,6 +29,7 @@ class ChatStream {
                 is StreamChunk.Error -> break
                 is StreamChunk.ToolCallStart -> {}
                 is StreamChunk.ToolCallDelta -> {}
+                is StreamChunk.Usage -> {}
             }
         }
         return sb.toString()
