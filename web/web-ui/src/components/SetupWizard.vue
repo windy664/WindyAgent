@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchSetupState, saveSetup, UnauthorizedError } from '../api'
 
 // firstRun=true：首启未配置，全屏强制；false：从「设置」面板进来，可重配。
 const props = defineProps<{ firstRun?: boolean }>()
-const emit = defineEmits<{ (e: 'unauthorized'): void; (e: 'done'): void }>()
+const router = useRouter()
+// 401 不再向上 emit：请求层已集中登出（authed=false → 路由回登录页）。
 
 const form = reactive({
   provider: 'openai',
@@ -32,8 +34,8 @@ async function load() {
     if (st.model) form.model = st.model
     if (st.apiBaseUrl) form.apiBaseUrl = st.apiBaseUrl
     if (st.fastModel) form.fastModel = st.fastModel
-  } catch (e) {
-    if (e instanceof UnauthorizedError) emit('unauthorized')
+  } catch {
+    // 401 由请求层集中登出处理，这里无需额外动作
   }
 }
 
@@ -62,9 +64,9 @@ async function submit() {
     })
     msgColor.value = '#86efc6'
     msg.value = '✅ 已保存！重启 Velocity 代理后生效。'
-    if (!props.firstRun) setTimeout(() => emit('done'), 1200)
+    if (!props.firstRun) setTimeout(() => router.push('/ops'), 1200)
   } catch (e) {
-    if (e instanceof UnauthorizedError) return emit('unauthorized')
+    if (e instanceof UnauthorizedError) return // 请求层已集中登出
     msgColor.value = '#ff7a98'
     msg.value = '保存失败：' + (e as Error).message
   } finally {

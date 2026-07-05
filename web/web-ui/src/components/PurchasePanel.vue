@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
+  ElButton,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElInputNumber,
+  ElMessage,
+  ElMessageBox,
+  ElOption,
+  ElPagination,
+  ElSelect,
+  ElTable,
+  ElTableColumn,
+  ElTag,
+} from 'element-plus'
+import {
   closeOrder,
   fetchOrders,
   fetchRanking,
@@ -10,11 +25,10 @@ import {
   refundOrder,
   UnauthorizedError,
   type OrdersPage,
+  type PurchaseOrder,
   type RankEntry,
   type Revenue,
 } from '../api'
-
-const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
 const available = ref<boolean | null>(null)
 const error = ref('')
@@ -24,6 +38,7 @@ const revenue = ref<Revenue | null>(null)
 
 // 订单
 const orders = ref<OrdersPage | null>(null)
+const loading = ref(false)
 const page = ref(1)
 const size = 20
 const fPlayer = ref('')
@@ -37,7 +52,7 @@ const ranking = ref<RankEntry[]>([])
 const gPlayer = ref('')
 const gAmount = ref<number | null>(null)
 const gCmds = ref('')
-const gResult = ref('')
+const granting = ref(false)
 
 const STATUSES = ['PENDING', 'PAID', 'CANCELLED', 'EXPIRED', 'REFUNDED']
 const METHODS = ['alipay', 'wechat', 'paypal', 'afdian', 'mock']
@@ -48,9 +63,16 @@ function yuan(fen: number): string {
 function time(ts: number): string {
   return ts ? new Date(ts).toLocaleString().slice(5, 16) : '—'
 }
+// 状态 → el-tag 语义色
+function tagType(s: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (s === 'PAID') return 'success'
+  if (s === 'PENDING') return 'warning'
+  if (s === 'REFUNDED' || s === 'CANCELLED' || s === 'EXPIRED') return 'danger'
+  return 'info'
+}
 function handle(e: unknown) {
-  if (e instanceof UnauthorizedError) emit('unauthorized')
-  else error.value = (e as Error).message
+  if (e instanceof UnauthorizedError) return // 请求层集中登出
+  error.value = (e as Error).message
 }
 
 async function init() {
@@ -69,6 +91,7 @@ async function loadRevenue() {
 }
 
 async function loadOrders() {
+  loading.value = true
   try {
     orders.value = await fetchOrders(page.value, size, {
       status: fStatus.value,
@@ -78,6 +101,8 @@ async function loadOrders() {
     error.value = ''
   } catch (e) {
     handle(e)
+  } finally {
+    loading.value = false
   }
 }
 function query() {
@@ -89,19 +114,37 @@ function gotoPage(p: number) {
   loadOrders()
 }
 
-async function cancel(id: string) {
-  if (!confirm(`取消订单 ${id}？`)) return
+async function cancel(o: PurchaseOrder) {
   try {
-    await closeOrder(id)
+    await ElMessageBox.confirm(`确认取消订单 ${o.orderId}？`, '取消订单', {
+      type: 'warning',
+      confirmButtonText: '取消订单',
+      cancelButtonText: '返回',
+    })
+  } catch {
+    return // 用户放弃
+  }
+  try {
+    await closeOrder(o.orderId)
+    ElMessage.success('订单已取消')
     await loadOrders()
   } catch (e) {
     handle(e)
   }
 }
-async function refund(id: string) {
-  if (!confirm(`退款订单 ${id}？此操作不可逆`)) return
+async function refund(o: PurchaseOrder) {
   try {
-    await refundOrder(id)
+    await ElMessageBox.confirm(`确认退款订单 ${o.orderId}？此操作不可逆。`, '退款', {
+      type: 'warning',
+      confirmButtonText: '确认退款',
+      cancelButtonText: '返回',
+    })
+  } catch {
+    return
+  }
+  try {
+    await refundOrder(o.orderId)
+    ElMessage.success('已退款')
     await loadOrders()
     await loadRevenue()
   } catch (e) {
@@ -121,29 +164,30 @@ async function doGrant() {
   const player = gPlayer.value.trim()
   const amount = gAmount.value
   if (!player || !amount || amount <= 0) {
-    gResult.value = '请填写玩家名和金额'
+    ElMessage.warning('请填写玩家名和正确金额')
     return
   }
   const cmds = gCmds.value.split('\n').map((c) => c.trim()).filter(Boolean)
+  granting.value = true
   try {
     const r = await grantOrder(player, amount, cmds)
-    gResult.value = `✅ 已补单 ${r.orderId}（${player} · ¥${amount}）`
+    ElMessage.success(`已补单 ${r.orderId}（${player} · ¥${amount}）`)
     gPlayer.value = ''
     gAmount.value = null
     gCmds.value = ''
     await loadRevenue()
   } catch (e) {
-    if (e instanceof UnauthorizedError) emit('unauthorized')
-    else gResult.value = '❌ ' + (e as Error).message
+    if (e instanceof UnauthorizedError) return
+    ElMessage.error((e as Error).message)
+  } finally {
+    granting.value = false
   }
 }
 
-function switchTab(t: 'orders' | 'ranking' | 'grant') {
+function setTab(t: 'orders' | 'ranking' | 'grant') {
   tab.value = t
   if (t === 'ranking' && ranking.value.length === 0) loadRanking()
 }
-
-const totalPages = () => (orders.value ? Math.ceil(orders.value.total / orders.value.size) : 1)
 
 onMounted(init)
 </script>
@@ -155,7 +199,7 @@ onMounted(init)
         <h2>🛒 充值管理</h2>
         <p>WindyPurchase 订单 · 收入统计 · 补单</p>
       </div>
-      <div class="tools"><button class="btn ghost sm" @click="init">刷新</button></div>
+      <div class="tools"><el-button @click="init">刷新</el-button></div>
     </div>
 
     <div v-if="available === false" class="build">
@@ -167,54 +211,69 @@ onMounted(init)
     <template v-else-if="available">
       <p v-if="error" class="err">{{ error }}</p>
 
-      <!-- KPI -->
+      <!-- KPI（保留原版玻璃卡）-->
       <div class="kpis" v-if="revenue">
         <div class="kpi glass"><div class="ic">💰</div><div class="v">{{ yuan(revenue.todayAmount) }}</div><div class="k">今日收入</div></div>
         <div class="kpi glass"><div class="ic">📈</div><div class="v">{{ yuan(revenue.totalAmount) }}</div><div class="k">总收入</div></div>
         <div class="kpi glass"><div class="ic">📦</div><div class="v">{{ revenue.totalOrders }}</div><div class="k">总订单</div></div>
       </div>
 
-      <!-- tabs -->
+      <!-- tabs（分离胶囊按钮，沿用原版审美：激活=渐变，未激活=玻璃）-->
       <div class="ptabs">
-        <button class="btn sm" :class="{ ghost: tab !== 'orders' }" @click="switchTab('orders')">📋 订单</button>
-        <button class="btn sm" :class="{ ghost: tab !== 'ranking' }" @click="switchTab('ranking')">🏆 排行</button>
-        <button class="btn sm" :class="{ ghost: tab !== 'grant' }" @click="switchTab('grant')">➕ 补单</button>
+        <el-button :type="tab === 'orders' ? 'primary' : 'default'" @click="setTab('orders')">📋 订单</el-button>
+        <el-button :type="tab === 'ranking' ? 'primary' : 'default'" @click="setTab('ranking')">🏆 排行</el-button>
+        <el-button :type="tab === 'grant' ? 'primary' : 'default'" @click="setTab('grant')">➕ 补单</el-button>
       </div>
 
       <!-- 订单 -->
       <div v-if="tab === 'orders'">
         <div class="filters">
-          <input v-model="fPlayer" placeholder="玩家名" style="width: 140px" />
-          <select v-model="fStatus" style="width: 130px"><option value="">全部状态</option><option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option></select>
-          <select v-model="fMethod" style="width: 130px"><option value="">全部方式</option><option v-for="m in METHODS" :key="m" :value="m">{{ m }}</option></select>
-          <button class="btn sm" @click="query">查询</button>
+          <el-input v-model="fPlayer" placeholder="玩家名" clearable style="width: 150px" @keyup.enter="query" />
+          <el-select v-model="fStatus" placeholder="全部状态" clearable style="width: 140px">
+            <el-option v-for="s in STATUSES" :key="s" :label="s" :value="s" />
+          </el-select>
+          <el-select v-model="fMethod" placeholder="全部方式" clearable style="width: 140px">
+            <el-option v-for="m in METHODS" :key="m" :label="m" :value="m" />
+          </el-select>
+          <el-button type="primary" @click="query">查询</el-button>
         </div>
-        <div class="panel glass" style="padding: 0; overflow: hidden">
-          <table class="otbl">
-            <thead>
-              <tr><th>订单号</th><th>玩家</th><th class="r">金额</th><th>方式</th><th>状态</th><th>时间</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="o in orders?.data || []" :key="o.orderId">
-                <td class="mono">{{ o.orderId }}</td>
-                <td>{{ o.playerName }}</td>
-                <td class="r">{{ yuan(o.amount) }}</td>
-                <td>{{ o.paymentMethod }}</td>
-                <td><span class="st" :class="o.status">{{ o.status }}</span></td>
-                <td>{{ time(o.createdAt) }}</td>
-                <td>
-                  <button v-if="o.status === 'PENDING'" class="lnk" @click="cancel(o.orderId)">取消</button>
-                  <button v-if="o.status === 'PAID'" class="lnk red" @click="refund(o.orderId)">退款</button>
-                </td>
-              </tr>
-              <tr v-if="orders && orders.data.length === 0"><td colspan="7" class="muted" style="text-align: center; padding: 20px">无订单</td></tr>
-            </tbody>
-          </table>
+
+        <div class="panel glass" style="padding: 6px">
+          <el-table :data="orders?.data || []" v-loading="loading" empty-text="无订单" style="width: 100%">
+            <el-table-column prop="orderId" label="订单号" min-width="170">
+              <template #default="{ row }"><span class="mono">{{ row.orderId }}</span></template>
+            </el-table-column>
+            <el-table-column prop="playerName" label="玩家" min-width="100" />
+            <el-table-column label="金额" align="right" width="110">
+              <template #default="{ row }">{{ yuan(row.amount) }}</template>
+            </el-table-column>
+            <el-table-column prop="paymentMethod" label="方式" width="90" />
+            <el-table-column label="状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="tagType(row.status)" effect="plain" round size="small">{{ row.status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="时间" width="120">
+              <template #default="{ row }">{{ time(row.createdAt) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100">
+              <template #default="{ row }">
+                <el-button v-if="row.status === 'PENDING'" link type="primary" @click="cancel(row)">取消</el-button>
+                <el-button v-if="row.status === 'PAID'" link type="danger" @click="refund(row)">退款</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-        <div v-if="orders && totalPages() > 1" class="pages">
-          <button class="btn ghost sm" :disabled="page <= 1" @click="gotoPage(page - 1)">‹</button>
-          <span>{{ page }} / {{ totalPages() }}</span>
-          <button class="btn ghost sm" :disabled="page >= totalPages()" @click="gotoPage(page + 1)">›</button>
+
+        <div v-if="orders && orders.total > size" class="pages">
+          <el-pagination
+            background
+            layout="prev, pager, next"
+            :current-page="page"
+            :page-size="size"
+            :total="orders.total"
+            @current-change="gotoPage"
+          />
         </div>
       </div>
 
@@ -230,14 +289,18 @@ onMounted(init)
 
       <!-- 补单 -->
       <div v-else-if="tab === 'grant'" class="panel glass" style="max-width: 460px">
-        <label class="muted" style="font-size: 12px">玩家名</label>
-        <input v-model="gPlayer" placeholder="玩家名" />
-        <label class="muted" style="font-size: 12px; display: block; margin-top: 8px">金额（元）</label>
-        <input v-model.number="gAmount" type="number" min="1" placeholder="金额" />
-        <label class="muted" style="font-size: 12px; display: block; margin-top: 8px">命令（每行一条，%player% 为玩家名）</label>
-        <textarea v-model="gCmds" rows="3" placeholder="give %player% diamond 64"></textarea>
-        <button class="btn" style="margin-top: 10px" @click="doGrant">确认补单</button>
-        <div v-if="gResult" style="margin-top: 8px; font-size: 13px">{{ gResult }}</div>
+        <el-form label-position="top">
+          <el-form-item label="玩家名">
+            <el-input v-model="gPlayer" placeholder="玩家名" />
+          </el-form-item>
+          <el-form-item label="金额（元）">
+            <el-input-number v-model="gAmount" :min="1" :controls="false" placeholder="金额" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="命令（每行一条，%player% 为玩家名）">
+            <el-input v-model="gCmds" type="textarea" :rows="3" placeholder="give %player% diamond 64" />
+          </el-form-item>
+          <el-button type="primary" :loading="granting" @click="doGrant">确认补单</el-button>
+        </el-form>
       </div>
     </template>
 
@@ -251,71 +314,24 @@ onMounted(init)
   gap: 8px;
   margin-bottom: 14px;
 }
+/* el-button 相邻自带 12px 左外边距，flex+gap 下清掉避免叠加 */
+.ptabs :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
 .filters {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
-.otbl {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.otbl th {
-  text-align: left;
-  padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--mut);
-  font-weight: 700;
-}
-.otbl th.r,
-.otbl td.r {
-  text-align: right;
-}
-.otbl td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-}
 .mono {
   font-family: Consolas, monospace;
   font-size: 12px;
 }
-.st {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: var(--glass2);
-}
-.st.PAID {
-  color: var(--mint);
-}
-.st.PENDING {
-  color: var(--gold);
-}
-.st.REFUNDED,
-.st.CANCELLED,
-.st.EXPIRED {
-  color: var(--red);
-}
-.lnk {
-  background: none;
-  border: none;
-  color: var(--violet);
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-}
-.lnk.red {
-  color: var(--red);
-}
 .pages {
   display: flex;
-  gap: 10px;
   justify-content: center;
-  align-items: center;
-  margin-top: 12px;
-  font-size: 13px;
+  margin-top: 14px;
 }
 .rank-row {
   display: flex;

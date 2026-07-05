@@ -80,20 +80,13 @@ class AgentRouter(
             // 3. 上下文压缩（历史超阈值时摘要旧消息）
             compressor?.compress(context.history)
 
-            // 4. 工具集动态选择（设到 context.selectedTools，toolLoop 会用 context.effectiveTools）
-            val selectedTools = ToolsetSelector.select(context.userMessage, context.trust, context.platform.toolsets)
-            if (selectedTools !== context.platform.tools && selectedTools.size < context.platform.tools.size) {
-                context.selectedTools = selectedTools
-                logger.debug("工具集选择：{} / {} 个工具", selectedTools.size, context.platform.tools.size)
-            }
-
-            // 5. 拼接画像到用户消息
+            // 4. 拼接画像到用户消息
             if (profileText.isNotBlank()) {
                 context.recalled = if (context.recalled.isNotBlank())
                     "$profileText\n\n${context.recalled}" else profileText
             }
 
-            // 6. 尝试子任务并行（仅 TRUSTED 且 subAgent 可用时）
+            // 5. 尝试子任务并行（仅 TRUSTED 且 subAgent 可用时）
             //    门控：先用廉价启发式过滤——明显简单（问候/闲聊/短消息）的请求直接跳过，
             //    不为它们白跑一次拆分 LLM（否则"你好"也要等一次 plan 往返）。
             val sa = subAgent

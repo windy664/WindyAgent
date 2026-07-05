@@ -24,6 +24,7 @@ class BukkitPlatform(
         BukkitBroadcastTool(actions),
         BukkitOnlinePlayersTool(actions),
         BukkitKickTool(actions),
+        BukkitDescribeCommandTool(actions),
         BukkitRunCommandTool(actions),
         BukkitBalanceTool(actions)
     ) + extraTools

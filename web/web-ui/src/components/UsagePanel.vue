@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { ElButton, ElOption, ElSelect, ElTable, ElTableColumn } from 'element-plus'
 import { fetchUsage, UnauthorizedError, type Usage } from '../api'
-
-const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
 const usage = ref<Usage | null>(null)
 const days = ref(7)
@@ -15,8 +14,8 @@ async function load() {
   try {
     usage.value = await fetchUsage(days.value)
   } catch (e) {
-    if (e instanceof UnauthorizedError) emit('unauthorized')
-    else error.value = (e as Error).message
+    if (e instanceof UnauthorizedError) return // 请求层集中登出
+    error.value = (e as Error).message
   } finally {
     loading.value = false
   }
@@ -31,6 +30,9 @@ const avgLatency = computed(() => {
 function fmt(n: number): string {
   return n.toLocaleString()
 }
+function rowLatency(d: { calls: number; totalLatencyMs: number }): string {
+  return (d.calls ? Math.round(d.totalLatencyMs / d.calls) : 0) + 'ms'
+}
 
 onMounted(load)
 </script>
@@ -43,58 +45,42 @@ onMounted(load)
         <p>LLM 调用量 · token 消耗 · 平均延迟</p>
       </div>
       <div class="tools">
-        <select v-model.number="days" @change="load" style="width: auto">
-          <option :value="7">近 7 天</option>
-          <option :value="14">近 14 天</option>
-          <option :value="30">近 30 天</option>
-        </select>
-        <button class="btn ghost sm" @click="load" :disabled="loading">{{ loading ? '…' : '刷新' }}</button>
+        <el-select v-model="days" @change="load" style="width: 120px">
+          <el-option :value="7" label="近 7 天" />
+          <el-option :value="14" label="近 14 天" />
+          <el-option :value="30" label="近 30 天" />
+        </el-select>
+        <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
     </div>
 
-    <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="error" class="err">{{ error }}</p>
 
     <template v-if="usage">
-      <div class="cards">
-        <div class="card"><div class="num">{{ fmt(usage.totalCalls) }}</div><div class="lbl">总调用</div></div>
-        <div class="card"><div class="num">{{ fmt(usage.totalInputTokens) }}</div><div class="lbl">输入 token</div></div>
-        <div class="card"><div class="num">{{ fmt(usage.totalOutputTokens) }}</div><div class="lbl">输出 token</div></div>
-        <div class="card"><div class="num">{{ fmt(avgLatency) }}<span class="unit">ms</span></div><div class="lbl">平均延迟</div></div>
+      <div class="kpis">
+        <div class="kpi glass"><div class="v">{{ fmt(usage.totalCalls) }}</div><div class="k">总调用</div></div>
+        <div class="kpi glass"><div class="v">{{ fmt(usage.totalInputTokens) }}</div><div class="k">输入 token</div></div>
+        <div class="kpi glass"><div class="v">{{ fmt(usage.totalOutputTokens) }}</div><div class="k">输出 token</div></div>
+        <div class="kpi glass"><div class="v">{{ fmt(avgLatency) }}<span class="unit">ms</span></div><div class="k">平均延迟</div></div>
       </div>
 
-      <table>
-        <thead>
-          <tr><th>日期</th><th>调用</th><th>输入</th><th>输出</th><th>均延迟</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="d in usage.daily" :key="d.day">
-            <td>{{ d.day }}</td>
-            <td>{{ fmt(d.calls) }}</td>
-            <td>{{ fmt(d.inputTokens) }}</td>
-            <td>{{ fmt(d.outputTokens) }}</td>
-            <td>{{ d.calls ? Math.round(d.totalLatencyMs / d.calls) : 0 }}ms</td>
-          </tr>
-          <tr v-if="usage.daily.length === 0"><td colspan="5" class="muted">暂无数据</td></tr>
-        </tbody>
-      </table>
+      <div class="panel glass" style="padding: 6px">
+        <el-table :data="usage.daily" v-loading="loading" empty-text="暂无数据" style="width: 100%">
+          <el-table-column prop="day" label="日期" min-width="120" />
+          <el-table-column label="调用" align="right"><template #default="{ row }">{{ fmt(row.calls) }}</template></el-table-column>
+          <el-table-column label="输入" align="right"><template #default="{ row }">{{ fmt(row.inputTokens) }}</template></el-table-column>
+          <el-table-column label="输出" align="right"><template #default="{ row }">{{ fmt(row.outputTokens) }}</template></el-table-column>
+          <el-table-column label="均延迟" align="right"><template #default="{ row }">{{ rowLatency(row) }}</template></el-table-column>
+        </el-table>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.view { padding: 20px; overflow-y: auto; width: 100%; }
-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-header h2 { margin: 0; }
-.actions { display: flex; gap: 8px; }
-select, button { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-.num { font-size: 26px; font-weight: 700; }
-.unit { font-size: 14px; opacity: 0.6; margin-left: 2px; }
-.lbl { color: var(--muted); font-size: 13px; margin-top: 4px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-th { color: var(--muted); font-weight: 600; }
-.muted { color: var(--muted); text-align: center; }
-.error { color: #ff6b6b; }
+.unit {
+  font-size: 14px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
 </style>

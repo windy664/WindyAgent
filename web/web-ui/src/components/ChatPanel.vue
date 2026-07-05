@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
-import { fetchHistory, fetchServers, streamChat, UnauthorizedError } from '../api'
+import { fetchHistory, fetchImThreads, fetchServers, streamChat, UnauthorizedError, type ImThread } from '../api'
 
 const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
+interface Step {
+  tool: string
+  ok: boolean
+  ms: number
+}
 interface Msg {
   role: 'user' | 'assistant'
   text: string
   streaming?: boolean
+  steps?: Step[]
 }
 interface Conv {
   id: string
@@ -33,7 +40,14 @@ function newId() {
 
 const convs = ref<Conv[]>(loadConvs())
 const currentId = ref<string>(convs.value[0]?.id || newId())
-const session = computed(() => `web-${currentId.value}`)
+
+// IM 联动固定对话（QQ 超管等）。activeIm 非空 = 当前正看某个 IM 对话，
+// 此时 session 用其原始 id（如 im-<openid>），与 QQ 端共用同一段对话。
+const imThreads = ref<ImThread[]>([])
+const activeIm = ref<string | null>(null)
+const session = computed(() => activeIm.value ?? `web-${currentId.value}`)
+const route = useRoute()
+const router = useRouter()
 
 const messages = ref<Msg[]>([])
 const input = ref('')
@@ -70,16 +84,22 @@ async function loadHistory() {
   }
 }
 
-function newChat() {
-  currentId.value = newId()
-  messages.value = []
-  input.value = ''
-}
-function switchConv(id: string) {
-  if (id === currentId.value) return
-  currentId.value = id
+// URL 是对话的唯一真相：切换对话 = push /chat/<convId>（convId 形如 web-<id> 或 im-<openid>）。
+// 这样每个对话有独立地址(25580/#/chat/<id>)：可书签/分享、直达 QQ 对话(im-)、刷新不丢。
+function newChat() { router.push('/chat/web-' + newId()) }
+function switchConv(id: string) { router.push('/chat/web-' + id) }
+function openImThread(t: ImThread) { router.push('/chat/' + t.session) }
+async function loadImThreads() { imThreads.value = await fetchImThreads() }
+
+// 按 URL 同步内部 state 并载入历史（单一数据流，避免双轨错乱）。
+function applyRoute() {
+  const cid = route.params.convId as string | undefined
+  if (!cid) { router.replace('/chat/web-' + newId()); return } // 无 id 立即固化 URL → watch 再进来带 id
+  if (cid.startsWith('im-')) activeIm.value = cid
+  else { activeIm.value = null; currentId.value = cid.replace(/^web-/, '') }
   loadHistory()
 }
+watch(() => route.params.convId, applyRoute)
 function deleteConv(id: string) {
   convs.value = convs.value.filter((c) => c.id !== id)
   persist()
@@ -117,18 +137,24 @@ async function send() {
   if (!text || sending.value) return
   input.value = ''
   sending.value = true
-  ensureConv(text)
+  // IM 固定对话不进本地会话列表（后端 ImThreadRegistry 管理）；仅 web 本地对话登记 + 固化 URL。
+  if (!activeIm.value) {
+    ensureConv(text)
+    if (!route.params.convId) router.replace('/chat/' + session.value)
+  }
 
   const apiMsg = target.value ? `[针对子服 ${target.value}] ${text}` : text
   messages.value.push({ role: 'user', text })
-  messages.value.push({ role: 'assistant', text: '', streaming: true })
+  messages.value.push({ role: 'assistant', text: '', streaming: true, steps: [] })
   // 取数组里的响应式代理（不能用原始对象，否则改 .text 不触发更新→看起来不流式）
   const a = messages.value[messages.value.length - 1]
   scrollToBottom()
 
   try {
-    for await (const chunk of streamChat(session.value, apiMsg, text)) {
-      a.text += chunk
+    for await (const ev of streamChat(session.value, apiMsg, text)) {
+      // 工具/skill 过程实时上屏（仿 Hermes）；正文增量拼接
+      if (ev.kind === 'step') a.steps!.push({ tool: ev.tool, ok: ev.ok, ms: ev.ms })
+      else a.text += ev.text
       scrollToBottom()
     }
   } catch (e) {
@@ -152,7 +178,8 @@ function convTime(ts: number) {
 
 onMounted(async () => {
   servers.value = await fetchServers()
-  if (convs.value.length) loadHistory()
+  loadImThreads()
+  applyRoute() // 首次按 URL 同步（无参数=新对话）
 })
 </script>
 
@@ -162,7 +189,15 @@ onMounted(async () => {
       <div class="msgs" ref="scroller">
         <template v-if="messages.length">
           <div v-for="(m, i) in messages" :key="i" :class="['msg', m.role === 'user' ? 'u' : 'a']">
-            <div class="mbody" v-html="render(m.text)"></div><span v-if="m.streaming" class="typing-cursor">▊</span>
+            <!-- 执行过程：agent 调的工具/skill 逐条实时上屏（仿 Hermes streaming tool output）-->
+            <div v-if="m.steps && m.steps.length" class="steps">
+              <div v-for="(s, si) in m.steps" :key="si" class="step" :class="{ skill: s.tool.startsWith('skill:') }">
+                <span class="stool" v-if="s.tool.startsWith('skill:')">🧪 skill: {{ s.tool.slice(6) }}</span>
+                <span class="stool" v-else>🔧 {{ s.tool }}</span>
+                <span :class="['sres', s.ok ? 'ok' : 'err']">{{ s.ok ? '✅' : '❌' }} {{ s.ms }}ms</span>
+              </div>
+            </div>
+            <div v-if="m.text" class="mbody" v-html="render(m.text)"></div><span v-if="m.streaming" class="typing-cursor">▊</span>
           </div>
         </template>
         <div v-else class="welcome">
@@ -209,10 +244,23 @@ onMounted(async () => {
           <button class="btn ghost sm" style="font-size: 11px; padding: 4px 10px" @click="clearAllConvs">清空</button>
         </div>
         <div class="convlist">
+          <!-- IM 固定对话（QQ 超管等）：置顶、带平台标识，与 web 无缝衔接 -->
+          <div v-if="imThreads.length" class="im-section">
+            <div class="im-label">📲 IM 联动</div>
+            <div
+              v-for="t in imThreads"
+              :key="t.session"
+              :class="['conv-item', 'im-item', { active: activeIm === t.session }]"
+              @click="openImThread(t)"
+            >
+              <div class="ct">💬 {{ t.title }}</div>
+              <div class="cm"><span>{{ t.platform }} · 与后台同步</span></div>
+            </div>
+          </div>
           <div
             v-for="c in convs"
             :key="c.id"
-            :class="['conv-item', { active: c.id === currentId }]"
+            :class="['conv-item', { active: c.id === currentId && !activeIm }]"
             @click="switchConv(c.id)"
           >
             <div class="ct">{{ c.title || '新对话' }}</div>
@@ -277,4 +325,27 @@ onMounted(async () => {
   font-size: 12.5px;
   line-height: 1.7;
 }
+.im-section {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.im-label {
+  font-size: 11px;
+  color: var(--mut);
+  font-weight: 700;
+  padding: 4px 12px 6px;
+}
+.conv-item.im-item.active,
+.conv-item.im-item:hover {
+  background: linear-gradient(120deg, rgba(255, 143, 200, 0.14), rgba(183, 155, 255, 0.14));
+  border-color: rgba(183, 155, 255, 0.3);
+}
+.msg.a .steps { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mut); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--bd); border-radius: 8px; padding: 4px 10px; width: fit-content; }
+.step .stool { font-family: Consolas, monospace; color: #d8cffa; font-weight: 700; }
+.step .sres.ok { color: var(--mint); }
+.step .sres.err { color: var(--red); }
+.step.skill { border-color: rgba(183, 155, 255, 0.5); background: rgba(183, 155, 255, 0.08); }
+.step.skill .stool { color: var(--violet); }
 </style>

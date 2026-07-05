@@ -11,10 +11,13 @@ import {
   UnauthorizedError,
   type BoardStats,
 } from '../api'
+import { storeToRefs } from 'pinia'
+import { useChromeStore } from '../stores/chrome'
 
 Chart.register(...registerables)
 
-const props = defineProps<{ server: string }>()
+// 当前操作子服改由 chrome store 提供（去掉父级 prop 透传，路由下仍 reactive）。
+const { currentServer: server } = storeToRefs(useChromeStore())
 const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
 const stats = ref<BoardStats | null>(null)
@@ -88,12 +91,12 @@ function gridOpts(yTicks: boolean) {
 }
 
 async function load() {
-  if (!props.server) {
+  if (!server.value) {
     noData.value = true
     return
   }
   try {
-    stats.value = await fetchBoardStats(props.server)
+    stats.value = await fetchBoardStats(server.value)
     noData.value = false
     error.value = ''
     await nextTick()
@@ -122,7 +125,7 @@ function drawAll() {
 
 async function loadWords() {
   try {
-    words.value = (await fetchWords(props.server, wcSource.value, 60)).filter((w) => w.word && w.count > 0)
+    words.value = (await fetchWords(server.value, wcSource.value, 60)).filter((w) => w.word && w.count > 0)
   } catch {
     words.value = []
   }
@@ -137,7 +140,7 @@ function fontSize(count: number): number {
   return 12 + Math.round((count / max) * 26)
 }
 
-watch(() => props.server, load)
+watch(server, load)
 onMounted(load)
 </script>
 

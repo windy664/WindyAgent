@@ -4,23 +4,24 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.sun.net.httpserver.HttpExchange
 import org.windy.windyagent.Messages
 import org.windy.windyagent.web.ApiHandler
+import org.windy.windyagent.web.ChatArchive
 import org.windy.windyagent.web.DashboardServer
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardOpenOption
 
 /**
  * 聊天 API：/api/chat, /api/chat/stream, /api/chat/history
  *
- * @param streamChat 可选的流式聊天函数：(session, message, onChunk) -> 完整回复。
- *   非 null 时 /api/chat/stream 走真流式（逐块推送）；null 时退化为假切片。
+ * @param archive 共享聊天存档（与 IM 联动共用同一实例，实现 web↔QQ 记录互通）。
+ * @param streamChat 可选的「裸 LLM 真流式」：(session, message, onChunk) -> 完整回复。已弃用（不带工具会瞎编）。
+ * @param processChat 可选的「带工具 Agent + 过程流式」：(session, message, onStep(tool,ok,ms)) -> 完整回复。
+ *   非 null 时 /api/chat/stream 优先走它：agent 执行中把每个工具调用作为 step 帧实时推给前端（仿 Hermes），
+ *   agent 完成后最终回复走打字机切片。这是既能真调工具、又能展示过程的方案。
  */
 class ChatHandler(
     private val server: DashboardServer,
     private val chat: ((String, String) -> String)?,
-    private val dataDir: Path,
-    private val streamChat: ((String, String, (String) -> Unit) -> String)? = null
+    private val archive: ChatArchive,
+    private val streamChat: ((String, String, (String) -> Unit) -> String)? = null,
+    private val processChat: ((String, String, (String, Boolean, Long) -> Unit) -> String)? = null
 ) : ApiHandler {
 
     override fun canHandle(path: String): Boolean = path.startsWith("/api/chat")
@@ -29,7 +30,7 @@ class ChatHandler(
         when (path) {
             "/api/chat" -> chatApi(ex, mapper)
             "/api/chat/stream" -> chatStreamApi(ex, mapper)
-            "/api/chat/history" -> server.json(ex, 200, chatHistory(query["session"]?.takeIf { it.isNotBlank() } ?: "web-console", mapper))
+            "/api/chat/history" -> server.json(ex, 200, archive.history(query["session"]?.takeIf { it.isNotBlank() } ?: "web-console"))
             else -> server.json(ex, 404, """{"error":"not found"}""")
         }
     }
@@ -43,11 +44,11 @@ class ChatHandler(
         val disp = n["display"]?.asText()?.takeIf { it.isNotBlank() } ?: msg
 
         if (msg.trim().equals("clear", true) || msg.trim() == "/clear") {
-            runCatching { c(sid, msg) }; clearChatLog(sid)
+            runCatching { c(sid, msg) }; archive.clear(sid)
             return server.json(ex, 200, mapper.createObjectNode().put("reply", Messages.t("web.new_chat")).toString())
         }
         val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
-        appendChatLog(sid, "u", disp, mapper); appendChatLog(sid, "a", reply, mapper)
+        archive.append(sid, "u", disp); archive.append(sid, "a", reply)
         server.json(ex, 200, mapper.createObjectNode().put("reply", reply).toString())
     }
 
@@ -64,55 +65,48 @@ class ChatHandler(
         ex.sendResponseHeaders(200, 0)
 
         val writer = ex.responseBody.bufferedWriter(Charsets.UTF_8)
+        val lock = Any() // SSE 写帧加锁：过程回调可能在工具的并行线程触发
+        fun send(payload: String) = synchronized(lock) { writer.write("data: $payload\n\n"); writer.flush() }
+        fun sendText(chunk: String) = send(mapper.createObjectNode().put("text", chunk).toString())
+        // 最终回复打字机切片（按 code point 切，避免劈开 emoji 代理对显示 "??"）
+        fun typewriter(reply: String) {
+            val cps = reply.codePoints().toArray()
+            var i = 0
+            while (i < cps.size) {
+                val end = (i + 2).coerceAtMost(cps.size)
+                sendText(String(cps, i, end - i)); i = end
+                runCatching { Thread.sleep(22) } // 约 90 字/秒
+            }
+        }
         try {
-            if (streamChat != null) {
-                // 真流式：逐块推送
-                val fullReply = streamChat.invoke(sid, msg) { chunk ->
-                    writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("text", chunk))}\n\n")
-                    writer.flush()
+            when {
+                processChat != null -> {
+                    // 带工具 Agent + 过程流式：执行中把每个工具调用作为 step 帧实时推给前端，完成后打字机出正文。
+                    val reply = runCatching {
+                        processChat!!.invoke(sid, msg) { tool, ok, ms ->
+                            val step = mapper.createObjectNode().put("tool", tool).put("ok", ok).put("ms", ms)
+                            send("""{"step":$step}""")
+                        }
+                    }.getOrElse { Messages.t("web.error", it.message ?: "") }
+                    typewriter(reply)
+                    send("[DONE]")
+                    archive.append(sid, "u", msg); archive.append(sid, "a", reply)
                 }
-                writer.write("data: [DONE]\n\n"); writer.flush()
-                appendChatLog(sid, "u", msg, mapper); appendChatLog(sid, "a", fullReply, mapper)
-            } else {
-                // 假切片兜底：先拿完整回复，再按 20 字符切片
-                val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
-                var i = 0
-                while (i < reply.length) {
-                    val chunk = reply.substring(i, (i + 20).coerceAtMost(reply.length))
-                    writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("text", chunk))}\n\n")
-                    writer.flush(); i += 20
+                streamChat != null -> {
+                    val fullReply = streamChat!!.invoke(sid, msg) { chunk -> sendText(chunk) }
+                    send("[DONE]")
+                    archive.append(sid, "u", msg); archive.append(sid, "a", fullReply)
                 }
-                writer.write("data: [DONE]\n\n"); writer.flush()
-                appendChatLog(sid, "u", msg, mapper); appendChatLog(sid, "a", reply, mapper)
+                else -> {
+                    // 兜底：无过程，带工具 Agent 跑完打字机切片
+                    val reply = runCatching { c(sid, msg) }.getOrElse { Messages.t("web.error", it.message ?: "") }
+                    typewriter(reply)
+                    send("[DONE]")
+                    archive.append(sid, "u", msg); archive.append(sid, "a", reply)
+                }
             }
         } catch (e: Exception) {
-            writer.write("data: ${mapper.writeValueAsString(mapper.createObjectNode().put("error", e.message))}\n\n"); writer.flush()
+            send(mapper.createObjectNode().put("error", e.message).toString())
         } finally { writer.close() }
-    }
-
-    // ── 聊天存档 ──
-
-    private val chatLogDir: Path get() = dataDir.resolve("chatlog")
-    private fun chatLogFile(session: String): Path = chatLogDir.resolve(session.replace(Regex("[^a-zA-Z0-9_.-]"), "_") + ".jsonl")
-
-    @Synchronized
-    private fun appendChatLog(session: String, role: String, text: String, mapper: ObjectMapper) {
-        runCatching {
-            Files.createDirectories(chatLogDir)
-            val line = mapper.createObjectNode().put("role", role).put("text", text).put("ts", System.currentTimeMillis()).toString() + "\n"
-            Files.write(chatLogFile(session), line.toByteArray(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-        }
-    }
-
-    @Synchronized
-    private fun clearChatLog(session: String) { runCatching { Files.deleteIfExists(chatLogFile(session)) } }
-
-    private fun chatHistory(session: String, mapper: ObjectMapper): String {
-        val f = chatLogFile(session)
-        if (!Files.exists(f)) return "[]"
-        return runCatching {
-            val lines = Files.readAllLines(f, StandardCharsets.UTF_8).filter { it.isNotBlank() }
-            "[" + lines.takeLast(200).joinToString(",") + "]"
-        }.getOrDefault("[]")
     }
 }

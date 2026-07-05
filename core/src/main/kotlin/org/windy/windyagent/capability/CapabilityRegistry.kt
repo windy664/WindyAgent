@@ -105,6 +105,9 @@ class CapabilityRegistry(
     fun isEmpty(): Boolean = catalogs.isEmpty()
     fun totalCommands(): Int = catalogs.values.sumOf { it.commands.size }
 
+    /** 全部子服的能力目录快照（只读），供 WebUI「插件命令」只读展示。 */
+    fun catalogs(): List<CapabilityCatalog> = catalogs.values.toList()
+
     /** 一条命中：命令 + 所在子服。 */
     data class Hit(val server: String, val command: CapabilityCommand)
 

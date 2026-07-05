@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
+  ElButton,
+  ElCheckbox,
+  ElInput,
+  ElMessage,
+  ElMessageBox,
+  ElOption,
+  ElSelect,
+} from 'element-plus'
+import {
   deleteSkill,
   draftSkill,
   fetchServers,
@@ -14,12 +23,9 @@ import {
   type SkillSummary,
 } from '../api'
 
-const emit = defineEmits<{ (e: 'unauthorized'): void }>()
-
 const list = ref<SkillSummary[]>([])
 const servers = ref<string[]>([])
 const error = ref('')
-const toast = ref('')
 
 const editing = ref<{
   handle: string
@@ -34,17 +40,14 @@ const runServer = ref('')
 const runArgs = ref<Record<string, string>>({})
 const runResult = ref('')
 const running = ref(false)
+const saving = ref(false)
 const selected = ref<SkillSummary | null>(null)
 const drafting = ref(false)
 const draftInput = ref('')
 
 function handle(e: unknown) {
-  if (e instanceof UnauthorizedError) emit('unauthorized')
-  else error.value = (e as Error).message
-}
-function flash(msg: string) {
-  toast.value = msg
-  setTimeout(() => (toast.value = ''), 2500)
+  if (e instanceof UnauthorizedError) return // 请求层集中登出
+  error.value = (e as Error).message
 }
 
 async function load() {
@@ -78,24 +81,36 @@ async function openSkill(s: SkillSummary) {
 async function save() {
   const e = editing.value
   if (!e || !e.handle.trim()) return
+  saving.value = true
   try {
     const r = await saveSkill({ handle: e.handle, isScript: e.isScript, md: e.md, script: e.script, targets: e.targets })
-    flash(r.pushed ? `已保存并下发：${r.pushed}` : '已保存')
+    ElMessage.success(r.pushed ? `已保存并下发：${r.pushed}` : '已保存')
     e.isNew = false
     await load()
   } catch (err) {
     handle(err)
+  } finally {
+    saving.value = false
   }
 }
 
 async function remove() {
   const e = editing.value
   if (!e || e.isNew) return
-  if (!confirm(`删除技能「${e.handle}」？`)) return
+  try {
+    await ElMessageBox.confirm(`确认删除技能「${e.handle}」？`, '删除技能', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
   try {
     await deleteSkill(e.handle)
     editing.value = null
     selected.value = null
+    ElMessage.success('已删除')
     await load()
   } catch (err) {
     handle(err)
@@ -104,7 +119,7 @@ async function remove() {
 
 async function reload() {
   try {
-    flash(`已重载 ${(await reloadSkills()).count} 个技能`)
+    ElMessage.success(`已重载 ${(await reloadSkills()).count} 个技能`)
     await load()
   } catch (e) {
     handle(e)
@@ -112,7 +127,7 @@ async function reload() {
 }
 async function sync() {
   try {
-    flash(`下发：${(await syncSkills()).result}`)
+    ElMessage.success(`下发：${(await syncSkills()).result}`)
   } catch (e) {
     handle(e)
   }
@@ -125,8 +140,8 @@ async function run() {
   try {
     runResult.value = (await runSkill(selected.value.handle, runServer.value, runArgs.value)).result
   } catch (e) {
-    if (e instanceof UnauthorizedError) emit('unauthorized')
-    else runResult.value = '⚠️ ' + (e as Error).message
+    if (e instanceof UnauthorizedError) return
+    runResult.value = '⚠️ ' + (e as Error).message
   } finally {
     running.value = false
   }
@@ -159,14 +174,13 @@ onMounted(load)
         <p>📄 文字技能在中心执行 · ⚙️ 脚本技能下发到目标子服执行 · 保存即热重载</p>
       </div>
       <div class="tools">
-        <button class="btn sm" @click="newSkill">+ 新建技能</button>
-        <button class="btn ghost sm" @click="sync">⬇ 下发到子服</button>
-        <button class="btn ghost sm" @click="reload">↻ 重载库</button>
-        <button class="btn ghost sm" @click="load">刷新</button>
+        <el-button type="primary" @click="newSkill">+ 新建技能</el-button>
+        <el-button @click="sync">⬇ 下发到子服</el-button>
+        <el-button @click="reload">↻ 重载库</el-button>
+        <el-button @click="load">刷新</el-button>
       </div>
     </div>
 
-    <div v-if="toast" class="toast">{{ toast }}</div>
     <p v-if="error" class="err">{{ error }}</p>
 
     <div class="kbwrap" style="padding: 0">
@@ -186,41 +200,38 @@ onMounted(load)
       <div class="kbmain">
         <div v-if="editing" class="panel glass">
           <div class="frow">
-            <input v-model="editing.handle" placeholder="技能名（handle）" :disabled="!editing.isNew" />
-            <label class="chk"><input type="checkbox" v-model="editing.isScript" /> 脚本技能</label>
+            <el-input v-model="editing.handle" placeholder="技能名（handle）" :disabled="!editing.isNew" style="flex: 1" />
+            <el-checkbox v-model="editing.isScript">脚本技能</el-checkbox>
           </div>
           <details style="margin: 10px 0">
             <summary style="cursor: pointer; color: var(--violet); font-weight: 700">🤖 AI 起草 SKILL.md</summary>
-            <textarea v-model="draftInput" rows="2" placeholder="描述你想要的技能…" style="margin-top: 8px"></textarea>
-            <button class="btn sm" style="margin-top: 8px" :disabled="drafting || !draftInput.trim()" @click="aiDraft">
-              {{ drafting ? '生成中…' : '生成草稿 ✨' }}
-            </button>
+            <div style="display: flex; gap: 8px; margin-top: 8px">
+              <el-input v-model="draftInput" type="textarea" :rows="2" placeholder="描述你想要的技能…" style="flex: 1" />
+              <el-button :loading="drafting" :disabled="!draftInput.trim()" @click="aiDraft">生成草稿 ✨</el-button>
+            </div>
           </details>
-          <input v-if="editing.isScript" v-model="editing.targets" placeholder="目标子服（逗号分隔；留空=全部）" style="margin-bottom: 8px" />
+          <el-input v-if="editing.isScript" v-model="editing.targets" placeholder="目标子服（逗号分隔；留空=全部）" style="margin-bottom: 8px" />
           <label class="muted" style="font-size: 12px">SKILL.md</label>
-          <textarea v-model="editing.md" rows="8" placeholder="name / description / args …"></textarea>
+          <el-input v-model="editing.md" type="textarea" :rows="8" placeholder="name / description / args …" />
           <template v-if="editing.isScript">
             <label class="muted" style="font-size: 12px; display: block; margin-top: 8px">Groovy 脚本</label>
-            <textarea v-model="editing.script" rows="10" class="code"></textarea>
+            <el-input v-model="editing.script" type="textarea" :rows="10" class="code-input" />
           </template>
           <div style="margin-top: 12px; display: flex; gap: 8px">
-            <button class="btn" :disabled="!editing.handle.trim()" @click="save">保存</button>
-            <button v-if="!editing.isNew" class="btn ghost" @click="remove">删除</button>
+            <el-button type="primary" :loading="saving" :disabled="!editing.handle.trim()" @click="save">保存</el-button>
+            <el-button v-if="!editing.isNew" @click="remove">删除</el-button>
           </div>
 
           <div v-if="selected" class="run-box">
             <h4>▶ 运行</h4>
-            <select v-if="editing.isScript" v-model="runServer" style="margin-bottom: 8px">
-              <option value="">选择目标子服…</option>
-              <option v-for="srv in servers" :key="srv" :value="srv">{{ srv }}</option>
-            </select>
+            <el-select v-if="editing.isScript" v-model="runServer" placeholder="选择目标子服…" style="margin-bottom: 8px; width: 100%">
+              <el-option v-for="srv in servers" :key="srv" :label="srv" :value="srv" />
+            </el-select>
             <div v-for="arg in selected.args" :key="arg.name" class="arg">
               <label class="muted">{{ arg.name }} ({{ arg.type }})</label>
-              <input v-model="runArgs[arg.name]" :placeholder="arg.description" />
+              <el-input v-model="runArgs[arg.name]" :placeholder="arg.description" />
             </div>
-            <button class="btn sm" :disabled="running || (editing.isScript && !runServer)" @click="run">
-              {{ running ? '运行中…' : '▶ 运行' }}
-            </button>
+            <el-button :loading="running" :disabled="editing.isScript && !runServer" @click="run">▶ 运行</el-button>
             <pre v-if="runResult" class="result">{{ runResult }}</pre>
           </div>
         </div>
@@ -242,23 +253,6 @@ onMounted(load)
   gap: 12px;
   align-items: center;
 }
-.frow input {
-  flex: 1;
-}
-.chk {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  color: var(--mut);
-  font-size: 13px;
-}
-.chk input {
-  width: auto;
-}
-textarea.code {
-  font-family: Consolas, monospace;
-}
 .run-box {
   margin-top: 16px;
   border-top: 1px solid var(--line);
@@ -276,6 +270,9 @@ textarea.code {
   font-size: 12px;
   margin-bottom: 3px;
 }
+.code-input :deep(.el-textarea__inner) {
+  font-family: Consolas, monospace;
+}
 .result {
   background: rgba(0, 0, 0, 0.32);
   border-radius: 9px;
@@ -285,12 +282,5 @@ textarea.code {
   max-height: 300px;
   overflow-y: auto;
   margin-top: 10px;
-}
-.toast {
-  background: rgba(99, 102, 241, 0.2);
-  border: 1px solid var(--violet);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
 }
 </style>

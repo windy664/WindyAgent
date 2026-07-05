@@ -79,9 +79,21 @@ memory:
 #   知识库、技能扩展、定时任务、充值管理、用量统计、操作审批等完整面板。
 web:
   enabled: true          # 默认开启；浏览器开 http://<host>:<port>/。设 false 关闭
-  host: "127.0.0.1"      # 默认只绑本机；要外网访问改 0.0.0.0 并务必设强 token
-  port: 8080             # 控制台端口，可自定义
+  host: "0.0.0.0"        # 默认绑全部网卡（外网可直接访问）。token 留空会首启自动生成强随机串，避免裸奔；
+                         #   仅想本机访问改回 127.0.0.1。⚠外网开放务必确认 token 已生成/够强，并放行下方端口
+  port: 25580            # 控制台端口，可自定义（默认取 MC 栈端口段 255xx，避开 8080 等易撞端口）
   token: ""              # 访问令牌；留空=首启自动生成随机串写回本行。外网开放时务必用强 token
+
+  # ── 安全加固（借鉴宝塔面板；认证仍用上面的 token）──
+  security:
+    # 安全入口：秘密路径前缀。设了之后，控制台地址变成 http://<host>:<port>/<entry>/，
+    #   不带这个前缀一律 404 —— 挡住全网端口扫描器（它们只会试根路径）。
+    #   例：填 "wa_a1b2c3" → 访问 http://IP:25580/wa_a1b2c3/。留空=关闭此层。
+    #   ⚠外网开放强烈建议设一个随机串（字母数字下划线）。
+    entry: ""
+    # 防爆破：同一 IP 连续输错 token 达到 max-fails 次，锁定 lock-minutes 分钟（期间该 IP 一律 429）。
+    max-fails: 5
+    lock-minutes: 10
 
 # 部署形态 —— 仅 Bukkit 插件读取；Velocity 固定为「中心 Agent」，忽略本段。
 deployment:
@@ -151,6 +163,15 @@ sub-agent:
 profiles:
   enabled: true
   update-min-interval-sec: 60   # 同一会话两次画像更新最小间隔(秒)；0=每条都更
+  # 玩家「聚合画像」的 PAPI 数据源。需装 PlaceholderAPI。
+  # 【默认半自动】：插件启动时探测服务器装了哪些 PlaceholderAPI expansion，自动纳入对应的常用玩家维度
+  #   （Vault 余额 / LuckPerms 权限组·前缀 / Statistic 在线·死亡·击杀 / Player 世界·等级·血量 / CMI 登录·IP）
+  #   ——你啥都不用配。装了哪个插件画像就自动长出哪些维度（用 /papi ecloud download <名> 装 expansion）。
+  # 下面 papi-placeholders 仅用于【额外添加或覆盖】：想加内置没覆盖的冷门维度就写「显示名: 占位符」。
+  papi-placeholders: {}
+    # 领地数: "%griefdefender_claim_count%"
+    # 投票数: "%votingplugin_points%"
+    # 岛屿等级: "%bentobox_level%"
 
 # ── 4b. 质量 & 可靠性 ──
 

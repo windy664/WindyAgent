@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { setToken, verifyToken } from '../api'
+import { useRouter } from 'vue-router'
+import { verifyToken } from '../api'
+import { useAuthStore } from '../stores/auth'
 
-const emit = defineEmits<{ (e: 'authed'): void }>()
+const auth = useAuthStore()
+const router = useRouter()
 
 const value = ref('')
 const err = ref('')
@@ -22,8 +25,9 @@ async function enter() {
       err.value = '令牌无效，请重新输入'
       return
     }
-    setToken(t)
-    emit('authed')
+    auth.login(t) // 存 token + 置登录态
+    router.push('/') // 守卫接管首启检查
+
   } catch (e) {
     err.value = '连不上：' + (e as Error).message
   } finally {

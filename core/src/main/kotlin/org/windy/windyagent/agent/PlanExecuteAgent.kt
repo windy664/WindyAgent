@@ -41,7 +41,7 @@ class PlanExecuteAgent(
         val response = toolLoop(
             llmProvider, systemPrompt, messages, context.effectiveTools, maxIterations,
             failureDetector, toolResultCache, selfChecker, trajectoryRecorder,
-            context.sessionId, context.userMessage, onToolCall
+            context.sessionId, context.userMessage, onToolCall, context.onStep
         )
 
         context.syncHistory(messages)

@@ -6,47 +6,29 @@
 //   - 流式：POST /api/chat/stream，响应是 SSE（data: {"text":...} / data: [DONE]）
 // ============================================================
 
-const TOKEN_KEY = 'wa_token'
+// token / fetch / 401 等底座下沉到 http/client.ts（拦截器管线）。
+// 这里全部 re-export，业务面板继续从 '../api' 引用，零改动。
+export {
+  getToken,
+  setToken,
+  clearToken,
+  UnauthorizedError,
+  apiFetch,
+  apiJson,
+  apiPost,
+} from './http/client'
+import { getToken, apiJson, UnauthorizedError, notifyUnauthorized, basePrefix } from './http/client'
 
-export function getToken(): string {
-  return localStorage.getItem(TOKEN_KEY) || ''
-}
-export function setToken(t: string): void {
-  localStorage.setItem(TOKEN_KEY, t)
-}
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
-/** 401 专用错误，App 捕获后清 token + 弹登录门。 */
-export class UnauthorizedError extends Error {
-  constructor() {
-    super('unauthorized')
-    this.name = 'UnauthorizedError'
-  }
-}
-
-/** 带 token 的 fetch；401 直接抛 UnauthorizedError。 */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers)
-  headers.set('X-Token', getToken())
-  const r = await fetch(path, { ...init, headers })
-  if (r.status === 401) throw new UnauthorizedError()
-  return r
-}
-
-/** 便捷 JSON GET/POST。 */
-export async function apiJson<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-  const r = await apiFetch(path, init)
-  return (await r.json()) as T
-}
-
-/** 校验 token 是否有效：拿一个最轻的鉴权接口探一下。成功=true。 */
+/**
+ * 校验 token 是否有效：探一个「稳定存在」的鉴权接口。
+ * 关键：只用 401 判定 token 无效（401 是唯一的 token 失败信号）。
+ * 绝不能 `&& r.ok`——若探测接口本身 404/500，那是接口问题，不该误判成令牌无效。
+ * 历史 bug：曾探未注册的 /api/chat/history(404)，被 && r.ok 判成 false，
+ * 导致正确令牌也进不去。改探 /api/setup/state（旧 jar 无此接口时按下条兜底）。
+ */
 export async function verifyToken(token: string): Promise<boolean> {
-  const r = await fetch('/api/chat/history?session=web-console', {
-    headers: { 'X-Token': token },
-  })
-  return r.status !== 401 && r.ok
+  const r = await fetch(basePrefix() + '/api/setup/state', { headers: { 'X-Token': token } })
+  return r.status !== 401
 }
 
 export interface ChatLogEntry {
@@ -109,23 +91,72 @@ export function denyAction(id: string): Promise<{ desc: string }> {
 }
 
 // ── 知识库（/api/kb）──────────────────────────────────────
+// 完整条目（含正文）——详情/编辑用
 export interface KbEntry {
   id: string
   title: string
   content: string
   tags: string[]
+  folder?: string
 }
-export function fetchKb(): Promise<KbEntry[]> {
-  return apiJson<KbEntry[]>('/api/kb')
+// 轻量元数据（不含正文）——目录树/关系图/反链用；links=双链解析到的目标 id
+export interface KbMeta {
+  id: string
+  title: string
+  folder: string
+  tags: string[]
+  links: string[]
 }
-export function saveKb(e: { id?: string; title: string; content: string; tags: string[] }): Promise<{ ok: boolean; id: string }> {
+// 列表只回元数据（省流、抗大库）
+export function fetchKb(): Promise<KbMeta[]> {
+  return apiJson<KbMeta[]>('/api/kb')
+}
+// 单条正文，点开详情/编辑时才拉
+export function fetchKbEntry(id: string): Promise<KbEntry> {
+  return apiJson<KbEntry>(`/api/kb/entry?id=${encodeURIComponent(id)}`)
+}
+// 全文检索走后端稀疏检索，只回命中元数据
+export function searchKb(q: string): Promise<{ id: string; title: string; folder: string; tags: string[] }[]> {
+  return apiJson(`/api/kb/search?q=${encodeURIComponent(q)}`)
+}
+export function saveKb(e: { id?: string; title: string; content: string; tags: string[]; folder?: string }): Promise<{ ok: boolean; id: string }> {
   return apiJson('/api/kb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e) })
+}
+// 移动条目到新分类（不改正文）
+export function moveKb(id: string, folder: string): Promise<{ ok: boolean; id: string }> {
+  return apiJson('/api/kb/move', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, folder }) })
 }
 export function deleteKb(id: string): Promise<{ ok: boolean }> {
   return apiJson(`/api/kb?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
+
+// 插件命令目录（只读，实时来自能力注册表）
+export interface CapCommand {
+  name: string
+  description: string
+  aliases: string[]
+}
+export interface CapPlugin {
+  plugin: string
+  commands: CapCommand[]
+}
+export interface CapServer {
+  server: string
+  plugins: CapPlugin[]
+}
+export function fetchCapabilities(): Promise<CapServer[]> {
+  return apiJson<CapServer[]>('/api/kb/capabilities')
+}
 export function draftKb(text: string): Promise<{ title: string; content: string; tags: string[] }> {
   return apiJson('/api/kb/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+}
+// AI 编辑正文：action（polish/continue/summarize/translate，可空）+ instruction（自定义需求，可空）作用于 text
+export function aiEditKb(action: string, instruction: string, text: string): Promise<{ result: string }> {
+  return apiJson('/api/kb/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, instruction, text }),
+  })
 }
 
 // ── 技能（/api/skills）────────────────────────────────────
@@ -178,6 +209,37 @@ export function draftSkill(text: string): Promise<{ md: string }> {
 // ── 已连接子服列表（/api/servers）──────────────────────────
 export function fetchServers(): Promise<string[]> {
   return apiJson<string[]>('/api/servers').catch(() => [])
+}
+
+// ── IM 联动固定对话（/api/im/threads）──────────────────────
+// QQ 等 IM 超管的对话，登记为 web 可见的固定对话（与 web 共用 session，无缝衔接）。
+export interface ImThread {
+  session: string
+  platform: string
+  title: string
+  updatedAt: number
+}
+export function fetchImThreads(): Promise<ImThread[]> {
+  return apiJson<ImThread[]>('/api/im/threads').catch(() => [])
+}
+
+// ── 玩家管理（/api/players）——可扩展聚合：基础行 + 各插件贡献列/操作 ──
+export interface PlayerColumn { key: string; label: string }
+export interface PlayerAction { id: string; label: string; danger: boolean }
+export interface PlayersData {
+  columns: PlayerColumn[]
+  actions: PlayerAction[]
+  rows: Record<string, unknown>[]
+}
+export function fetchPlayers(): Promise<PlayersData> {
+  return apiJson<PlayersData>('/api/players').catch(() => ({ columns: [], actions: [], rows: [] }))
+}
+export function playerAction(id: string, player: string, args: Record<string, string> = {}): Promise<{ result: string }> {
+  return apiJson('/api/players/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, player, args }),
+  })
 }
 
 // ── 首启/设置向导（/api/setup）─────────────────────────────
@@ -431,17 +493,25 @@ export function refineTask(text: string): Promise<{ text: string }> {
  * 直接读 response.body 的 ReadableStream（不用 EventSource——后端是 POST + SSE，
  * EventSource 只支持 GET）。
  */
+/** 流式事件：正文增量 或 一次工具调用过程（仿 Hermes streaming tool output）。 */
+export type StreamEvent =
+  | { kind: 'text'; text: string }
+  | { kind: 'step'; tool: string; ok: boolean; ms: number }
+
 export async function* streamChat(
   session: string,
   message: string,
   display?: string,
-): AsyncGenerator<string, void, void> {
-  const resp = await fetch('/api/chat/stream', {
+): AsyncGenerator<StreamEvent, void, void> {
+  const resp = await fetch(basePrefix() + '/api/chat/stream', {
     method: 'POST',
     headers: { 'X-Token': getToken(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ session, message, display: display ?? message }),
   })
-  if (resp.status === 401) throw new UnauthorizedError()
+  if (resp.status === 401) {
+    notifyUnauthorized() // 流式绕过拦截器，手动触发集中登出
+    throw new UnauthorizedError()
+  }
   if (!resp.body) throw new Error('no stream body')
 
   const reader = resp.body.getReader()
@@ -460,14 +530,15 @@ export async function* streamChat(
       const d = line.slice(6).trim()
       if (d === '[DONE]') return
       if (!d) continue
-      let j: { text?: string; error?: string }
+      let j: { text?: string; error?: string; step?: { tool: string; ok: boolean; ms: number } }
       try {
         j = JSON.parse(d)
       } catch {
         continue // 半截 JSON，下一轮再拼
       }
       if (j.error) throw new Error(j.error)
-      if (j.text) yield j.text
+      if (j.step) yield { kind: 'step', tool: j.step.tool, ok: j.step.ok, ms: j.step.ms }
+      else if (j.text) yield { kind: 'text', text: j.text }
     }
   }
 }

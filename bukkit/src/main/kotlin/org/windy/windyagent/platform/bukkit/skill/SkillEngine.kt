@@ -44,6 +44,13 @@ class SkillEngine(
     // 给脚本里的循环/方法入口注入中断检查（协作式取消）。
     private val compilerConfig = CompilerConfiguration().apply {
         addCompilationCustomizers(ASTTransformationCustomizer(ThreadInterrupt::class.java))
+        // 基础 AST 限制(#4)：禁 import 进程执行类，挡最直接的 shell 逃逸(Runtime.exec/ProcessBuilder)。
+        // ⚠ 非强沙箱，Groovy 可经反射绕过；真正边界是「只装可信来源的 skill」+ OS 隔离，见加载日志警示。
+        addCompilationCustomizers(
+            org.codehaus.groovy.control.customizers.SecureASTCustomizer().apply {
+                setDisallowedImports(listOf("java.lang.Runtime", "java.lang.ProcessBuilder"))
+            }
+        )
     }
 
     /** 执行一个脚本技能，返回给 LLM 的文本结果（脚本 return 值；无返回值给默认提示）。 */

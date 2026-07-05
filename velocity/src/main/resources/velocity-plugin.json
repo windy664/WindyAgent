@@ -9,6 +9,10 @@
     {
       "id": "windypurchase",
       "optional": true
+    },
+    {
+      "id": "xingtubotvelocity",
+      "optional": true
     }
   ]
 }

@@ -236,10 +236,72 @@ class BukkitActions(
                 name = cmd.name,
                 aliases = runCatching { cmd.aliases }.getOrNull() ?: emptyList(),
                 description = cmd.description ?: "",
+                usage = runCatching { cmd.usage }.getOrNull()?.takeIf { it.isNotBlank() } ?: "",
                 source = source
             )
         }
     }
+
+    /**
+     * 只读探查一条命令的用法：目录里只有命令名/来源，很多插件真正的用法解释藏在自己的 i18n / help 主题里，
+     * plugin.yml 的 description 反而是空的。这里先取命令对象的静态 description/usage/aliases，
+     * 再跑 Bukkit 内置 `/help <name>`（读 HelpMap，输出走 sender）用 [CommandCapture] 旁路抓回详细主题。
+     *
+     * 纯读：只碰 `/help`，不 dispatch 目标命令本身，故不过 guard、无副作用。抓不到主题就只回静态元信息。
+     */
+    fun describeCommand(name: String): String {
+        val clean = name.trim().trimStart('/').substringBefore(' ')
+        if (clean.isEmpty()) return "请给出要查询的命令名。"
+        val known = runCatching { knownCommands() }.getOrNull().orEmpty()
+        val cmd = known.values.firstOrNull { it.name.equals(clean, true) }
+            ?: known.entries.firstOrNull { it.key.substringAfterLast(':').equals(clean, true) }?.value
+            ?: known.values.firstOrNull { c -> runCatching { c.aliases }.getOrNull()?.any { it.equals(clean, true) } == true }
+
+        val sb = StringBuilder()
+        var pluginName: String? = null
+        if (cmd != null) {
+            pluginName = (cmd as? PluginCommand)?.plugin?.name
+            sb.append("命令 /").append(cmd.name).append("（来源：").append(pluginName ?: "原版/模组").append("）\n")
+            cmd.description?.takeIf { it.isNotBlank() }?.let { sb.append("描述：").append(it).append('\n') }
+            cmd.usage?.takeIf { it.isNotBlank() }?.let { sb.append("用法：").append(it).append('\n') }
+            runCatching { cmd.aliases }.getOrNull()?.takeIf { it.isNotEmpty() }
+                ?.let { sb.append("别名：").append(it.joinToString(", ")).append('\n') }
+        } else {
+            sb.append("命令表里没有精确匹配「").append(clean).append("」的命令，仅尝试内置帮助。\n")
+        }
+
+        // ① Bukkit 内置 /help <topic>：读 HelpMap，插件的详细用法常在这里
+        val help = runCapture("help $clean").map { it.trim() }.filter { it.isNotEmpty() }
+        if (help.isNotEmpty()) {
+            sb.append("── /help ").append(clean).append(" ──\n").append(help.take(40).joinToString("\n"))
+            if (help.size > 40) sb.append("\n…（帮助较长，已截断前 40 行）")
+            sb.append('\n')
+        }
+
+        // ② tab 补全：列子命令/参数候选（纯读，绝不执行命令本体——/help 空但补全全的插件很常见）
+        var gotCompletions = false
+        if (cmd != null) {
+            val comps = tabHints(cmd)
+            if (comps.isNotEmpty()) { sb.append("子命令/参数候选：").append(comps.joinToString(", ")).append('\n'); gotCompletions = true }
+        }
+
+        val out = sb.toString().trim()
+        // 三处都没捞到用法（只剩命令名头部）→ 明确判定"查不到"，让 Agent 转而问用户而非瞎猜参数
+        val noUsage = help.isEmpty() && !gotCompletions &&
+            (cmd == null || (cmd.description.isNullOrBlank() && cmd.usage.isNullOrBlank()))
+        return if (noUsage)
+            "$out\n\n⚠️ 未查到「$clean」的可靠用法（描述/帮助/补全/语言文件均无）。不要凭空猜测参数执行；请向用户确认该命令的正确用法，得到答复后可用 knowledge_write 存入知识库。"
+        else out.ifEmpty { "未能获取「$clean」的用法信息。" }
+    }
+
+    /** 命令的 tab 补全候选（顶层子命令/参数）。纯读、不执行命令本体；主线程跑（补全实现常读 Bukkit 状态）。 */
+    private fun tabHints(cmd: Command): List<String> = runCatching {
+        onMain {
+            val fake = CommandCapture.sender(Bukkit.getServer(), java.util.Collections.synchronizedList(ArrayList<String>()))
+            (runCatching { cmd.tabComplete(fake, cmd.name, arrayOf("")) }.getOrNull() ?: emptyList())
+                .map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(30)
+        }
+    }.getOrElse { emptyList() }
 
     /** 跨版本读取已注册命令表：优先公共方法，回退反射字段（沿类层级找）。 */
     private fun knownCommands(): Map<String, Command> {

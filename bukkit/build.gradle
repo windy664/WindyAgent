@@ -33,6 +33,10 @@ repositories {
         name = 'jitpack'
         url = 'https://jitpack.io'
     }
+    maven {
+        name = 'placeholderapi'
+        url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
+    }
 }
 
 dependencies {
@@ -44,6 +48,10 @@ dependencies {
 
 
     compileOnly 'com.github.Zrips:CMI-API:9.8.6.4'
+
+    // PlaceholderAPI：玩家画像的通用数据源（softdepend，运行时由 PAPI 插件提供，不打包）。
+    // 各插件（Vault/LuckPerms/CMI/统计…）都往 PAPI 注册占位符，画像直接读占位符即可，无需逐个插件写集成。
+    compileOnly 'me.clip:placeholderapi:2.11.6'
 
     // core（Agent/LLM/工具）+ bus（总线），及其传递依赖均被下方 shadowJar 打进 fat jar。
     // core 已 api 暴露 bus，故依赖 core 即含 bus；provider 模式也只多打不用到的 Agent 类，无害。

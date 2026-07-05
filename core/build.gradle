@@ -26,6 +26,11 @@ dependencies {
     // 避免与宿主的 slf4j 产生重复类。用 1.7.x 以兼容 Velocity 3.x 与现代 Paper(2.0)。
     compileOnly 'org.slf4j:slf4j-api:1.7.36'
 
+    // XingtuBot（昕途）联动 —— 可选软依赖，只需接口签名编译，不打包。
+    // 运行时同进程的昕途插件加载同一份 common-core 类；未安装昕途时 bridge 惰性隔离不加载
+    // （见 bridge/XingtuBotConnector），不影响 WindyAgent 独立运行。放 core 使 Velocity+Bukkit 两端共用。
+    compileOnly files('libs/xingtubot-common-core.jar')
+
     // jackson 是各载体「工具」解析 inputJson 的共用工具，属 core 对外 API → 用 api 暴露
     api 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
     // 反序列化总线目录（Kotlin data class）需 kotlin module
@@ -40,4 +45,12 @@ dependencies {
     // Groovy：WorkflowEngine 用 GroovyShell 评估条件/脚本表达式。
     // 3.0.x 兼容 Java 8 基线；运行时由 bukkit fat jar 提供（shade 进 fat jar）。
     implementation 'org.codehaus.groovy:groovy:3.0.22'
+
+    // 单元测试（守护 tool 配对/历史裁剪/成本熔断等易崩关键路径）
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5:2.2.20'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+test {
+    useJUnitPlatform()
 }

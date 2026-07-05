@@ -23,7 +23,8 @@ import java.util.concurrent.Executors
 class DashboardServer(
     private val host: String,
     private val port: Int,
-    private val token: String
+    private val token: String,
+    private val security: WebSecurity = WebSecurity(token, "", 5, 10)
 ) {
     private val log = LoggerFactory.getLogger(DashboardServer::class.java)
     private val mapper = ObjectMapper()
@@ -39,11 +40,12 @@ class DashboardServer(
         s.createContext("/") { ex -> handle(ex) }
         s.start()
         server = s
-        if (token.isBlank()) log.warn("[Web] token 为空——接口无鉴权，强烈建议设 web.token 并仅绑 127.0.0.1")
-        // 不在日志中打印 token（日志常被截图/上传，避免泄漏）；token 看 windyagent-config.yml 的 web.token
-        log.info("[Web] 管理控制台已启动：http://{}:{}/ （{} 个 handler，鉴权：{}）",
-            if (host == "0.0.0.0") "<本机IP>" else host, port, handlers.size,
-            if (token.isBlank()) "关闭" else "开启（token 见配置文件 web.token）")
+        if (token.isBlank()) log.warn("[Web] token 为空——接口无鉴权，强烈建议设 web.token（尤其 host 非 127.0.0.1 时）")
+        // 不在日志中打印 token / 安全入口（日志常被截图/上传，避免泄漏）；均看 windyagent-config.yml
+        log.info("[Web] 管理控制台已启动：http://{}:{}{}/ （{} 个 handler，鉴权：{}，安全入口：{}）",
+            if (host == "0.0.0.0") "<本机IP>" else host, port, security.entryPath, handlers.size,
+            if (token.isBlank()) "关闭" else "开启(token)",
+            if (security.entryEnabled) "开启(见配置)" else "关闭")
     }
 
     fun stop() { server?.stop(0); server = null }
@@ -52,8 +54,17 @@ class DashboardServer(
 
     private fun handle(ex: HttpExchange) {
         try {
-            val path = ex.requestURI.path
+            var path = ex.requestURI.path
             val q = parseQuery(ex.requestURI.query)
+
+            // ① 安全入口（宝塔式）：配了秘密前缀时，所有访问须经 /<entry>/...，否则 404 —— 挡全网扫描。
+            //    命中后剥掉前缀，后续按正常路径处理；前端资源用相对路径，故剥离后一致。
+            if (security.entryEnabled) {
+                val ep = security.entryPath
+                if (path == ep) { redirect(ex, "$ep/"); return }
+                if (!path.startsWith("$ep/")) { json(ex, 404, """{"error":"not found"}"""); return }
+                path = path.removePrefix(ep).ifEmpty { "/" }
+            }
 
             // 静态资源：/ 默认 Vue 新版（/next 保留为别名）
             if (path == "/" || path == "/index.html" || path == "/next" || path == "/next.html") {
@@ -66,7 +77,13 @@ class DashboardServer(
 
             // API 鉴权
             if (path.startsWith("/api/")) {
-                if (token.isNotEmpty() && q["token"] != token && ex.requestHeaders.getFirst("X-Token") != token) {
+                val ip = security.clientIp(ex)
+                // ② 失败锁定（宝塔式防爆破）：锁定期内直接 429，不再校验 token。
+                if (security.isLocked(ip)) {
+                    json(ex, 429, """{"error":"too many attempts, locked for ${security.lockRemainingSec(ip)}s"}"""); return
+                }
+                // ③ token 认证：仅认 X-Token 头 + 常量时间比较（见 WebSecurity）。
+                if (!security.checkToken(ex, ip)) {
                     json(ex, 401, """{"error":"unauthorized"}"""); return
                 }
                 // 路由分发：找到第一个能处理的 handler
@@ -87,16 +104,31 @@ class DashboardServer(
         } finally { ex.close() }
     }
 
+    private fun redirect(ex: HttpExchange, location: String) {
+        ex.responseHeaders.add("Location", location)
+        ex.sendResponseHeaders(302, -1)
+    }
+
     // ── 工具方法（供 handler 调用）──
 
     fun json(ex: HttpExchange, code: Int, body: String) = respond(ex, code, "application/json; charset=utf-8", body.toByteArray(StandardCharsets.UTF_8))
 
     fun respond(ex: HttpExchange, code: Int, contentType: String, body: ByteArray) {
-        ex.responseHeaders.add("Content-Type", contentType)
-        ex.responseHeaders.add("Cache-Control", "no-cache, no-store, must-revalidate")
-        ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
-        ex.responseHeaders.add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-        ex.responseHeaders.add("Access-Control-Allow-Headers", "Content-Type, X-Token")
+        val h = ex.responseHeaders
+        h.add("Content-Type", contentType)
+        h.add("Cache-Control", "no-cache, no-store, must-revalidate")
+        // 前端与后端同源（同一 DashboardServer），无需开放跨域。
+        // 仅回显同源 Origin（等价于"只允许自己"），不再用通配 * —— 避免任意站点跨域打接口。
+        ex.requestHeaders.getFirst("Origin")?.let { origin ->
+            h.add("Access-Control-Allow-Origin", origin)
+            h.add("Vary", "Origin")
+        }
+        h.add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        h.add("Access-Control-Allow-Headers", "Content-Type, X-Token")
+        // 安全响应头：防点击劫持 / 防 MIME 嗅探 / 收敛 referer（token 曾可能进 referer，双保险）
+        h.add("X-Frame-Options", "DENY")
+        h.add("X-Content-Type-Options", "nosniff")
+        h.add("Referrer-Policy", "no-referrer")
         if (ex.requestMethod == "OPTIONS") { ex.sendResponseHeaders(204, -1); ex.close(); return }
         ex.sendResponseHeaders(code, body.size.toLong())
         ex.responseBody.use { it.write(body) }

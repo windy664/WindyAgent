@@ -16,7 +16,7 @@ import org.windy.windyagent.bus.socket.SocketClientBus
 import org.windy.windyagent.bus.socket.SocketHubBus
 import org.windy.windyagent.ui.WindyLog
 import org.windy.windyagent.profile.ProfileDataRegistry
-import org.windy.windyagent.platform.bukkit.cmi.CmiProfileSource
+import org.windy.windyagent.platform.bukkit.profile.PapiProfileSource
 import org.windy.windyagent.platform.bukkit.profile.PlayerProfileListener
 
 /**
@@ -62,10 +62,11 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         // 行为采集与部署形态无关：事件都在本子服发生，三种模式都跑
         behavior = runCatching { BehaviorService.build(this, cfg)?.also { it.start() } }
             .getOrElse { logger.warning(WindyLog.tag("Behavior", "行为采集启动失败：${it.message}")); null }
-        // 画像数据源注册（CMI 等插件的玩家数据缓存），与模式无关
-        profileRegistry.register(CmiProfileSource(this))
+        // 画像数据源注册（通过 PlaceholderAPI 读各插件占位符，config 驱动清单），与模式无关
+        profileRegistry.register(PapiProfileSource(this, cfg.papiProfilePlaceholders()))
         server.pluginManager.registerEvents(PlayerProfileListener(profileRegistry), this)
-        logger.info(WindyLog.tag("Profile", "画像数据源已注册 — ${profileRegistry.available().size} 个可用"))
+        logger.info(WindyLog.tag("Profile", "画像数据源已注册 — ${profileRegistry.available().size} 个可用" +
+            if (server.pluginManager.getPlugin("PlaceholderAPI") == null) "（未检测到 PlaceholderAPI，画像为空，请装 PAPI）" else ""))
         when (mode) {
             "standalone" -> startStandalone(cfg)
             "hub" -> startHub(cfg)

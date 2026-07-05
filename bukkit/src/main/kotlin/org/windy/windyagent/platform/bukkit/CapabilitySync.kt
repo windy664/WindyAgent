@@ -73,7 +73,7 @@ class CapabilitySync(
     /** 命令集合的稳定签名（排除 builtAt，仅看内容），用于检测插件增删改。 */
     private fun signature(commands: List<CapabilityCommand>): String {
         val body = commands.sortedBy { it.name }
-            .joinToString("\n") { "${it.name}|${it.aliases.sorted().joinToString(",")}|${it.description}|${it.source}" }
+            .joinToString("\n") { "${it.name}|${it.aliases.sorted().joinToString(",")}|${it.description}|${it.usage}|${it.source}" }
         return Integer.toHexString(body.hashCode()) + ":" + commands.size
     }
 

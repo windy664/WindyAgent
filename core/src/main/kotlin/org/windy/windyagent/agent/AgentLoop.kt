@@ -41,7 +41,8 @@ internal fun toolLoop(
     trajectoryRecorder: TrajectoryRecorder? = null,
     sessionId: String = "",
     userMessage: String = "",
-    onToolCall: ((String, Long, Boolean) -> Unit)? = null
+    onToolCall: ((String, Long, Boolean) -> Unit)? = null,
+    onStep: ((String, Boolean, Long) -> Unit)? = null
 ): AgentResponse {
     val executedTools = mutableListOf<String>()
     // 每次 toolLoop 调用重置检测器（跨请求不累积）
@@ -51,7 +52,10 @@ internal fun toolLoop(
     for (i in 0 until maxIterations) {
         loopLogger.debug("tool loop iteration {}, messages: {}", i + 1, messages.size)
 
-        val response = llmProvider.chat(systemPrompt, messages, tools)
+        // 发给 LLM 前做 tool_calls/ToolResults 配对清洗：OpenAI 协议要求带 tool_calls 的 assistant
+        // 消息后必须紧跟覆盖每个 tool_call_id 的 tool 结果，否则 400。历史若因裁剪/并发/异常损坏
+        // 出现"孤儿 tool_calls 或孤儿 ToolResults"，这里在最后一道关口剔除，保证请求始终合法。
+        val response = llmProvider.chat(systemPrompt, sanitizeToolPairing(messages), tools)
 
         when (response.stopReason) {
             LLMResponse.StopReason.END_TURN -> {
@@ -69,10 +73,13 @@ internal fun toolLoop(
                 messages += LLMMessage.Assistant(response.textContent, response.toolCalls)
                 // 并行执行所有 tool call（保持顺序回灌）
                 val calls = response.toolCalls
+                val ctxSnapshot = org.windy.windyagent.safety.RequestContext.snapshot() // 跨线程传递信任级别
                 val futures = calls.map { tc ->
                     loopLogger.info("Tool call: {} args={}", tc.name, tc.inputJson.take(200))
                     executedTools += tc.name
                     CompletableFuture.supplyAsync({
+                        org.windy.windyagent.safety.RequestContext.restore(ctxSnapshot) // 恢复本次请求信任级别，否则并行线程默认 UNTRUSTED
+                        try {
                         // ToolResultCache：命中则直接返回
                         val cached = toolResultCache?.get(tc.name, tc.inputJson)
                         if (cached != null) {
@@ -96,9 +103,13 @@ internal fun toolLoop(
                         }
                         // TrajectoryRecorder：记录工具调用
                         trajectory?.recordToolCall(tc.name, tc.inputJson, r, latencyMs)
-                        // SystemHealth 回调
+                        // SystemHealth 回调（全局统计）
                         onToolCall?.invoke(tc.name, latencyMs, !r.isError)
+                        // 过程回调（本次请求，供流式对话实时展示工具调用过程）。并行线程内调用，
+                        // 实现方（如 SSE 写帧）需自负线程安全。
+                        onStep?.invoke(stepLabel(tc.name, tc.inputJson), !r.isError, latencyMs)
                         r
+                        } finally { org.windy.windyagent.safety.RequestContext.clear() }
                     }, toolPool)
                 }
                 // 等全部完成，按原始顺序收集结果
@@ -141,9 +152,52 @@ internal fun toolLoop(
 }
 
 /** 把循环后的完整消息列表写回会话历史。 */
+private val stepLabelMapper = com.fasterxml.jackson.databind.ObjectMapper()
+
+/** 过程标签：run_skill_on_server/run_skill 从 inputJson 提取 skill 名 → "skill:<名>"(前端高亮🧪)；其余原样。 */
+internal fun stepLabel(toolName: String, inputJson: String): String {
+    if (toolName == "run_skill_on_server" || toolName == "run_skill") {
+        val skill = runCatching { stepLabelMapper.readTree(inputJson)?.get("skill")?.asText() }.getOrNull()
+        if (!skill.isNullOrBlank()) return "skill:$skill"
+    }
+    return toolName
+}
+
 internal fun AgentContext.syncHistory(messages: List<LLMMessage>) {
     history.clear()
     history.addAll(messages)
+}
+
+/**
+ * 清洗消息序列，保证 tool_calls 与 ToolResults 严格配对（OpenAI/Anthropic 协议合法）：
+ *  - 带 toolCalls 的 Assistant，其后必须紧跟一条覆盖全部 tool_call_id 的 ToolResults——
+ *    否则该 assistant 的 toolCalls 是「孤儿」，去掉 toolCalls 只保留文本（无文本则整条丢弃）。
+ *  - 未被合法 Assistant(toolCalls) 领起的 ToolResults 是「孤儿」，丢弃。
+ * 不改动入参，返回清洗后的新列表。正常历史（本就成对）原样返回。
+ */
+internal fun sanitizeToolPairing(messages: List<LLMMessage>): List<LLMMessage> {
+    val out = ArrayList<LLMMessage>(messages.size)
+    var i = 0
+    while (i < messages.size) {
+        val m = messages[i]
+        when {
+            m is LLMMessage.Assistant && m.toolCalls.isNotEmpty() -> {
+                val next = messages.getOrNull(i + 1)
+                val paired = next is LLMMessage.ToolResults &&
+                    next.results.map { it.toolCallId }.toSet()
+                        .containsAll(m.toolCalls.map { it.id }.toSet())
+                if (paired) {
+                    out += m; out += next as LLMMessage.ToolResults; i += 2
+                } else {
+                    if (!m.content.isNullOrBlank()) out += LLMMessage.Assistant(m.content)
+                    i += 1
+                }
+            }
+            m is LLMMessage.ToolResults -> i += 1 // 孤儿 ToolResults（配对的已在上面被 i+=2 跳过）
+            else -> { out += m; i += 1 }
+        }
+    }
+    return out
 }
 
 /**

@@ -18,12 +18,25 @@ import java.util.concurrent.TimeUnit
  *
  * 使用方式：在插件启动时用 `LLMUsageTracker.wrap(realProvider, dataDir)` 包装即可。
  */
+class LlmBudgetExceededException(val usedTokens: Long, val budget: Long) :
+    RuntimeException("已达今日 LLM 用量上限（$usedTokens/$budget tokens），为控制成本已暂停 AI 调用，次日自动恢复或调高 llm.budget-daily-tokens。")
+
 class LLMUsageTracker private constructor(
     private val delegate: LLMProvider,
-    private val dbPath: Path
+    private val dbPath: Path,
+    private val dailyTokenBudget: Long = 0
 ) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
 
     override val name: String get() = delegate.name
+
+    // 成本熔断(#3)：内存累计今日 token，跨天重置；达 dailyTokenBudget 后新请求抛异常。
+    @Volatile private var budgetDay: String = java.time.LocalDate.now().toString()
+    private val budgetTokens = java.util.concurrent.atomic.AtomicLong(0)
+    private fun bumpBudget(inTok: Int, outTok: Int) { rollBudgetDay(); budgetTokens.addAndGet((inTok + outTok).toLong()) }
+    private fun rollBudgetDay() { val d = java.time.LocalDate.now().toString(); if (d != budgetDay) synchronized(this) { if (d != budgetDay) { budgetDay = d; budgetTokens.set(0) } } }
+    private fun checkBudget() { if (dailyTokenBudget <= 0) return; rollBudgetDay(); val u = budgetTokens.get(); if (u >= dailyTokenBudget) throw LlmBudgetExceededException(u, dailyTokenBudget) }
+    /** 今日成本熔断进度：(已用tokens, 每日预算；预算<=0=未设限)。供 get_llm_usage 工具与管理端只读。 */
+    fun budgetStatus(): Pair<Long, Long> { rollBudgetDay(); return budgetTokens.get() to dailyTokenBudget }
 
     /** 透传底层的流式能力并统计 token；底层不支持流式则回退一次性 emit。 */
     override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream =
@@ -32,6 +45,7 @@ class LLMUsageTracker private constructor(
     /** 透传任意 target 的流式能力并统计 token（target 不支持则回退一次性 chat）。两条路径都计入成本，
      *  使流式对话同样统计（SSE 通常不带 usage，用与 chat() 同款 estimate 兜底）。 */
     private fun trackedStream(target: LLMProvider, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
+        checkBudget()
         val start = System.currentTimeMillis()
         val out = ChatStream()
         val sp = target as? org.windy.windyagent.agent.StreamingProvider
@@ -74,6 +88,7 @@ class LLMUsageTracker private constructor(
         val inTok = if (realIn >= 0) realIn else estimateTokens(systemPrompt, messages)
         val outTok = if (realOut >= 0) realOut else estimateTokens(output)
         queue.offer(UsageRecord(System.currentTimeMillis(), "", model, inTok, outTok, latency))
+        bumpBudget(inTok, outTok)
     }
 
     private val log = LoggerFactory.getLogger(LLMUsageTracker::class.java)
@@ -113,6 +128,7 @@ class LLMUsageTracker private constructor(
 
     /** 统计任意 target 的一次 chat。 */
     private fun trackedChat(target: LLMProvider, session: String, systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse {
+        checkBudget()
         val start = System.currentTimeMillis()
         val response = target.chat(systemPrompt, messages, tools)
         val latency = System.currentTimeMillis() - start
@@ -120,6 +136,7 @@ class LLMUsageTracker private constructor(
         val inTok = if (response.inputTokens > 0) response.inputTokens else estimateTokens(systemPrompt, messages)
         val outTok = if (response.outputTokens > 0) response.outputTokens else estimateTokens(response.textContent ?: "")
         queue.offer(UsageRecord(System.currentTimeMillis(), session, target.name, inTok, outTok, latency))
+        bumpBudget(inTok, outTok)
         return response
     }
 
@@ -197,8 +214,8 @@ class LLMUsageTracker private constructor(
     companion object {
         private data class UsageRecord(val ts: Long, val session: String, val model: String, val inputTokens: Int, val outputTokens: Int, val latencyMs: Long)
 
-        fun wrap(provider: LLMProvider, dataDir: Path): LLMUsageTracker {
-            val tracker = LLMUsageTracker(provider, dataDir.resolve("usage.db"))
+        fun wrap(provider: LLMProvider, dataDir: Path, dailyTokenBudget: Long = 0): LLMUsageTracker {
+            val tracker = LLMUsageTracker(provider, dataDir.resolve("usage.db"), dailyTokenBudget)
             return tracker
         }
 

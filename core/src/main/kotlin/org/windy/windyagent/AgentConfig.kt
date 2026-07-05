@@ -31,11 +31,30 @@ class AgentConfig private constructor(
 
     fun language() = getString("language", "zh_cn")
     fun usageEnabled() = (getNode("usage.enabled") as? Boolean) ?: true
+
+    /** 今日 LLM token 预算上限(输入+输出)。0=不限。超限暂停 AI 调用防烧钱，次日自动恢复。(#3) */
+    fun llmBudgetDailyTokens() = (getNode("llm.budget-daily-tokens") as? Number)?.toLong() ?: 0L
     fun personalityFile() = getString("personality", "personality.md")
     fun compressionEnabled() = (getNode("context.compress.enabled") as? Boolean) ?: true
     fun compressionThreshold() = (getNode("context.compress.threshold") as? Number)?.toInt() ?: 16
     fun compressionKeepRecent() = (getNode("context.compress.keep-recent") as? Number)?.toInt() ?: 6
     fun profilesEnabled() = (getNode("profiles.enabled") as? Boolean) ?: true
+
+    /**
+     * 玩家画像的 PAPI 占位符——config `profiles.papi-placeholders` 里的**额外/覆盖**项：`显示名 → 占位符`。
+     * 常用维度由 PapiProfileSource 按已装 expansion **半自动发现**（无需在此配）；这里只填语法库没覆盖的
+     * 冷门维度（如领地数、投票数）或想覆盖默认显示名的项。默认没配 → 返回空 map，全交给半自动。
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun papiProfilePlaceholders(): Map<String, String> {
+        val node = getNode("profiles.papi-placeholders") as? Map<String, Any> ?: return emptyMap()
+        val out = LinkedHashMap<String, String>()
+        for ((k, v) in node) {
+            val expr = v?.toString()?.trim().orEmpty()
+            if (k.isNotBlank() && expr.isNotEmpty()) out[k] = expr
+        }
+        return out
+    }
     /** 同一会话两次画像更新的最小间隔（秒）；<=0 表示每条都更。画像更新是后台 LLM 调用，节流可省成本、降负载。 */
     fun profileUpdateMinIntervalSec() = (getNode("profiles.update-min-interval-sec") as? Number)?.toInt() ?: 60
     fun sessionStoreEnabled() = (getNode("session-store.enabled") as? Boolean) ?: true
@@ -179,9 +198,17 @@ class AgentConfig private constructor(
 
     // AI 管理控制台（WebUI，仅 Velocity 读取）
     fun webEnabled() = (getNode("web.enabled") as? Boolean) ?: true
-    fun webHost() = getString("web.host", "127.0.0.1")
-    fun webPort() = (getNode("web.port") as? Number)?.toInt() ?: 8080
+    fun webHost() = getString("web.host", "0.0.0.0")
+    fun webPort() = (getNode("web.port") as? Number)?.toInt() ?: 25580
     fun webToken() = getString("web.token", "")
+
+    // —— Web 安全（借鉴宝塔，认证仍用 token）——
+    /** 安全入口秘密前缀：非空时所有访问须经 /<entry>/，否则 404（挡全网扫描）。空=关闭。 */
+    fun webSecurityEntry() = getString("web.security.entry", "")
+    /** 同一 IP 连续失败多少次后锁定（防 token 爆破）。 */
+    fun webSecurityMaxFails() = (getNode("web.security.max-fails") as? Number)?.toInt() ?: 5
+    /** 锁定时长（分钟）。 */
+    fun webSecurityLockMinutes() = (getNode("web.security.lock-minutes") as? Number)?.toInt() ?: 10
 
     /**
      * 取控制台 token；若为空则生成一个随机串、写回配置文件并返回。

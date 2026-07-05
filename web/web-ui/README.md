@@ -34,10 +34,10 @@
 ```
 cd web/web-ui
 npm install
-npm run dev            # http://localhost:5173 ，/api 反代到 127.0.0.1:8080
+npm run dev            # http://localhost:5173 ，/api 反代到 127.0.0.1:25580
 ```
 
-如果你的 `web.port` 不是 8080，改 `vite.config.ts` 里的 proxy target。
+如果你的 `web.port` 不是 25580，改 `vite.config.ts` 里的 proxy target。
 开发时需要一个**正在运行的 Velocity**（带本插件）提供 `/api`。
 
 ## 迁移进度

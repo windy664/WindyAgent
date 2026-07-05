@@ -185,7 +185,7 @@ cross-server:
 web:
   enabled: true                 # 浏览器访问管理控制台
   host: "127.0.0.1"
-  port: 8080
+  port: 25580
   token: "change-me"
 
 sentinel: { enabled: true }     # 主动运维哨兵

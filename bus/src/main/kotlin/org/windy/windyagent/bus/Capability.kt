@@ -10,6 +10,9 @@ data class CapabilityCommand(
     val name: String = "",
     val aliases: List<String> = emptyList(),
     val description: String = "",
+    /** plugin.yml 的 usage 行（多数插件填的是 /cmd <args> 骨架，比 description 略强，可能为空）。
+     *  详细用法（往往在插件 i18n / help 里）不进目录，由 describe_command 按需现取。 */
+    val usage: String = "",
     /** 来源插件名；原版/模组命令为 "原版/模组" */
     val source: String = ""
 )

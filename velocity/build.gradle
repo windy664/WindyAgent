@@ -20,6 +20,11 @@ dependencies {
     // Velocity 运行时自带，不打包
     compileOnly 'com.velocitypowered:velocity-api:3.1.1'
 
+    // XingtuBot（昕途）联动 —— 可选软依赖，只需接口签名编译，不打包。
+    // 运行时同代理的昕途插件加载同一份 common-core 类；未安装昕途时联动类惰性隔离不加载
+    // （见 XingtuBotBridge），不影响 WindyAgent 独立运行。jar 由 XingtuBot common-core 构建产物拷入。
+    compileOnly files('libs/xingtubot-common-core.jar')
+
     // 核心逻辑 + 其传递的 LLM 依赖，都会被下方 shadowJar 打进 fat jar
     implementation project(':core')
 

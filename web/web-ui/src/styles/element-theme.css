@@ -1,0 +1,254 @@
+/* ============================================================
+ * Element Plus「毛玻璃染色」主题 —— 把 Element 的 --el-* 变量
+ * 全量映射到本项目原有的二次元玻璃色板（粉/紫/玻璃），
+ * 使 el-table / el-input / el-button / el-dialog 等组件与
+ * 原有 dashboard 审美一致，而不是 Element 默认蓝白。
+ *
+ * 用法：main.ts 里先 import element 的 dist + dark css-vars，
+ * 再在 style.css（定义 --pink/--violet 等）之后 import 本文件。
+ * 选择器用 html.dark 提高优先级，覆盖 dark/css-vars.css。
+ * ============================================================ */
+
+/* ⚠️ 关键：Element 的 reset 有 `body{background-color:var(--el-fill-color-blank)}`，
+ * 会给 body 刷一层背景，盖住 #bg 的二次元背景图。这里显式钉死 body 透明
+ * （选择器 html.dark body 特异性高于 Element 的 body，无需 !important）。 */
+html.dark body {
+  background-color: transparent;
+}
+
+html.dark {
+  /* —— 主色：统一成品牌紫（按钮/选中/焦点环）—— */
+  --el-color-primary: #b79bff;
+  --el-color-primary-light-3: #a98ff5;
+  --el-color-primary-light-5: #8f7fd6;
+  --el-color-primary-light-7: #6f63a8;
+  --el-color-primary-light-8: #564e85;
+  --el-color-primary-light-9: rgba(183, 155, 255, 0.14);
+  --el-color-primary-dark-2: #c9b4ff;
+
+  /* —— 语义色：对齐原版 mint/gold/red —— */
+  --el-color-success: #86efc6;
+  --el-color-warning: #ffd98a;
+  --el-color-danger: #ff7a98;
+  --el-color-error: #ff7a98;
+  --el-color-info: #bdb6da;
+
+  /* —— 文本 —— */
+  --el-text-color-primary: #f3f0ff;
+  --el-text-color-regular: #e3def5;
+  --el-text-color-secondary: #bdb6da;
+  --el-text-color-placeholder: #8a83ad;
+  --el-text-color-disabled: #6f6a8a;
+
+  /* —— 背景：透明 / 玻璃基调（弹层用半透明深色）—— */
+  --el-bg-color: rgba(255, 255, 255, 0.04);
+  --el-bg-color-page: transparent;
+  --el-bg-color-overlay: rgba(22, 16, 42, 0.94);
+
+  /* —— 边框 —— */
+  --el-border-color: rgba(255, 255, 255, 0.16);
+  --el-border-color-light: rgba(255, 255, 255, 0.12);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.1);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.06);
+  --el-border-color-dark: rgba(255, 255, 255, 0.2);
+  --el-border-color-darker: rgba(255, 255, 255, 0.24);
+
+  /* —— 填充 —— */
+  --el-fill-color: rgba(255, 255, 255, 0.06);
+  --el-fill-color-light: rgba(255, 255, 255, 0.05);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.04);
+  --el-fill-color-extra-light: rgba(255, 255, 255, 0.03);
+  --el-fill-color-blank: transparent;
+  --el-fill-color-dark: rgba(255, 255, 255, 0.08);
+  --el-fill-color-darker: rgba(255, 255, 255, 0.1);
+
+  /* —— 圆角 / 字体：跟随原版 —— */
+  --el-border-radius-base: 11px;
+  --el-border-radius-small: 8px;
+  --el-font-family: inherit;
+
+  /* —— 控件高度：略放大贴近原版输入框的舒展手感（默认 32 偏矮）—— */
+  --el-component-size: 36px;
+  --el-component-size-large: 40px;
+  --el-component-size-small: 30px;
+
+  /* 注：输入框背景不在此设——Element 在 .el-input/.el-select 内就地把
+   *   --el-input-bg-color 定义为透明，会覆盖这里。改为下方直接钉 wrapper 背景。 */
+
+  /* —— 卡片 / 分页 —— */
+  --el-card-bg-color: var(--glass);
+  --el-disabled-bg-color: rgba(255, 255, 255, 0.04);
+}
+
+/* —— 主按钮：复刻原版粉→紫渐变 + 柔光阴影 ——
+ *    :not(.is-link):not(.is-text) 排除链接/文字按钮，否则会给表格里的
+ *    纯文字操作(取消/退款)误加渐变胶囊背景。 */
+html.dark .el-button--primary:not(.is-link):not(.is-text) {
+  background: linear-gradient(120deg, var(--pink), var(--violet));
+  border: 0;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 5px 16px rgba(183, 155, 255, 0.38);
+}
+html.dark .el-button--primary:not(.is-link):not(.is-text):hover,
+html.dark .el-button--primary:not(.is-link):not(.is-text):focus {
+  background: linear-gradient(120deg, var(--pink), var(--violet));
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+/* —— 次按钮：玻璃底 —— */
+html.dark .el-button {
+  font-weight: 700;
+  transition: 0.15s;
+}
+html.dark .el-button--default:not(.is-link):not(.is-text) {
+  background: var(--glass2);
+  border-color: var(--bd);
+  color: var(--fg);
+}
+html.dark .el-button--default:not(.is-link):not(.is-text):hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--violet);
+  color: #fff;
+}
+/* —— 链接按钮(表格操作列 取消/退款)：纯文字，复刻原版 .lnk —— */
+html.dark .el-button.is-link {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  font-weight: 700;
+  padding: 0;
+}
+html.dark .el-button.is-link:hover {
+  filter: brightness(1.15);
+}
+
+/* —— 输入 / 下拉 / 文本域：直接钉玻璃底(glass2)，复刻原版 input 背景。
+ *    Element 把这些 wrapper 背景绑到 --el-fill-color-blank(透明)，故直接钉底最稳；
+ *    focus 时补紫色描边，呼应原版聚焦紫光。 */
+html.dark .el-input__wrapper,
+html.dark .el-select__wrapper,
+html.dark .el-textarea__inner {
+  background-color: var(--glass2);
+}
+html.dark .el-input.is-focus .el-input__wrapper,
+html.dark .el-input__wrapper.is-focus,
+html.dark .el-select__wrapper.is-focused,
+html.dark .el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--violet) inset;
+}
+
+/* —— 表格变量：必须设在 .el-table 选择器上（Element 在 .el-table{} 内就地
+ *    重定义了这些变量，设在 html.dark 上会被它覆盖；这里特异性更高方能生效）。 */
+html.dark .el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.05);
+  --el-table-header-text-color: var(--mut);
+  --el-table-text-color: var(--fg);
+  --el-table-border-color: var(--line);
+  --el-table-row-hover-bg-color: rgba(183, 155, 255, 0.08);
+}
+
+/* —— 表格：透明底 + 去外边框线，玻璃表头 —— */
+html.dark .el-table,
+html.dark .el-table__inner-wrapper {
+  background: transparent;
+}
+html.dark .el-table th.el-table__cell {
+  font-weight: 700;
+}
+html.dark .el-table::before,
+html.dark .el-table__border-left-patch {
+  display: none;
+}
+
+/* —— 弹层（select 下拉 / dialog / messagebox / tooltip）：玻璃化 —— */
+html.dark .el-popper.is-light,
+html.dark .el-select-dropdown,
+html.dark .el-dialog,
+html.dark .el-message-box,
+html.dark .el-message {
+  background: rgba(22, 16, 42, 0.95) !important;
+  border: 1px solid var(--bd);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: var(--shadow);
+}
+html.dark .el-popper.is-light .el-popper__arrow::before {
+  background: rgba(22, 16, 42, 0.95);
+  border-color: var(--bd);
+}
+html.dark .el-overlay {
+  background-color: rgba(8, 6, 16, 0.55);
+}
+html.dark .el-select-dropdown__item.is-hovering,
+html.dark .el-select-dropdown__item.hover {
+  background: rgba(183, 155, 255, 0.14);
+}
+html.dark .el-select-dropdown__item.is-selected {
+  color: var(--violet);
+}
+
+/* —— 分页：玻璃按钮 + 紫色激活 —— */
+html.dark .el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: var(--glass2);
+  --el-pagination-text-color: var(--mut);
+  --el-pagination-button-color: var(--fg);
+  --el-pagination-hover-color: var(--violet);
+}
+html.dark .el-pagination.is-background .el-pager li.is-active {
+  background: linear-gradient(120deg, var(--pink), var(--violet));
+  color: #fff;
+}
+
+/* —— 表单标签 —— */
+html.dark .el-form-item__label {
+  color: var(--mut);
+}
+
+/* —— 标签 el-tag：复刻原版 .st 的「玻璃淡底 + 彩色文字」克制审美 —— */
+html.dark .el-tag.is-plain {
+  background: var(--glass2);
+  font-weight: 700;
+}
+
+/* —— 数字输入：左对齐（贴原版金额输入，Element 默认居中）—— */
+html.dark .el-input-number .el-input__inner {
+  text-align: left;
+}
+
+/* —— 分段单选 el-radio-button（表单内二选一，如触发方式）：选中=渐变玻璃 —— */
+html.dark .el-radio-button__inner {
+  background: var(--glass2);
+  border-color: var(--bd);
+  color: var(--mut);
+  font-weight: 700;
+  box-shadow: none;
+}
+html.dark .el-radio-button__inner:hover {
+  color: var(--fg);
+}
+html.dark .el-radio-button.is-active .el-radio-button__inner {
+  background: linear-gradient(120deg, rgba(255, 143, 200, 0.3), rgba(183, 155, 255, 0.3));
+  color: #fff;
+  border-color: var(--violet);
+  box-shadow: none;
+}
+
+/* —— 开关 el-switch：开=品牌紫 —— */
+html.dark .el-switch.is-checked .el-switch__core {
+  background-color: var(--violet);
+  border-color: var(--violet);
+}
+
+/* —— 运行结果弹窗：等宽 + 可换行 + 滚动（承载命令/日志输出）—— */
+html.dark .wa-run-result .el-message-box__message {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 50vh;
+  overflow: auto;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+}

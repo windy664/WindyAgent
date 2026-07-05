@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ElButton, ElTable, ElTableColumn } from 'element-plus'
 import {
   fetchAlerts,
   fetchDimTps,
@@ -12,8 +13,6 @@ import {
   type HealthEntry,
   type ServerDetail,
 } from '../api'
-
-const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
 const health = ref<HealthEntry[]>([])
 const alerts = ref<AlertEntry[]>([])
@@ -35,8 +34,7 @@ const kpiTps = computed(() => {
 
 function handle(e: unknown) {
   if (e instanceof UnauthorizedError) {
-    emit('unauthorized')
-    stop()
+    stop() // 集中登出由请求层处理，这里停轮询
   } else {
     error.value = (e as Error).message
   }
@@ -66,8 +64,8 @@ async function openDetail(server: string) {
   try {
     detail.value = await fetchServerDetail(server)
   } catch (e) {
-    if (e instanceof UnauthorizedError) emit('unauthorized')
-    else error.value = `${server}：${(e as Error).message}`
+    if (e instanceof UnauthorizedError) return
+    error.value = `${server}：${(e as Error).message}`
   } finally {
     detailLoading.value = false
   }
@@ -131,7 +129,7 @@ onUnmounted(stop)
       </div>
       <div class="tools">
         <span class="pill"><span class="dot"></span>哨兵</span>
-        <button class="btn ghost sm" @click="load">刷新</button>
+        <el-button @click="load">刷新</el-button>
       </div>
     </div>
 
@@ -194,27 +192,29 @@ onUnmounted(stop)
           {{ detail.platform }} {{ detail.mcVersion }} · {{ detail.onlineMode ? '正版验证' : '离线模式' }}<span v-if="detail.whitelist"> · 白名单开</span>
         </div>
         <div class="actions">
-          <button class="btn ghost sm" @click="showMods">查看 mods</button>
-          <button class="btn ghost sm" @click="showDimTps">维度 TPS</button>
+          <el-button size="small" @click="showMods">查看 mods</el-button>
+          <el-button size="small" @click="showDimTps">维度 TPS</el-button>
         </div>
         <pre v-if="extra" class="extra">{{ extra }}</pre>
         <div class="cols">
           <div>
             <h4>世界（{{ detail.worlds.length }}）</h4>
-            <table>
-              <tr v-for="w in detail.worlds" :key="w.name">
-                <td>{{ w.name }}</td><td>{{ w.players }}人</td><td>{{ w.entities }}实体</td><td>{{ w.chunks }}区块</td><td>{{ w.weather }}</td>
-              </tr>
-            </table>
+            <el-table :data="detail.worlds" size="small" empty-text="无世界" style="width: 100%">
+              <el-table-column prop="name" label="世界" min-width="90" />
+              <el-table-column label="玩家" width="64"><template #default="{ row }">{{ row.players }}人</template></el-table-column>
+              <el-table-column label="实体" width="72"><template #default="{ row }">{{ row.entities }}</template></el-table-column>
+              <el-table-column label="区块" width="72"><template #default="{ row }">{{ row.chunks }}</template></el-table-column>
+              <el-table-column prop="weather" label="天气" width="70" />
+            </el-table>
           </div>
           <div>
             <h4>在线玩家（{{ detail.players.length }}）</h4>
-            <table>
-              <tr v-for="p in detail.players" :key="p.name">
-                <td>{{ p.name }}</td><td>{{ p.world }}</td><td>{{ p.ping }}ms</td><td>{{ p.gamemode }}</td>
-              </tr>
-              <tr v-if="detail.players.length === 0"><td class="muted">无人在线</td></tr>
-            </table>
+            <el-table :data="detail.players" size="small" empty-text="无人在线" style="width: 100%">
+              <el-table-column prop="name" label="玩家" min-width="90" />
+              <el-table-column prop="world" label="世界" min-width="80" />
+              <el-table-column label="延迟" width="72"><template #default="{ row }">{{ row.ping }}ms</template></el-table-column>
+              <el-table-column prop="gamemode" label="模式" width="80" />
+            </el-table>
           </div>
         </div>
       </template>
@@ -261,8 +261,6 @@ onUnmounted(stop)
 .extra { background: rgba(0, 0, 0, 0.32); border-radius: 9px; padding: 10px; white-space: pre-wrap; font-size: 12px; max-height: 260px; overflow-y: auto; margin-bottom: 12px; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 h4 { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
 .alert { border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel-2); font-size: 13px; }
 .alert.high, .alert.critical { border-left-color: var(--red); }
 .alert.warn, .alert.medium { border-left-color: var(--gold); }

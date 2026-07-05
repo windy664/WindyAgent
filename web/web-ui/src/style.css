@@ -318,12 +318,58 @@ select option {
   padding: 16px 12px;
   border-right: 1px solid var(--line);
   background: rgba(14, 10, 26, 0.4);
+  transition: width 0.18s ease, padding 0.18s ease;
 }
 .logo {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 6px 8px 16px;
+}
+.logo-txt {
+  min-width: 0;
+}
+/* 折叠触发按钮：始终在 logo 行右侧 */
+.collapse-btn {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--glass2);
+  color: var(--mut);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  font-family: inherit;
+  transition: 0.13s;
+}
+.collapse-btn:hover {
+  color: var(--fg);
+  border-color: var(--violet);
+}
+
+/* —— 折叠态：icon rail —— */
+.sidebar.collapsed {
+  width: 68px;
+  padding: 16px 8px;
+}
+.sidebar.collapsed .logo {
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0 14px;
+}
+.sidebar.collapsed .collapse-btn {
+  margin-left: 0;
+}
+.sidebar.collapsed .nav {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+.sidebar.collapsed .nav .i {
+  width: auto;
 }
 .logo .lg {
   width: 34px;
@@ -382,10 +428,24 @@ button.nav {
 .grow1 {
   flex: 1;
 }
+/* 导航区独立滚动：flex:1 占满剩余高度，内容超出可鼠标滚动；
+   min-height:0 是关键——否则 flex 子项默认 min-height:auto 不收缩、无法出现滚动条。 */
+.navlist {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* 侧栏滚动条更纤细低调，贴合毛玻璃风格 */
+.navlist::-webkit-scrollbar {
+  width: 6px;
+}
 .srvpanel {
   border-radius: 14px;
   padding: 13px;
   margin-top: 10px;
+  flex-shrink: 0;
 }
 .srvpanel .nm {
   font-weight: 800;

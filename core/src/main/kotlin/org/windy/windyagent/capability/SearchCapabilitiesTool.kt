@@ -54,10 +54,13 @@ class SearchCapabilitiesTool(
         }
         val body = hits.joinToString("\n") { h ->
             val c = h.command
-            val desc = c.description.takeIf { it.isNotBlank() }?.let { " — ${it.take(60)}" } ?: ""
+            val desc = c.description.takeIf { it.isNotBlank() }?.let { " — ${it.take(60)}" }
+                ?: c.usage.takeIf { it.isNotBlank() }?.let { " — 用法 ${it.take(60)}" } ?: ""
             "[${h.server}] /${c.name}$desc [${c.source.ifBlank { "原版/模组" }}]"
         }
         val tail = if (hits.size >= limit) "\n（仅列前 ${hits.size} 条，可用更具体的词缩小）" else ""
-        ToolResult.success(toolCallId, "$note「$query」相关命令（${hits.size} 条）：\n$body$tail")
+        val hint = if (hits.any { it.command.description.isBlank() && it.command.usage.isBlank() })
+            "\n（部分命令只有名字没有说明，执行前用 describe_command 探查其用法）" else ""
+        ToolResult.success(toolCallId, "$note「$query」相关命令（${hits.size} 条）：\n$body$tail$hint")
     }.getOrElse { ToolResult.error(toolCallId, "检索能力目录失败：${it.message}") }
 }

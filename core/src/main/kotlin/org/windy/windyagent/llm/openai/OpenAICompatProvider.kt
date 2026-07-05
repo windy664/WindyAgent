@@ -87,7 +87,8 @@ class OpenAICompatProvider(
         val choice = node["choices"][0]
         val message = choice["message"]
 
-        val content: String? = message["content"]?.asText()?.takeIf { it.isNotBlank() }
+        // isTextual 防 NullNode.asText()=="null"（见 chatStream 处同因注释）
+        val content: String? = message["content"]?.takeIf { it.isTextual }?.asText()?.takeIf { it.isNotBlank() }
         val finishReason = choice["finish_reason"]?.asText() ?: "stop"
 
         val toolCalls = mutableListOf<ToolCall>()
@@ -153,7 +154,10 @@ class OpenAICompatProvider(
                                 if (inTok >= 0 || outTok >= 0) stream.emit(StreamChunk.Usage(inTok, outTok))
                             }
                             val delta = chunk["choices"]?.get(0)?.get("delta") ?: continue
-                            delta["content"]?.asText()?.takeIf { it.isNotBlank() }?.let {
+                            // 只放行真正的文本节点：带思维链的模型(如 mimo)思考阶段 delta 是
+                            // {"content":null,"reasoning_content":"..."}，Jackson 对 null 字段返回
+                            // NullNode，其 asText() 是字符串 "null"，会被当正文发出 → 满屏 "null"。
+                            delta["content"]?.takeIf { it.isTextual }?.asText()?.takeIf { it.isNotBlank() }?.let {
                                 stream.emit(StreamChunk.Text(it))
                             }
                             delta["tool_calls"]?.forEach { tc ->

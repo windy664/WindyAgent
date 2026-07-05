@@ -62,9 +62,23 @@ class BukkitBalanceTool(private val actions: BukkitActions) : AgentTool {
     }.getOrElse { ToolResult.error(toolCallId, "查询余额失败：${it.message}") }
 }
 
+class BukkitDescribeCommandTool(private val actions: BukkitActions) : AgentTool {
+    override val name = "describe_command"
+    override val description =
+        "只读查询本服某条命令的用法（描述/usage/别名/子命令补全）。对不熟悉的插件命令、或 search_capabilities 只给出命令名没给用法时，" +
+        "执行前先用它探查：会综合命令 usage、内置 /help 帮助主题、tab 补全候选。纯读、绝不执行命令本体。" +
+        "若返回⚠️表示查不到用法，此时不要猜参数硬跑，改为向用户确认。"
+    override val inputSchema = """{"type":"object","properties":{"command":{"type":"string","description":"要查询的命令名，不含前导斜杠（如 home、cmi、money）"}},"required":["command"]}"""
+
+    override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {
+        val cmd = "command".field(inputJson) ?: return ToolResult.error(toolCallId, "缺少 command 参数")
+        ToolResult.success(toolCallId, actions.describeCommand(cmd))
+    }.getOrElse { ToolResult.error(toolCallId, "查询命令用法失败：${it.message}") }
+}
+
 class BukkitRunCommandTool(private val actions: BukkitActions) : AgentTool {
     override val name = "run_command"
-    override val description = "在本服控制台执行一条指令（如 give、tp 等），不含前导斜杠。"
+    override val description = "在本服控制台执行一条指令（如 give、tp 等），不含前导斜杠。对不确定用法的插件命令，先用 describe_command 探查再执行。"
     override val inputSchema = """{"type":"object","properties":{"command":{"type":"string","description":"要执行的控制台指令，不含前导斜杠"}},"required":["command"]}"""
 
     override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {

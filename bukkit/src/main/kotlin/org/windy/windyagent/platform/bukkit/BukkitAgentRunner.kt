@@ -29,12 +29,8 @@ import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.knowledge.KnowledgeManager
-import org.windy.windyagent.knowledge.KnowledgeSearchTool
-import org.windy.windyagent.knowledge.KnowledgeWriteTool
 import org.windy.windyagent.knowledge.PlayerQa
-import org.windy.windyagent.mcp.McpLoader
 import org.windy.windyagent.memory.FileLongTermMemory
-import org.windy.windyagent.memory.RememberTool
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.rag.LlmQueryExpander
 import org.windy.windyagent.safety.PendingApprovals
@@ -88,6 +84,10 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val pending = PendingApprovals()
         val actions = BukkitActions(plugin, guard, audit, pending)
 
+        // 用量追踪（成本熔断 + token 统计）——提前建，好把 get_llm_usage 工具接进工具集
+        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, plugin.dataFolder.toPath(), cfg.llmBudgetDailyTokens()) else null
+        val effectiveLlm = usageTracker ?: llm
+
         // 能力目录：本机命令建好放入本地注册表，Agent 经 search_capabilities 本地检索（零往返）。
         // 配了 embedding 则语义检索（L3），否则关键词（L2）。带持久化（重启免重建）。
         val registry = CapabilityRegistry(buildEmbeddingProvider(cfg), plugin.dataFolder.toPath().resolve("capability"))
@@ -95,10 +95,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
         val extraTools = mutableListOf<AgentTool>()
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
-        // 知识库（读+写）——对齐 Velocity，让本机 Agent 也能查/沉淀知识；玩家问答也用它
         val knowledge = KnowledgeManager(plugin.dataFolder.toPath().resolve("knowledge"))
-        extraTools += KnowledgeSearchTool(knowledge, expander, cfg.ragMinHits())
-        extraTools += KnowledgeWriteTool(knowledge)
+        // 平台无关的核心工具（knowledge/usage/memory/mcp）在 memory 构造后统一装配（见下方 ToolAssembly 调用）。
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
         val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander, cfg.serverName().ifBlank { "本服务器" })
         // hub 模式：把派发到其它子服的远端能力挂上，并接收其它子服推来的目录
@@ -125,9 +123,11 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // 长期记忆（跨会话）：注入 sessionStore 供 recall 搜历史原文
         val memory = if (cfg.memoryEnabled()) FileLongTermMemory(plugin.dataFolder.toPath().resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore(), sessionStore) else null
-        memory?.let { extraTools += RememberTool(it) }
-        // MCP 工具接入（可选）
-        extraTools += McpLoader.load(cfg.mcpServers())
+        // 核心工具统一装配（knowledge/usage/memory/mcp）——与 Velocity 同源，加一个只改 CoreToolContributors 一处
+        extraTools += org.windy.windyagent.agent.ToolAssembly.assemble(
+            org.windy.windyagent.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
+        ) { plugin.logger.info(it) }
+        profileRegistry?.let { extraTools += PlayerProfileTool(it) } // 玩家聚合画像工具
         // 服主编写的 Groovy 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
         // standalone/hub 本机即中心，技能库在本地 → 首启释放默认技能（provider 模式不释放，由中心下发）。
         val skillsDir = plugin.dataFolder.toPath().resolve(cfg.skillsDir()).toFile()
@@ -155,6 +155,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                 }
             )
             plugin.logger.info("[Skill] 技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
+            if (n > 0) plugin.logger.warning("[Skill] ⚠ 安全提示(#4)：脚本技能以 Groovy 执行 = 服务器进程内的任意代码，可读写文件/访问网络/操作服务器。已做基础限制(禁 Runtime/ProcessBuilder)但非强沙箱、可被绕过。请只启用你信任来源的脚本技能。")
         }
         // 日志读取工具 + 日志监控
         val logDir = plugin.server.worldContainer.resolve("logs")
@@ -186,17 +187,13 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             logWatcher = watcher
         }
         // 插件集成（自动发现已安装插件，注册对应工具）
-        org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit, profileRegistry).let { pluginTools ->
+        org.windy.windyagent.platform.bukkit.integration.IntegrationRegistry.discoverAndRegister(plugin, audit).let { pluginTools ->
             extraTools += pluginTools
         }
         // 人格文件
         val personality = PersonalityLoader.load(plugin.dataFolder.toPath(), cfg.personalityFile())
         val platform = BukkitPlatform(plugin, actions, extraTools)
         platform.personality = personality
-
-        // 用量追踪
-        val usageTracker = if (cfg.usageEnabled()) LLMUsageTracker.wrap(llm, plugin.dataFolder.toPath()) else null
-        val effectiveLlm = usageTracker ?: llm
 
         // 上下文压缩 + 用户画像
         val compressor = if (cfg.compressionEnabled()) ContextCompressor(fastLlm ?: effectiveLlm, cfg.compressionThreshold(), cfg.compressionKeepRecent()) else null
@@ -268,6 +265,29 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         // 聊天触发 <trigger> <消息>
         chatListener = BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger())
         plugin.server.pluginManager.registerEvents(chatListener!!, plugin)
+
+        // ── IM 平台联动（可选，与 Velocity 共用 core 的 ImConnectors）──
+        // 同进程装了昕途(Bukkit) 等 IM 宿主时，把「超管私聊/@ → 运维 Agent」接上。0 配置、内存直调。
+        // 未来加飞书/钉钉只需在 ImConnectors 注册新 Connector，本处无需改动。
+        val imChat: (String, String) -> String = { sid, msg ->
+            // 同会话串行(#1)：防连发并发破坏 history 的 tool 配对/上下文
+            sessions.withSessionLock(sid) {
+                router.dispatch(msg, sid, org.windy.windyagent.safety.TrustLevel.TRUSTED) ?: run {
+                    val resp = agent.run(org.windy.windyagent.agent.AgentContext(sid, msg, platform, sessions.getHistory(sid), org.windy.windyagent.safety.TrustLevel.TRUSTED))
+                    sessions.trimHistory(sid); resp.message ?: "(无回复)"
+                }
+            }
+        }
+        org.windy.windyagent.bridge.ImConnectors.installAll(
+            org.windy.windyagent.bridge.InstallEnv(
+                chat = imChat,
+                logger = org.slf4j.LoggerFactory.getLogger("WindyAgent-IM"),
+                // Bukkit：按 id 取插件实例（用于探测宿主是否存在）
+                lookupPlugin = { id -> plugin.server.pluginManager.getPlugin(id) },
+                // Bukkit：昕途把 host 注册进 ServicesManager → 按类型取
+                lookupService = { type -> plugin.server.servicesManager.load(type) },
+            )
+        )
 
         plugin.logger.info("[Agent] 嵌入式 Agent 已就绪 — provider: ${llm.name}, 触发: '${cfg.trigger()} <消息>' / '/ai <消息>'")
         return true

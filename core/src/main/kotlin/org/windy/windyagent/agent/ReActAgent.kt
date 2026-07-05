@@ -34,7 +34,8 @@ class ReActAgent(
             trajectoryRecorder,
             context.sessionId,
             context.userMessage,
-            onToolCall
+            onToolCall,
+            context.onStep
         )
 
         context.syncHistory(messages)
