@@ -228,6 +228,16 @@ rag:
   query-expansion: true
   min-hits: 1             # 命中数低于此才触发扩展
 
+# 内置只读参考库：插件自带手册 + 官方文档（CMI/DecentHolograms 等）打进 jar，启动加载进内存、
+#   并进 knowledge_search 一起检索，但**不写进**你的知识库 vault（不污染目录树、随插件版本自动更新、
+#   不会覆盖你的改动）。老用户换新版插件重启即得最新，无需手动维护。
+knowledge:
+  reference:
+    enabled: true
+    # 下面 packs 只约束【爬取的官方文档】(cmi/decentholograms…)：留空=全部；也可只留想要的，如 [cmi]。
+    # 插件自带手册(windyagent)始终加载，不受此约束。
+    packs: []
+
 # 语义检索（L3 RAG，可选）：把各子服命令目录嵌入向量，search_capabilities 走语义匹配
 #   （中文「传送/经济」也能命中 /tp /money 等英文命令）。关闭则走关键词检索（L2）。
 #   默认复用上面 llm 的 api-base-url / api-key，只需填 embedding 模型名。

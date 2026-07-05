@@ -30,6 +30,7 @@ import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
 import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.knowledge.PlayerQa
+import org.windy.windyagent.knowledge.ReferenceLibrary
 import org.windy.windyagent.memory.FileLongTermMemory
 import org.windy.windyagent.platform.SessionManager
 import org.windy.windyagent.rag.LlmQueryExpander
@@ -95,7 +96,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: llm) else null
         val extraTools = mutableListOf<AgentTool>()
         extraTools += SearchCapabilitiesTool(registry, expander, cfg.ragMinHits())
-        val knowledge = KnowledgeManager(plugin.dataFolder.toPath().resolve("knowledge"))
+        val reference = if (cfg.knowledgeReferenceEnabled()) ReferenceLibrary.load(cfg.knowledgeReferencePacks()) else ReferenceLibrary.EMPTY
+        val knowledge = KnowledgeManager(plugin.dataFolder.toPath().resolve("knowledge"), reference)
         // 平台无关的核心工具（knowledge/usage/memory/mcp）在 memory 构造后统一装配（见下方 ToolAssembly 调用）。
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
         val playerQa = PlayerQa(fastLlm ?: llm, knowledge, expander, cfg.serverName().ifBlank { "本服务器" })

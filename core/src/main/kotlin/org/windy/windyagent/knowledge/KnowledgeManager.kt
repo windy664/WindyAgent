@@ -18,7 +18,11 @@ import kotlin.io.path.writeText
  * **本身就是 [KnowledgeStore]**：search/size 委托给当前内存检索库，故 KnowledgeSearchTool 直接拿它当 store 用，
  * 编辑后立即可检索。首启（vault 不存在）会释放一套预置知识库框架（[seedFramework]）。给 WebUI + Agent 写库共用。
  */
-class KnowledgeManager(private val dir: Path) : KnowledgeStore {
+class KnowledgeManager(
+    private val dir: Path,
+    /** 内置只读参考库（CMI 等官方文档）。并进检索索引一起搜，但**不落进 vault**、不进可编辑目录树。 */
+    private val reference: ReferenceLibrary = ReferenceLibrary.EMPTY
+) : KnowledgeStore {
 
     @Volatile private var entries: List<KnowledgeEntry> = emptyList()
     @Volatile private var store: KnowledgeStore = KeywordKnowledgeStore(emptyList())
@@ -26,11 +30,15 @@ class KnowledgeManager(private val dir: Path) : KnowledgeStore {
     init { reload() }
 
     override fun search(query: String, topK: Int) = store.search(query, topK)
-    override fun size() = store.size()
+    /** 可编辑条数（仅 vault，不含只读参考库）——给 UI 显示"我的知识"数量用。 */
+    override fun size() = entries.size
     fun list(): List<KnowledgeEntry> = entries
 
-    /** 按 id 取单条（含正文），供懒加载详情/编辑用；找不到返回 null。 */
-    fun get(id: String): KnowledgeEntry? = entries.firstOrNull { it.id == id }
+    /** 只读参考库（供前端另开只读节点展示；vault 不含这些）。 */
+    fun referenceLibrary(): ReferenceLibrary = reference
+
+    /** 按 id 取单条（含正文），供懒加载详情/编辑用；vault 没有则回落只读参考库；找不到返回 null。 */
+    fun get(id: String): KnowledgeEntry? = entries.firstOrNull { it.id == id } ?: reference.get(id)
 
     /**
      * 轻量元数据列表（**不含正文**）：给前端建目录树 / 关系图 / 反向链接用。
@@ -68,7 +76,8 @@ class KnowledgeManager(private val dir: Path) : KnowledgeStore {
             }
         }.getOrElse { emptyList() }
         entries = files.mapNotNull { runCatching { parse(it) }.getOrNull() }.sortedBy { it.title }
-        store = KeywordKnowledgeStore(entries)
+        // 统一检索索引 = 可写 vault + 只读参考库（Agent 一次搜全）；但 list()/metadata() 只回 vault（可编辑）
+        store = KeywordKnowledgeStore(entries + reference.entries)
     }
 
     /**

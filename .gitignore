@@ -33,6 +33,15 @@ deploy/
 # 第三方依赖 jar（CMI 等，构建走 jitpack/compileOnly，不入库）
 libs/
 
+# 内置只读参考库的爬取内容（官方 wiki 转 md：CMI / DecentHolograms 等）——
+#   规避 DMCA 不入库；本地磁盘保留，构建时照常打进 jar。要重建就重跑爬虫脚本。
+#   代码（ReferenceLibrary.kt）在缺资源时优雅降级为空库，clone 出来能编能跑。
+core/src/main/resources/knowledge-ref/
+
+# 知识库爬虫脚本（把官方 wiki 爬成上面的 pack）——durable 本地留存、不入库（同 DMCA 顾虑）。
+#   见 tools/knowledge-crawler/README.md。要重建 pack 就在这里 npm install && npm run <pack>。
+tools/knowledge-crawler/
+
 # 前端构建产物与依赖（web-ui 源码入库，node_modules/dist 不入库）
 web/web-ui/node_modules/
 web/web-ui/dist/

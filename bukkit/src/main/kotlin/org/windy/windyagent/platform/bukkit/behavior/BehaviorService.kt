@@ -24,6 +24,8 @@ class BehaviorService(
     fun boardJson(): String = analytics.boardJson()
     fun segmentsJson(): String = analytics.segmentsJson()
     fun playerJson(name: String): String = analytics.playerJson(name)
+    /** 单人行为画像精简视图（供 [org.windy.windyagent.platform.bukkit.profile.BehaviorProfileSource] 并入聚合画像）；无数据返回 null。 */
+    fun playerSummary(name: String): Map<String, String>? = analytics.playerSummary(name)
     fun wordsJson(source: String, limit: Int): String = analytics.wordsJson(source, limit)
     /** 接收 Velocity 代理层送来的聊天词频（绕开 Bukkit 聊天事件 bug）。 */
     fun recordChatWords(words: Map<String, Int>) = analytics.recordChatWords(words)

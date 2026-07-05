@@ -286,6 +286,13 @@ class AgentConfig private constructor(
     fun ragQueryExpansion() = (getNode("rag.query-expansion") as? Boolean) ?: true
     fun ragMinHits() = (getNode("rag.min-hits") as? Number)?.toInt() ?: 1
 
+    // 内置只读参考库（官方文档 pack：CMI 等）——并进知识库检索，但不落进服主的 vault
+    fun knowledgeReferenceEnabled() = (getNode("knowledge.reference.enabled") as? Boolean) ?: true
+    /** 启用的 pack id 白名单；空/未配 = 全部打进 jar 的 pack。 */
+    fun knowledgeReferencePacks(): Set<String> =
+        (getNode("knowledge.reference.packs") as? List<*>)
+            ?.mapNotNull { (it as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } }?.toSet() ?: emptySet()
+
     // 嵌入/语义检索（L3 RAG）：把能力目录嵌入向量，search_capabilities 走语义检索
     fun embeddingEnabled() = (getNode("embedding.enabled") as? Boolean) ?: false
     fun embeddingModel() = getString("embedding.model", "")

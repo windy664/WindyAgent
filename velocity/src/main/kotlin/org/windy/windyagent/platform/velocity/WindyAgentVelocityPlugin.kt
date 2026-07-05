@@ -36,6 +36,7 @@ import org.windy.windyagent.buildFastProvider
 import org.windy.windyagent.buildProvider
 import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.knowledge.PlayerQa
+import org.windy.windyagent.knowledge.ReferenceLibrary
 import org.windy.windyagent.ops.ScheduledTask
 import org.windy.windyagent.agent.AgentContext
 import org.windy.windyagent.llm.LLMMessage
@@ -134,8 +135,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 无 embedding 的 RAG 语义增强：稀疏命中不足时用 LLM 扩展查询（用便宜模型，默认开，可关）
         val expander = if (cfg.ragQueryExpansion()) LlmQueryExpander(fastLlm ?: effectiveLlm) else null
 
-        // 知识库（可读写 + 热重载，供 WebUI 编辑）
-        val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"))
+        // 知识库（可读写 + 热重载，供 WebUI 编辑）+ 内置只读参考库（CMI 等官方文档，并进检索不落盘）
+        val reference = if (cfg.knowledgeReferenceEnabled()) ReferenceLibrary.load(cfg.knowledgeReferencePacks()) else ReferenceLibrary.EMPTY
+        val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"), reference)
         // 核心工具统一装配（knowledge/usage/memory/mcp）——与 Bukkit 同源，加一个只改 CoreToolContributors 一处。
         // MCP 也并入此处（原下方单独注册的 mcpTools 已收编）。
         extraTools += org.windy.windyagent.agent.ToolAssembly.assemble(

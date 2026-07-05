@@ -16,6 +16,7 @@ import org.windy.windyagent.bus.socket.SocketClientBus
 import org.windy.windyagent.bus.socket.SocketHubBus
 import org.windy.windyagent.ui.WindyLog
 import org.windy.windyagent.profile.ProfileDataRegistry
+import org.windy.windyagent.platform.bukkit.profile.BehaviorProfileSource
 import org.windy.windyagent.platform.bukkit.profile.PapiProfileSource
 import org.windy.windyagent.platform.bukkit.profile.PlayerProfileListener
 
@@ -64,6 +65,8 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             .getOrElse { logger.warning(WindyLog.tag("Behavior", "行为采集启动失败：${it.message}")); null }
         // 画像数据源注册（通过 PlaceholderAPI 读各插件占位符，config 驱动清单），与模式无关
         profileRegistry.register(PapiProfileSource(this, cfg.papiProfilePlaceholders()))
+        // 行为画像也贡献进聚合画像：Agent 查画像时同时拿到属性（PAPI）+ 行为（主玩法/活跃/标签）
+        behavior?.let { profileRegistry.register(BehaviorProfileSource(it)) }
         server.pluginManager.registerEvents(PlayerProfileListener(profileRegistry), this)
         logger.info(WindyLog.tag("Profile", "画像数据源已注册 — ${profileRegistry.available().size} 个可用" +
             if (server.pluginManager.getPlugin("PlaceholderAPI") == null) "（未检测到 PlaceholderAPI，画像为空，请装 PAPI）" else ""))

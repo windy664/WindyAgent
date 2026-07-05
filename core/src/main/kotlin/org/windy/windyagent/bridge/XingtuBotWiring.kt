@@ -42,8 +42,9 @@ internal object XingtuBotWiring {
         if (host.isBrain()) {
             host.registry().registerObserver(XingtuBotAgentHandler(
                 env.chat, host.permission(), env.logger,
-                // 惰性取受管命令前缀：超管发昕途命令(/mcp、天气、mcmod…)时 Agent 不抢答，交主链处理。
-                managedPrefixes = { runCatching { host.registry().getManagedPrefixes() }.getOrDefault(emptyList()) }))
+                // 惰性问主链"这条会被某具体命令认领吗"：超管发昕途命令(登录/天气/mcmod…)时 Agent 不抢答，交主链处理。
+                // 复用昕途真 matches() 判定，不猜前缀 → 白名单「登录」这类只 matches 不声明 triggers 的也覆盖。
+                handledByCommand = { text, event -> host.registry().isHandledByCommand(text, event) }))
             env.logger.info("[XingtuBot] ✅ QQ 联动 observer 已注册：超管私聊 / @机器人 → 运维 Agent")
         } else {
             env.logger.warn("[XingtuBot] ⚠ 当前为昕途手脚(slave)节点，不连 QQ、不注册 observer；" +

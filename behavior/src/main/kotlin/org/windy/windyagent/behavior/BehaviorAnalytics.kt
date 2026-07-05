@@ -63,9 +63,14 @@ class BehaviorAnalytics(
         return n.toString()
     }
 
-    /** 单人画像：原始计数 + **解读层**（行为标签 / 主玩法 / 活跃时段 / 派生指标）。 */
-    fun playerJson(name: String): String {
-        val p = db.player(name) ?: return mapper.createObjectNode().put("error", "未找到玩家「$name」（可能还没产生行为数据）").toString()
+    /** 单人画像解读结果（阈值规则的**单一来源**，[playerJson] 与 [playerSummary] 共用，避免逻辑漂移）。 */
+    private data class Derived(
+        val tags: List<String>, val playstyle: String, val activePeriod: String, val hist: List<Int>,
+        val deathsPerH: Double, val avgSessionMin: Double, val ageDays: Double, val recencyDays: Double
+    )
+
+    /** 由原始计数派生标签/主玩法/活跃时段/派生指标（纯规则，无副作用外的一次直方图查询）。 */
+    private fun derive(p: Profile): Derived {
         val now = System.currentTimeMillis()
         val hours = p.playtimeSec / 3600.0
         val deathsPerH = if (hours > 0) p.deaths / hours else 0.0
@@ -95,6 +100,13 @@ class BehaviorAnalytics(
         val activePeriod = if (periods.all { it == 0 }) "未知"
             else arrayOf("深夜(0-6)", "上午(6-12)", "下午(12-18)", "晚上(18-24)")[periods.indices.maxByOrNull { periods[it] } ?: 0]
 
+        return Derived(tags, playstyle, activePeriod, hist.toList(), deathsPerH, avgSessionMin, ageDays, recencyDays)
+    }
+
+    /** 单人画像：原始计数 + **解读层**（行为标签 / 主玩法 / 活跃时段 / 派生指标）。 */
+    fun playerJson(name: String): String {
+        val p = db.player(name) ?: return mapper.createObjectNode().put("error", "未找到玩家「$name」（可能还没产生行为数据）").toString()
+        val d = derive(p)
         val n = mapper.createObjectNode()
         n.put("name", p.name); n.put("uuid", p.uuid)
         n.put("firstSeen", p.firstSeen); n.put("lastSeen", p.lastSeen)
@@ -103,14 +115,35 @@ class BehaviorAnalytics(
         n.put("blocksPlaced", p.blocksPlaced); n.put("blocksBroken", p.blocksBroken)
         n.put("crafts", p.crafts); n.put("advancements", p.advancements)
         // ↓ 画像解读层
-        n.put("playstyle", playstyle)
-        n.put("activePeriod", activePeriod)
-        n.put("deathsPerHour", Math.round(deathsPerH * 100) / 100.0)
-        n.put("avgSessionMin", avgSessionMin.toInt())
-        n.put("ageDays", ageDays.toInt())
-        n.put("recencyDays", recencyDays.toInt())
-        n.putPOJO("tags", tags)
-        n.putPOJO("activeHours", hist.toList())
+        n.put("playstyle", d.playstyle)
+        n.put("activePeriod", d.activePeriod)
+        n.put("deathsPerHour", Math.round(d.deathsPerH * 100) / 100.0)
+        n.put("avgSessionMin", d.avgSessionMin.toInt())
+        n.put("ageDays", d.ageDays.toInt())
+        n.put("recencyDays", d.recencyDays.toInt())
+        n.putPOJO("tags", d.tags)
+        n.putPOJO("activeHours", d.hist)
         return n.toString()
+    }
+
+    /**
+     * 单人行为画像的**精简可读视图**（`显示名 → 值`，无 uuid/直方图等）。供 bukkit 侧的
+     * `BehaviorProfileSource` 把行为画像并入聚合画像（ProfileDataRegistry）用——让 Agent 的画像工具
+     * 同时拿到「属性画像（PAPI）+ 行为画像」。无行为数据返回 null。解读逻辑与 [playerJson] 共用 [derive]。
+     */
+    fun playerSummary(name: String): Map<String, String>? {
+        val p = db.player(name) ?: return null
+        val d = derive(p)
+        val out = LinkedHashMap<String, String>()
+        if (d.tags.isNotEmpty()) out["标签"] = d.tags.joinToString("、")
+        out["主玩法"] = d.playstyle
+        out["活跃时段"] = d.activePeriod
+        out["在线时长"] = "${p.playtimeSec / 60} 分钟"
+        out["会话数"] = p.sessions.toString()
+        out["最近上线"] = if (d.recencyDays < 1) "今天" else "${d.recencyDays.toInt()} 天前"
+        out["加入天数"] = "${d.ageDays.toInt()} 天"
+        out["死亡"] = "${p.deaths}（${Math.round(d.deathsPerH * 100) / 100.0}/小时）"
+        out["建造/破坏"] = "${p.blocksPlaced}/${p.blocksBroken}"
+        return out
     }
 }
