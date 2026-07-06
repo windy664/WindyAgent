@@ -82,6 +82,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
     // 新增组件（shutdown 需清理）
     private var sessionStoreInst: org.windy.windyagent.platform.SessionStore? = null
     private var consolidatorInst: org.windy.windyagent.memory.MemoryConsolidator? = null
+    private var opsInsightInst: OpsInsightTool? = null
     private var trajectoryRecorderInst: org.windy.windyagent.agent.TrajectoryRecorder? = null
 
     @Subscribe
@@ -254,8 +255,13 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 bus = b
                 logger.info(WindyLog.tag("Bus", "跨服总线已启用 — transport: {}"), cfg.crossServerTransport())
 
-                // Agent 读「今日运营洞察」的手（各子服统计/分群/词云 + 告警）——夜间整理任务靠它取数据
-                extraTools += OpsInsightTool(b, online, alerts, cfg.remoteTimeoutMs())
+                // Agent 读「今日运营洞察」的手（各子服统计/分群/词云 + 告警）——夜间整理任务靠它取数据。
+                // 带持久化缓存 + 白天定时刷新：00:00 无人在线时回退最近快照，避免夜间整理拉空、空手而归。
+                opsInsightInst = OpsInsightTool(
+                    b, online, alerts, cfg.remoteTimeoutMs(),
+                    dataDirectory.resolve("ops-digest-cache.json"), cfg.opsDigestCacheMaxAgeHours()
+                ).also { it.startAutoRefresh(cfg.opsDigestRefreshMin()) }
+                extraTools += opsInsightInst!!
                 // 代理层捕获聊天做词云（绕开 Bukkit 侧聊天事件 bug），词频经总线回各子服
                 chatWords = ChatWordCollector(b, cfg.remoteTimeoutMs()).also { server.eventManager.register(this, it); it.start() }
 
@@ -371,7 +377,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
                     // 实时：现场交给 Agent 判断执行（夜间整理这类要读数据决策的）
                     "agent" -> {
                         val sid = "scheduler-${task.id}"
-                        val resp = agent.run(AgentContext(sid, task.payload, platform, sessions.getHistory(sid), TrustLevel.TRUSTED, unattended = true))
+                        // {today} 占位符 → 运行时实际日期（供夜间报告按日期归档，不依赖模型自己算日期）
+                        val payload = task.payload.replace("{today}", java.time.LocalDate.now().toString())
+                        val resp = agent.run(AgentContext(sid, payload, platform, sessions.getHistory(sid), TrustLevel.TRUSTED, unattended = true))
                         sessions.trimHistory(sid); resp.message ?: "(无回复)"
                     }
                     // 脚本：跑创建时 LLM 编译好的固定步骤，确定性、不调 LLM
@@ -391,7 +399,17 @@ class WindyAgentVelocityPlugin @Inject constructor(
                     // 单动作：广播 / 命令
                     else -> runStep(task.action, task.target, task.payload)
                 }
-            }.also { sch -> if (sch.list().isEmpty()) sch.upsert(defaultNightlyTask()); sch.start() }
+            }.also { sch ->
+                val def = defaultNightlyTask()
+                val existing = sch.list().firstOrNull { it.id == def.id }
+                when {
+                    // 首装（无任何任务）：播种内置夜间整理
+                    existing == null && sch.list().isEmpty() -> sch.upsert(def)
+                    // 已有内置任务：升级文案到最新（保留用户改过的开关/时间/周几），换 jar 自动生效
+                    existing != null && existing.payload != def.payload -> sch.upsert(existing.copy(payload = def.payload))
+                }
+                sch.start()
+            }
         }
         // 对话式定时任务管理
         scheduler?.let { sch -> extraTools += org.windy.windyagent.agent.ScheduleTool(sch, audit) }
@@ -685,11 +703,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
         action = "agent",
         target = "",
         payload = "现在是夜间无人值守整理时间。请依次：" +
-            "1) 调用 ops_digest 拉取今日各子服运营摘要；" +
-            "2) 从高频聊天词/命令里识别玩家反复关注或常问的点，用 knowledge_write 整理成或更新「玩家常见问答(FAQ)」类知识条目（只沉淀长期有用的，避免一次性琐碎）；" +
-            "3) 把今日运维告警与异常归纳，用 knowledge_write 追加到 id 为 ops-log、标题「运营日志」的滚动条目（覆盖更新，正文保留近期要点）；" +
-            "4) 把玩家结构变化（新增/活跃/流失趋势）用 remember 记入管理方记忆。" +
-            "注意：你处于无人值守模式，任何高危服务器命令都会被拦截，不要尝试破坏性操作，只做整理与沉淀。",
+            "1) 调用 ops_digest 拉取今日各子服运营摘要（若返回的是「最近一次快照」也照常沉淀）；" +
+            "2) 从高频聊天词/命令里识别玩家反复关注或常问的点，用 knowledge_write 沉淀/更新「玩家常见问答(FAQ)」，folder 一律填 FAQ、tags 含「自动」（只留长期有用的，别记一次性琐碎）；" +
+            "3) 写一条当日运营报告：knowledge_write，folder 填 运营/报告、标题「运营报告 {today}」、tags 含「自动」，正文含今日关键运营数据与运维要点；" +
+            "4) 再把近期要点滚动汇总更新到运营日志：knowledge_write，folder 填 运营、标题「运营日志」、tags 含「自动」，正文保留近期数天要点、删去过时内容（同标题同目录=覆盖更新）；" +
+            "5) 用 remember 把玩家结构变化（新增/活跃/流失趋势）记入管理方记忆。" +
+            "注意：无人值守模式下任何高危服务器命令都会被拦截，只做整理与沉淀，不要破坏性操作。",
         type = "daily",
         time = "00:00",
         days = emptyList()
@@ -715,6 +734,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         chatWords?.stop(); chatWords = null
         usageTrackerInst?.close(); usageTrackerInst = null
         consolidatorInst?.stop(); consolidatorInst = null
+        opsInsightInst?.stop(); opsInsightInst = null
         trajectoryRecorderInst?.close(); trajectoryRecorderInst = null
         sessionStoreInst?.close(); sessionStoreInst = null
         web?.stop(); web = null

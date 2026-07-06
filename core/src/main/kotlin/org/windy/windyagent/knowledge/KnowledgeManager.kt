@@ -60,6 +60,27 @@ class KnowledgeManager(
         }
     }
 
+    /**
+     * 只读参考库的元数据列表（**不含正文**）：给前端建只读「内置知识库」目录树用。
+     * 双链名称索引取 vault + 参考库**并集**，故内置文档 `[[双链]]` 指向 vault 或其他内置条目都能解析。
+     */
+    fun referenceMetadata(): List<KbMeta> {
+        val pool = entries + reference.entries
+        val nameToId = HashMap<String, String>()
+        for (e in pool) {
+            nameToId.putIfAbsent(e.title.lowercase().trim(), e.id)
+            nameToId.putIfAbsent(e.id.substringAfterLast('/').lowercase(), e.id)
+        }
+        return reference.entries.map { e ->
+            val links = WIKILINK.findAll(e.content)
+                .mapNotNull { nameToId[it.groupValues[1].trim().lowercase()] }
+                .filter { it != e.id }
+                .distinct()
+                .toList()
+            KbMeta(e.id, e.title, e.folder, e.tags, links)
+        }
+    }
+
     @Synchronized
     fun reload() {
         if (!dir.exists()) {

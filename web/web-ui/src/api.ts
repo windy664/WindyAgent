@@ -130,6 +130,21 @@ export function deleteKb(id: string): Promise<{ ok: boolean }> {
   return apiJson(`/api/kb?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+// 只读内置参考库（自述手册 + 启用的爬取文档包）——前端另开只读目录树展示
+export interface RefPack {
+  id: string
+  name: string
+  desc: string
+  count: number
+}
+export interface ReferenceLib {
+  packs: RefPack[]
+  entries: KbMeta[]
+}
+export function fetchReference(): Promise<ReferenceLib> {
+  return apiJson<ReferenceLib>('/api/kb/reference')
+}
+
 // 插件命令目录（只读，实时来自能力注册表）
 export interface CapCommand {
   name: string

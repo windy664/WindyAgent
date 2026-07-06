@@ -12,6 +12,7 @@ import {
   fetchCapabilities,
   fetchKb,
   fetchKbEntry,
+  fetchReference,
   moveKb,
   saveKb,
   searchKb,
@@ -20,6 +21,7 @@ import {
   type CapServer,
   type KbEntry,
   type KbMeta,
+  type RefPack,
 } from '../api'
 
 ensureWikilinkExtension() // 注册 [[双链]] 的 marked 扩展（全局单例）
@@ -33,6 +35,11 @@ const searchHits = ref<Set<string>>(new Set()) // 后端全文检索命中的 id
 const selected = ref<KbEntry | null>(null) // 当前查看的条目（含正文，懒加载）
 const editing = ref<KbEntry | null>(null)
 const caps = ref<CapServer[]>([]) // 插件命令目录（只读，实时）
+const refEntries = ref<KbMeta[]>([]) // 只读内置参考库条目（元数据）
+const refPacks = ref<RefPack[]>([]) // 内置参考库文档包信息
+const refIds = computed(() => new Set(refEntries.value.map((e) => e.id)))
+// 当前选中条目是否属于只读内置库（决定隐藏编辑/删除、显示只读标）
+const selectedReadonly = computed(() => !!selected.value && refIds.value.has(selected.value.id))
 const selectedCap = ref<{ server: string; plugin: string; name: string; description: string; aliases: string[] } | null>(null)
 const tagsText = ref('')
 const folderText = ref('')
@@ -97,6 +104,22 @@ const backlinks = computed<KbMeta[]>(() => {
   return list.value.filter((e) => e.id !== cur.id && e.links.includes(cur.id))
 })
 const capTotal = computed(() => caps.value.reduce((n, s) => n + s.plugins.reduce((m, p) => m + p.commands.length, 0), 0))
+const refTotal = computed(() => refEntries.value.length)
+// 内置库根的悬浮提示：列出各文档包（名称×条数）
+const refTip = computed(() => refPacks.value.map((p) => `${p.name}（${p.count}）`).join('、'))
+
+// ── 自动整理产物的视觉标记（🤖）──
+// 夜间整理写入的条目会带 tag「自动」，且运营类落在「运营/」下；据此在树里区分「AI 沉淀」vs「手写」
+const AUTO_TAG = '自动'
+const AUTO_FOLDER_ROOTS = ['运营']
+function isAutoEntry(e: { folder?: string; tags: string[] }): boolean {
+  const f = e.folder || ''
+  return e.tags.includes(AUTO_TAG) || AUTO_FOLDER_ROOTS.some((r) => f === r || f.startsWith(r + '/'))
+}
+function isAutoFolder(path: string): boolean {
+  return AUTO_FOLDER_ROOTS.some((r) => path === r || path.startsWith(r + '/'))
+}
+const selectedAuto = computed(() => !!selected.value && !selectedReadonly.value && isAutoEntry(selected.value!))
 
 // ── 目录树折叠状态（按 folder 全路径记 collapsed，默认展开）持久化到 localStorage ──
 const COLLAPSE_KEY = 'wa_kb_collapsed'
@@ -202,6 +225,33 @@ const rows = computed<Row[]>(() => {
   return out
 })
 
+// ── 只读内置参考库：同样按 folder 建树，但文件夹展开键加 `ref:` 前缀，避免与 vault 同名文件夹碰撞 ──
+const refFiltered = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return refEntries.value
+  return refEntries.value.filter(
+    (e) =>
+      e.title.toLowerCase().includes(q) ||
+      e.folder.toLowerCase().includes(q) ||
+      e.tags.some((t) => t.toLowerCase().includes(q)) ||
+      searchHits.value.has(e.id),
+  )
+})
+function flattenRef(node: FolderNode, depth: number, out: Row[]) {
+  const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name))
+  for (const f of folders) {
+    out.push({ kind: 'folder', depth, path: 'ref:' + f.path, name: f.name, count: countEntries(f) })
+    if (isExpanded('ref:' + f.path)) flattenRef(f, depth + 1, out)
+  }
+  const entries = [...node.entries].sort((a, b) => a.title.localeCompare(b.title))
+  for (const e of entries) out.push({ kind: 'entry', depth, entry: e })
+}
+const refRows = computed<Row[]>(() => {
+  const out: Row[] = []
+  flattenRef(buildTree(refFiltered.value), 0, out)
+  return out
+})
+
 // markdown 渲染（详情 + 编辑器预览共用）
 function renderMd(text: string): string {
   return marked.parse(text || '', { async: false }) as string
@@ -212,10 +262,14 @@ function handle(e: unknown) {
   error.value = (e as Error).message
 }
 
+// 双链名称索引（渲染解析 + Monaco 补全共用）覆盖 vault + 只读内置，故两边互链都可解析
+function refreshNoteIndex() {
+  setNoteIndex([...list.value, ...refEntries.value])
+}
 async function load() {
   try {
     list.value = await fetchKb()
-    setNoteIndex(list.value) // 刷新双链名称索引（渲染解析 + Monaco 补全共用）
+    refreshNoteIndex()
     error.value = ''
   } catch (e) {
     handle(e)
@@ -226,6 +280,17 @@ async function loadCaps() {
     caps.value = await fetchCapabilities()
   } catch {
     caps.value = []
+  }
+}
+async function loadRef() {
+  try {
+    const r = await fetchReference()
+    refEntries.value = r.entries
+    refPacks.value = r.packs
+    refreshNoteIndex()
+  } catch {
+    refEntries.value = []
+    refPacks.value = []
   }
 }
 
@@ -483,14 +548,15 @@ async function moveEntry(e: KbMeta) {
 
 onMounted(async () => {
   document.addEventListener('click', closeCtx)
-  // 「插件命令」根首次默认折叠（之后尊重用户展开/收起的持久化）
+  // 「插件命令」「内置知识库」两根首次默认折叠（之后尊重用户展开/收起的持久化）
   if (!localStorage.getItem('wa_kb_caps_init')) {
-    collapsedSet.value = new Set([...collapsedSet.value, 'cap:'])
+    collapsedSet.value = new Set([...collapsedSet.value, 'cap:', 'ref:'])
     persistCollapsed()
     localStorage.setItem('wa_kb_caps_init', '1')
   }
   await load()
   loadCaps()
+  loadRef()
   const id = routeId()
   if (id) loadEntry(id) // 刷新/直达 /kb/<路径> 时把该条正文拉出来
 })
@@ -550,6 +616,41 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
         <div class="capdiv"></div>
       </div>
 
+      <!-- 内置知识库（只读：自述手册 + 启用的爬取文档包），点开即读，不可编辑 -->
+      <div v-if="refEntries.length" class="reftree">
+        <div class="kbfolder refroot" :title="refTip" @click="toggleFolder('ref:')">
+          <span class="caret">{{ isExpanded('ref:') ? '▾' : '▸' }}</span>
+          <span class="fico">📚</span>
+          <span class="fname">内置知识库</span>
+          <span class="fcount">{{ refTotal }}</span>
+        </div>
+        <template v-if="isExpanded('ref:')">
+          <template v-for="(row, i) in refRows" :key="'ref-' + i">
+            <div
+              v-if="row.kind === 'folder'"
+              class="kbfolder"
+              :style="{ paddingLeft: 20 + row.depth * 14 + 'px' }"
+              @click="toggleFolder(row.path)"
+            >
+              <span class="caret">{{ isExpanded(row.path) ? '▾' : '▸' }}</span>
+              <span class="fico">{{ isExpanded(row.path) ? '📂' : '📁' }}</span>
+              <span class="fname">{{ row.name }}</span>
+              <span class="fcount">{{ row.count }}</span>
+            </div>
+            <div
+              v-else
+              :class="['kbitem', { on: selected?.id === row.entry.id }]"
+              :style="{ paddingLeft: 24 + row.depth * 14 + 'px' }"
+              @click="select(row.entry)"
+            >
+              <span class="dico">📖</span>
+              <span class="it">{{ row.entry.title }}</span>
+            </div>
+          </template>
+        </template>
+        <div class="capdiv"></div>
+      </div>
+
       <div class="kbtree">
         <template v-for="(row, i) in rows" :key="i">
           <!-- 文件夹行 -->
@@ -563,6 +664,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
             <span class="caret">{{ isExpanded(row.path) ? '▾' : '▸' }}</span>
             <span class="fico">{{ isExpanded(row.path) ? '📂' : '📁' }}</span>
             <span class="fname">{{ row.name }}</span>
+            <span v-if="isAutoFolder(row.path)" class="autobadge" title="自动整理产物">🤖</span>
             <span class="fcount">{{ row.count }}</span>
             <span class="fadd" title="在此文件夹新建" @click.stop="newEntry(row.path)">＋</span>
           </div>
@@ -576,6 +678,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
           >
             <span class="dico">📄</span>
             <span class="it">{{ row.entry.title }}</span>
+            <span v-if="isAutoEntry(row.entry)" class="autobadge" title="夜间自动整理沉淀">🤖</span>
           </div>
         </template>
         <div v-if="rows.length === 0" class="muted" style="padding: 16px; font-size: 13px">无条目</div>
@@ -666,12 +769,16 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
       <div v-else-if="selected" class="panel glass kbdetail">
         <h3>
           <span>{{ selected.title }}</span>
-          <span>
+          <span v-if="selectedReadonly">
+            <el-tag size="small" type="info" effect="plain" round>📚 内置 · 只读</el-tag>
+          </span>
+          <span v-else>
             <el-button size="small" @click="edit(selected)">编辑</el-button>
             <el-button size="small" @click="remove(selected)">删除</el-button>
           </span>
         </h3>
         <div class="meta">
+          <el-tag v-if="selectedAuto" size="small" type="warning" effect="plain" round style="margin-right: 6px">🤖 自动整理</el-tag>
           <el-tag v-if="selected.folder" size="small" type="info" effect="plain" round style="margin-right: 6px">📁 {{ selected.folder }}</el-tag>
           <el-tag v-for="t in selected.tags" :key="t" size="small" effect="plain" round style="margin-right: 6px">{{ t }}</el-tag>
         </div>
@@ -794,6 +901,12 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.autobadge {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.85;
+  margin-left: 2px;
+}
 
 /* 编辑器 */
 .lb {
@@ -889,6 +1002,23 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCtx))
   height: 1px;
   background: var(--line);
   margin: 8px 4px 4px;
+}
+
+/* 内置知识库只读虚拟目录 */
+.reftree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+.reftree .refroot .fname {
+  color: var(--violet);
+}
+.reftree .kbitem {
+  opacity: 0.92;
+}
+.reftree .kbitem .dico {
+  color: var(--violet);
 }
 
 /* 右键上下文菜单 */

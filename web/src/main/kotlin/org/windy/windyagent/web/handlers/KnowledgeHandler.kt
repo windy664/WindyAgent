@@ -18,7 +18,8 @@ class KnowledgeHandler(
 
     override fun canHandle(path: String): Boolean = path == "/api/kb" ||
         path == "/api/kb/entry" || path == "/api/kb/search" || path == "/api/kb/capabilities" ||
-        path == "/api/kb/move" || path == "/api/kb/draft" || path == "/api/kb/ai"
+        path == "/api/kb/move" || path == "/api/kb/draft" || path == "/api/kb/ai" ||
+        path == "/api/kb/reference"
 
     override fun handle(ex: HttpExchange, path: String, query: Map<String, String>, mapper: ObjectMapper) {
         when (path) {
@@ -26,10 +27,31 @@ class KnowledgeHandler(
             "/api/kb/entry" -> entryApi(ex, query, mapper)
             "/api/kb/search" -> searchApi(ex, query, mapper)
             "/api/kb/capabilities" -> capsApi(ex)
+            "/api/kb/reference" -> referenceApi(ex, mapper)
             "/api/kb/move" -> moveApi(ex, mapper)
             "/api/kb/draft" -> draftApi(ex, mapper)
             "/api/kb/ai" -> aiApi(ex, mapper)
         }
+    }
+
+    /**
+     * 只读内置参考库（自述手册 + 启用的爬取文档包）：回 packs 元信息 + 条目元数据（不含正文）。
+     * 正文点开走 `/api/kb/entry`（其已回落 [KnowledgeManager.get] → reference）。前端据此建只读目录树。
+     */
+    private fun referenceApi(ex: HttpExchange, mapper: ObjectMapper) {
+        val m = kb ?: return server.json(ex, 400, """{"error":"knowledge unavailable"}""")
+        val ref = m.referenceLibrary()
+        val root = mapper.createObjectNode()
+        val packs = root.putArray("packs")
+        ref.packs.forEach { p ->
+            packs.addObject().put("id", p.id).put("name", p.name).put("desc", p.desc).put("count", p.count)
+        }
+        val arr = root.putArray("entries")
+        m.referenceMetadata().forEach { e ->
+            arr.addObject().put("id", e.id).put("title", e.title).put("folder", e.folder)
+                .putPOJO("tags", e.tags).putPOJO("links", e.links)
+        }
+        server.json(ex, 200, root.toString())
     }
 
     /** 移动条目到新分类（不改正文）。 */

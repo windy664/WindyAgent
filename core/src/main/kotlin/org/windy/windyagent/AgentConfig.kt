@@ -74,6 +74,10 @@ class AgentConfig private constructor(
     /** 记忆整合：定期 LLM 合并去重长期记忆。 */
     fun memoryConsolidateEnabled() = (getNode("memory-consolidate.enabled") as? Boolean) ?: true
     fun memoryConsolidateIntervalHours() = (getNode("memory-consolidate.interval-hours") as? Number)?.toLong() ?: 24L
+    /** 运营洞察缓存：白天定时把活数据刷进缓存（分钟），供 00:00 夜间整理在无人在线时回退。0=关。 */
+    fun opsDigestRefreshMin() = (getNode("ops-digest.refresh-min") as? Number)?.toInt() ?: 180
+    /** ops_digest 现拉为空时，回退最近缓存的最大陈旧时长（小时）。 */
+    fun opsDigestCacheMaxAgeHours() = (getNode("ops-digest.cache-max-age-hours") as? Number)?.toLong() ?: 36L
     /** 成本路由：按复杂度自动选便宜/贵模型（需配 fast-model）。 */
     fun costRouterEnabled() = (getNode("cost-router.enabled") as? Boolean) ?: false
     /** 子任务并行：复杂请求自动拆分子任务并行执行。 */
