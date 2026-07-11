@@ -1,0 +1,3 @@
+# 第一方内置只读参考 pack（随插件版本更新，入 git；区别于 knowledge-ref 的爬取内容）。id|显示名|简介
+windyagent|WindyAgent 使用手册|插件自带的知识库说明与能力清单，只读、随版本自动更新
+dh-guide|DecentHolograms 全息·第一方指南|全息悬浮字的用法要点与审美规范（第一方精简版，随插件更新；官方 wiki 全文另见 knowledge-ref 的 decentholograms 包）

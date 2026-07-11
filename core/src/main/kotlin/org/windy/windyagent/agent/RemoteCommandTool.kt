@@ -33,6 +33,7 @@ class RemoteCommandTool(
     override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {
         val node = mapper.readTree(inputJson)
         val server = node["server"]?.asText()?.takeIf { it.isNotBlank() }
+            ?: RequestContext.requesterServer().takeIf { it.isNotBlank() }  // 未言明 → 兜底请求者所在子服
             ?: return ToolResult.error(toolCallId, "缺少 server 参数")
         val command = node["command"]?.asText()?.takeIf { it.isNotBlank() }
             ?: return ToolResult.error(toolCallId, "缺少 command 参数")

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.AuditLog
+import org.windy.windyagent.safety.RequestContext
 import java.util.concurrent.TimeUnit
 
 /**
@@ -30,6 +31,7 @@ class RemoteSkillTool(
     override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {
         val node = mapper.readTree(inputJson)
         val server = node["server"]?.asText()?.takeIf { it.isNotBlank() }
+            ?: RequestContext.requesterServer().takeIf { it.isNotBlank() }  // 未言明 → 兜底请求者所在子服
             ?: return ToolResult.error(toolCallId, "缺少 server 参数")
         val skill = node["skill"]?.asText()?.takeIf { it.isNotBlank() }
             ?: return ToolResult.error(toolCallId, "缺少 skill 参数")

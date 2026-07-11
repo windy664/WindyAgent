@@ -15,34 +15,41 @@ object RequestContext {
     private val trust = ThreadLocal<TrustLevel>()
     private val session = ThreadLocal<String>()
     private val unattendedTL = ThreadLocal<Boolean>()
+    /** 请求者当前所在子服（玩家 /ai 时由入口填；控制台/QQ/定时=空）。供工具默认目标子服用。 */
+    private val serverTL = ThreadLocal<String>()
 
     /** 请求上下文快照（可跨线程传递，值类型不可变）。 */
-    data class Snapshot(val trust: TrustLevel, val session: String, val unattended: Boolean)
+    data class Snapshot(val trust: TrustLevel, val session: String, val unattended: Boolean, val server: String)
 
-    fun enter(level: TrustLevel, sessionId: String, unattended: Boolean = false) {
+    fun enter(level: TrustLevel, sessionId: String, unattended: Boolean = false, requesterServer: String = "") {
         trust.set(level)
         session.set(sessionId)
         unattendedTL.set(unattended)
+        serverTL.set(requesterServer)
     }
 
     fun clear() {
         trust.remove()
         session.remove()
         unattendedTL.remove()
+        serverTL.remove()
     }
 
     /** 取当前线程的上下文快照，传给工具线程。 */
-    fun snapshot(): Snapshot = Snapshot(current(), sessionId(), unattended())
+    fun snapshot(): Snapshot = Snapshot(current(), sessionId(), unattended(), requesterServer())
 
     /** 在当前（工具）线程恢复快照——使并行工具也拿到本次请求的信任级别。用完须 [clear]。 */
     fun restore(s: Snapshot) {
         trust.set(s.trust)
         session.set(s.session)
         unattendedTL.set(s.unattended)
+        serverTL.set(s.server)
     }
 
     fun current(): TrustLevel = trust.get() ?: TrustLevel.UNTRUSTED
     fun sessionId(): String = session.get() ?: "unknown"
     /** 无人值守：定时 Agent 任务执行中，高危命令应直接拦截而非入审批闸。 */
     fun unattended(): Boolean = unattendedTL.get() ?: false
+    /** 请求者当前所在子服；未知=空串。 */
+    fun requesterServer(): String = serverTL.get() ?: ""
 }

@@ -65,7 +65,7 @@ class AgentRouter(
 
     override fun run(context: AgentContext): AgentResponse {
         // 请求级上下文：信任级别 + 会话 id，供深层工具（安全护栏分权 / remember 作用域）读取
-        RequestContext.enter(context.trust, context.sessionId, context.unattended)
+        RequestContext.enter(context.trust, context.sessionId, context.unattended, context.requesterServer)
         try {
             // 1. 自动召回长期记忆
             memory?.let { m ->

@@ -11,6 +11,17 @@ class AgentContext(
     val history: MutableList<LLMMessage> = mutableListOf(),
     val trust: TrustLevel = TrustLevel.UNTRUSTED,
     val unattended: Boolean = false,
+    /**
+     * 本次请求者的可读标识（玩家名 / 控制台 / QQ 号等）。空则回退到 [sessionId]。
+     * 由载体入口填，供内核在提示里点名"谁在问"，实现"ID 不用报"。
+     */
+    val requester: String = "",
+    /**
+     * 请求者当前所在子服（玩家 /ai 时由 Velocity 入口按 currentServer 填；控制台/QQ/定时=空）。
+     * 内核据此在提示里告知默认目标子服、并经 [org.windy.windyagent.safety.RequestContext]
+     * 供远端工具（run_command_on_server / run_skill_on_server）在用户未言明 server 时兜底，实现"子服不用报"。
+     */
+    val requesterServer: String = "",
     /** 本次请求自动召回的长期记忆 + 画像文本（由 AgentRouter 填充）。 */
     var recalled: String = "",
     /**

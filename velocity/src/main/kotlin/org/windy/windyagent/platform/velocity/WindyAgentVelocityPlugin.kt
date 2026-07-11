@@ -433,7 +433,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val processChat: (String, String, (String, Boolean, Long) -> Unit) -> String = { sid, msg, onStep ->
             sessions.withSessionLock(sid) {
                 router.dispatch(msg, sid, TrustLevel.TRUSTED) ?: run {
-                    val resp = agent.run(AgentContext(sid, msg, platform, sessions.getHistory(sid), TrustLevel.TRUSTED, onStep = onStep))
+                    // web/QQ：若 session id 恰是在线玩家，顺带注入其所在子服（"子服不用报"）；否则留空。
+                    val reqServer = server.getPlayer(sid).flatMap { it.currentServer }.map { it.serverInfo.name }.orElse("")
+                    val resp = agent.run(AgentContext(sid, msg, platform, sessions.getHistory(sid), TrustLevel.TRUSTED, requester = sid, requesterServer = reqServer, onStep = onStep))
                     sessions.trimHistory(sid); resp.message ?: "(无回复)"
                 }.also { reply -> sessionStore?.let { it.append(sid, "user", msg); it.append(sid, "assistant", reply) } }
             }

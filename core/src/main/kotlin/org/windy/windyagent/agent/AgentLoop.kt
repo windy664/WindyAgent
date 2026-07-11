@@ -204,6 +204,23 @@ internal fun sanitizeToolPairing(messages: List<LLMMessage>): List<LLMMessage> {
  * 把召回的长期记忆拼进**当次 user 消息**（而非系统提示）——这样系统提示 + 工具定义保持稳定、
  * 可被 provider 前缀缓存命中（ReAct 多轮/跨请求复用），记忆与新问只落在非缓存尾部。
  */
-internal fun userMessageWithMemory(context: AgentContext): String =
-    if (context.recalled.isBlank()) context.userMessage
-    else "[关于当前用户的已知记忆，酌情参考]\n${context.recalled}\n\n${context.userMessage}"
+internal fun userMessageWithMemory(context: AgentContext): String = buildString {
+    // 请求者 + 所在子服前言（内核自动注入，玩家无需自报 ID/子服）。
+    val who = context.requester.ifBlank { context.sessionId }
+    if (who.isNotBlank() && who != "unknown") {
+        append("[本次请求者] ").append(who)
+        if (context.requesterServer.isNotBlank()) {
+            append("（当前所在子服：").append(context.requesterServer).append("）")
+        }
+        append('\n')
+        if (context.requesterServer.isNotBlank()) {
+            append("涉及需指定目标子服的操作（run_command_on_server / run_skill_on_server 等），")
+            append("若用户未言明是哪个子服，默认就是请求者所在的这个子服；不要反问。\n")
+        }
+        append('\n')
+    }
+    if (context.recalled.isNotBlank()) {
+        append("[关于当前用户的已知记忆，酌情参考]\n").append(context.recalled).append("\n\n")
+    }
+    append(context.userMessage)
+}

@@ -1,0 +1,3 @@
+# DecentHolograms 第一方指南 pack。资源文件名|虚拟路径(=分类/条目id，可中文)
+用法要点.md|全息(DecentHolograms)/全息用法要点
+审美规范.md|全息(DecentHolograms)/全息审美规范

@@ -39,6 +39,9 @@ class AgentCommand(
         }
 
         val sessionId = if (source is Player) source.username else "console"
+        // 玩家 /ai：从代理侧拿其当前所在子服，注入内核（"子服不用报"）。控制台无 currentServer → 空。
+        val requesterServer = (source as? Player)?.currentServer
+            ?.map { it.serverInfo.name }?.orElse("") ?: ""
 
         // 速率限制
         if (rateLimiter != null && !rateLimiter.tryAcquire(sessionId)) {
@@ -59,7 +62,7 @@ class AgentCommand(
                 }
                 // 可信(管理员/控制台) → 完整 Agent；普通玩家 → 只答疑的知识库问答（不碰工具）
                 val reply = if (trust == TrustLevel.TRUSTED) {
-                    val response = agent.run(AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust))
+                    val response = agent.run(AgentContext(sessionId, input, platform, sessions.getHistory(sessionId), trust, requester = sessionId, requesterServer = requesterServer))
                     sessions.trimHistory(sessionId); response.message
                 } else playerQa.answer(input)
                 source.sendMessage(Component.text("[WindyAgent] $reply"))
