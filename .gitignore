@@ -45,3 +45,7 @@ tools/knowledge-crawler/
 # 前端构建产物与依赖（web-ui 源码入库，node_modules/dist 不入库）
 web/web-ui/node_modules/
 web/web-ui/dist/
+
+# 不公开的开发日志
+DEVLOG.md
+DEVELOPMENT.md
