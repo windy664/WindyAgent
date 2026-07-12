@@ -1,9 +1,7 @@
 package org.windy.windyagent.bridge
 
-import org.windy.xingtubot.common.binding.BindingRepository
 import org.windy.xingtubot.common.module.XingtuBotHost
 import org.windy.xingtubot.common.module.XingtuBotHostProvider
-import org.windy.windyagent.player.PlayerDirectory
 
 /**
  * 昕途联动的<b>接线实现</b> —— 所有对昕途类型的引用都收敛在本类。
@@ -28,14 +26,14 @@ internal object XingtuBotWiring {
             }
 
         // ── 启动诊断（QQ 没反应时对照这几行定位）──
-        val hasAdmin = runCatching { host.permission().hasAnyAdmin() }.getOrDefault(false)
-        env.logger.info("[XingtuBot] 诊断：宿主来源={} · isBrain(大脑)={} · 已配超管={}",
+        // 注：新版昕途 host.permission() 返回的 PermissionChecker 仅有 isAdmin(openid)，
+        // 不再暴露 hasAnyAdmin()（该能力随 auth 拆分归入独立的 xt-auth 插件）。故这里不再预判
+        // 「是否配了超管」，只提示排查路径——真正的鉴权仍由 XingtuBotAgentHandler 逐条 isAdmin 判定。
+        env.logger.info("[XingtuBot] 诊断：宿主来源={} · isBrain(大脑)={}",
             if (viaProvider != null) "Velocity/HostProvider" else "Bukkit/ServicesManager",
-            host.isBrain(), hasAdmin)
-        if (!hasAdmin) {
-            env.logger.warn("[XingtuBot] ⚠ 昕途未配置任何超管(admin-openids)——QQ 消息会全部被忽略。" +
-                "请在昕途 config.yml 的 admin-openids 填入你的 openid（首次可先给机器人发消息，昕途日志会打印你的 openid）。")
-        }
+            host.isBrain())
+        env.logger.info("[XingtuBot] 提示：若 QQ 没反应，先确认昕途 config.yml 的 admin-openids 填了你的 openid" +
+            "（首次可先给机器人发消息，昕途日志会打印你的 openid）——非超管的消息会被忽略。")
 
         // QQ 消息 observer 只在「大脑」节点有意义：昕途手脚模式(slave)不连 QQ、不 dispatch 消息，
         // 在手脚上注册 observer 是永不触发的死接。故只在 isBrain 时注册，手脚上显式跳过并说明，避免静默空接。
@@ -51,13 +49,11 @@ internal object XingtuBotWiring {
                 "QQ 联动必须在【大脑】节点(跑 bot 的那个：Velocity 代理 或 独立 Bukkit)启用。这正是你 QQ 没反应的可能原因。")
         }
 
-        // 绑定信息 → 玩家管理面板加「绑定QQ」列。与大脑/手脚无关（只查绑定仓库），拿得到就注册。
-        val bindings = host.getService(BindingRepository::class.java)
-        if (bindings != null) {
-            PlayerDirectory.registerContributor(XingtuBotPlayerContributor(bindings))
-            env.logger.info("[XingtuBot] 玩家管理已接入「绑定QQ」列")
-        }
-        // 大脑侧接了 observer 才算联动成功；手脚侧只要接了绑定列也算部分接入 → 都返回 true（表示昕途已识别）。
+        // 说明：旧版这里还会经 host.getService(BindingRepository) 给玩家管理面板注册「绑定QQ」列。
+        // 昕途 core/auth 拆分后 BindingRepository 已从 common-core 迁到独立的 xt-auth 插件（id xingtubot-auth），
+        // WindyAgent 未依赖该插件、其类型也不在编译类路径上，故暂时移除这一列（仅影响玩家面板的绑定 QQ 展示，
+        // 不影响 QQ→Agent 联动本身）。后续如需恢复，应把对 BindingRepository 的触碰隔离进独立类、
+        // 并声明对 xingtubot-auth 的可选依赖。
         return true
     }
 }

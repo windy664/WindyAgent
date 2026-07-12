@@ -1,9 +1,9 @@
 package org.windy.windyagent.bridge
 
 import org.slf4j.Logger
-import org.windy.xingtubot.common.auth.PermissionService
 import org.windy.xingtubot.common.event.BotMessageEvent
 import org.windy.xingtubot.common.handler.MessageHandler
+import org.windy.xingtubot.common.handler.PermissionChecker
 
 /**
  * 昕途消息 → 运维 Agent 的观察者（昕途 [MessageHandler] 适配器）。
@@ -12,7 +12,7 @@ import org.windy.xingtubot.common.handler.MessageHandler
  * 只由 [XingtuBotWiring] 在确认昕途已安装后创建，故其对昕途类型的引用运行时安全。
  *
  * 触发条件（严格，命中才响应，其余一律不理）：
- *  - 发送者是昕途<b>超管</b>（复用昕途 [PermissionService]，即 config 的 admin-openids）；
+ *  - 发送者是昕途<b>超管</b>（复用昕途 [PermissionChecker]，即 config 的 admin-openids）；
  *  - 且「私聊」或「群内 @机器人」——群内非 @ 不响应，避免刷屏；
  *  - 且这条消息<b>不会被昕途某个具体命令认领</b>：交给昕途主链的 `isHandledByCommand` 判定（它直接复用
  *    各 handler 真正的 matches()，是唯一可靠信号——登录/绑定/天气/id 等全覆盖，且自动排除群服互联等 catch-all
@@ -29,7 +29,7 @@ import org.windy.xingtubot.common.handler.MessageHandler
  */
 class XingtuBotAgentHandler(
     private val chat: (String, String) -> String,
-    private val permission: PermissionService,
+    private val permission: PermissionChecker,
     private val logger: Logger,
     /** 惰性问昕途主链「这条会被某具体命令认领吗」；返回 false/抛错都当「无命令」放行给 Agent。 */
     private val handledByCommand: (String, BotMessageEvent) -> Boolean = { _, _ -> false },
