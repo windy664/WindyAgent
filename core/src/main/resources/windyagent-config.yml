@@ -264,6 +264,29 @@ skills:
   dir: "skills"          # 相对插件数据目录
   timeout-sec: 5         # 单次技能主线程执行超时（秒），解除 Agent 等待；不强杀脚本
 
+# 文件管理 + 配置版本化（让 Agent 自动改配置/装插件的落地能力）。
+#   ⚠️ 高危：开启后 Agent 可读/写/删服务器文件，故【默认关】，须显式 enabled: true。
+#   · roots      : 允许操作的目录（相对服务器根目录）；只有这些目录下的文件能被动。想放开整服填 ["."]。
+#   · protected  : 即使在 roots 内也只读、禁写禁删（默认挡住存档 world*、日志）。
+#   · 读=仅管理员；写=允许定时任务；删=仅有人值守且需 /ai-approve 审批（不可逆动作）。
+#   · 改动通常需重载插件或重启服务器才生效——重启靠你的部署基建（systemd/docker/脚本），本插件不接管。
+#   git: 用 JGit 只版本化「Agent 改过的文件」（不吞存档/jar）。本地即有历史+回滚(rollback_config_on_server)；
+#        remote 可选异地备份，provider 无关（Gitee/GitHub/GitLab/自建，填 HTTPS 地址 + token）。
+#        ⚠️ push 会把被提交的配置推到远端——含密钥的配置务必用私有仓库或自行排除，默认不 push。
+files:
+  enabled: false
+  roots: ["plugins", "config"]
+  protected: ["world", "world_nether", "world_the_end", "logs"]
+  max-read-bytes: 262144
+  git:
+    enabled: true       # 本地版本化（无需远端即有回滚）
+    remote: ""          # 远端仓库 HTTPS 地址；留空=纯本地。如 https://gitee.com/you/server-config.git
+    branch: "master"
+    username: ""        # 部分平台 HTTP Basic 需要用户名（如 Gitee 用户名 + token）
+    token: ""           # 访问令牌（provider 无关）；配了 remote 才用
+    push: false         # 每次提交后自动推送到远端（默认关）
+    max-commit-bytes: 1048576  # 单文件提交上限(字节)，超过则跳过不提交；配合 .gitignore + 二进制黑名单挡大数据/jar
+
 # MCP 工具接入（可选）：把外部 MCP server 暴露的工具喂给 Agent。
 #   与跨服总线正交——总线调自家子服能力，MCP 接第三方/外部标准化工具。
 #   每项一个 server；headers 可选（如鉴权头）。留空则不接入。

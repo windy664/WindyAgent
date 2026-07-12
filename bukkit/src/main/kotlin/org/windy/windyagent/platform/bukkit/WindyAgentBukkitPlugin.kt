@@ -107,7 +107,29 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             SkillRegistry(dataFolder.toPath().resolve(cfg.skillsDir()).toFile()) else null
         val skillEngine = skills?.let { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
         skills?.let { logger.info(WindyLog.tag("Skill", "技能已加载 — ${it.reload()} 个（skills/ 目录）")) }
-        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior, skills, skillEngine, profileRegistry)
+        // 文件管理 + 配置版本化（自动改配置/装插件的落地手；默认关，files.enabled 显式开）
+        val serverRoot = server.worldContainer
+        // ⚠ 存档名不一定叫 "world"（server.properties 的 level-name 可改），别硬编——从 Bukkit 现取真实存档目录。
+        //   serverconfig（Forge/NeoForge 的每世界 mod 配置）只存在于「带 serverconfig 子目录的那个存档」（主存档，
+        //   nether/end 没有），据此唯一定位后单独纳入版本化；存档其余部分仍被作用域挡在外。
+        val rootPath = runCatching { serverRoot.canonicalFile.toPath() }.getOrNull()
+        val worldFolders = runCatching { server.worlds.map { it.worldFolder.canonicalFile } }.getOrDefault(emptyList())
+        fun relUnderRoot(f: java.io.File): String? = rootPath?.let { rp ->
+            runCatching { rp.relativize(f.toPath()).toString().replace('\\', '/') }.getOrNull()
+                ?.takeIf { it.isNotBlank() && !it.startsWith("..") }
+        }
+        val worldNames = worldFolders.mapNotNull { relUnderRoot(it) }
+        val serverConfigRel = worldFolders.firstOrNull { java.io.File(it, "serverconfig").isDirectory }
+            ?.let { relUnderRoot(java.io.File(it, "serverconfig")) }
+        val fileRoots = if (serverConfigRel != null) cfg.fileRoots() + serverConfigRel else cfg.fileRoots()
+        val fileProtected = (cfg.fileProtected() + worldNames).distinct()   // 真实存档名一并纳入保护，不再只靠硬编 world
+        serverConfigRel?.let { logger.info(WindyLog.tag("Files", "已按 serverconfig 子目录定位主存档并纳入版本化：$it")) }
+        val files = if (cfg.filesEnabled())
+            org.windy.windyagent.platform.bukkit.fs.ServerFileService(serverRoot, fileRoots, fileProtected, cfg.fileMaxReadBytes()) else null
+        val git = if (cfg.filesEnabled() && cfg.fileGitEnabled())
+            org.windy.windyagent.platform.bukkit.fs.GitRepoService(serverRoot, logger, cfg.fileGitRemote(), cfg.fileGitBranch(), cfg.fileGitUser(), cfg.fileGitToken(), cfg.fileGitAutoPush(), cfg.fileGitMaxCommitBytes()) else null
+        files?.let { logger.info(WindyLog.tag("Files", "文件管理已启用 — 作用域 $fileRoots；git 版本化 ${if (git != null) "开" else "关"}${if (cfg.fileGitRemote().isNotBlank()) "，远端已配置" else ""}")) }
+        val handler = BukkitCapabilityHandler(this, actions, itemService, behavior, skills, skillEngine, profileRegistry, files, git)
 
         bus = runCatching {
             buildClientBus(cfg, transport).also { it.listen(serverName) { req -> handler.handle(req) } }

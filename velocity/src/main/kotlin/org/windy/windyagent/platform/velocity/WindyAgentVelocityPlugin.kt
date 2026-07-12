@@ -204,6 +204,15 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 extraTools += RemoteAppraiseTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteProposePackTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteRefreshItemsTool(b, cfg.remoteTimeoutMs())
+                // 子服文件管理 + 配置版本化（自动改配置/装插件的落地手）：默认关，files.enabled 显式开
+                if (cfg.filesEnabled()) {
+                    extraTools += org.windy.windyagent.agent.RemoteReadFileTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.agent.RemoteListDirTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.agent.RemoteWriteFileTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.agent.RemoteDeleteFileTool(b, cfg.remoteTimeoutMs(), audit, pending)
+                    extraTools += org.windy.windyagent.agent.RemoteGitHistoryTool(b, cfg.remoteTimeoutMs())
+                    extraTools += org.windy.windyagent.agent.RemoteRollbackTool(b, cfg.remoteTimeoutMs(), audit, pending)
+                }
                 // 子服能力目录：收齐推来的目录入中心注册表，Agent 用 search_capabilities 本地检索（零往返）。
                 // 配了 embedding 则走语义检索（L3 RAG），否则关键词（L2）。
                 val registry = CapabilityRegistry(buildEmbeddingProvider(cfg), dataDirectory.resolve("capability"))

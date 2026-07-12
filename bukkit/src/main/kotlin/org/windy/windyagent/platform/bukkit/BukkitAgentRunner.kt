@@ -116,6 +116,15 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             extraTools += RemoteRefreshItemsTool(remoteBus, remoteTimeoutMs)
             // hub：也能调其它子服推上来的技能（本机技能则已是本地工具）
             extraTools += org.windy.windyagent.agent.RemoteSkillTool(remoteBus, remoteTimeoutMs, audit)
+            // hub：对其它子服做文件管理 + 配置版本化（默认关，files.enabled 显式开）
+            if (cfg.filesEnabled()) {
+                extraTools += org.windy.windyagent.agent.RemoteReadFileTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.agent.RemoteListDirTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.agent.RemoteWriteFileTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.agent.RemoteDeleteFileTool(remoteBus, remoteTimeoutMs, audit, pending)
+                extraTools += org.windy.windyagent.agent.RemoteGitHistoryTool(remoteBus, remoteTimeoutMs)
+                extraTools += org.windy.windyagent.agent.RemoteRollbackTool(remoteBus, remoteTimeoutMs, audit, pending)
+            }
             remoteBus.onCatalog { registry.accept(it) }
         }
         // 会话历史持久化

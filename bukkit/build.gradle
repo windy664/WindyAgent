@@ -74,6 +74,11 @@ dependencies {
     // 3.0.x 支持 Java 8（与本模块 toolchain 一致）；shade 进 fat jar。不 relocate：
     // Bukkit 插件类加载器天然隔离，同居插件自带的 Groovy 各走各的，不冲突（不同于 Velocity 宿主共享的 jackson）。
     implementation 'org.codehaus.groovy:groovy:3.0.22'
+
+    // JGit：给「Agent 改过的配置文件」做本地版本化 + 可选远端备份（自动改配置/装插件的撤销键）。
+    // 5.13.x 是最后一条兼容 Java 8 的线（6.x 需 Java 11），与本模块 toolchain 一致；shade 进 fat jar。
+    // 只用 HTTPS+token 推送（provider 无关：Gitee/GitHub/GitLab/自建都行），不引 SSH 依赖。
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r'
 }
 
 // 带分类器 'all'，避免空分类器让 shadow 把本模块的 fat jar 设成对外消费制品

@@ -5,6 +5,8 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.bus.ToolReply
 import org.windy.windyagent.bus.ToolRequest
 import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
+import org.windy.windyagent.platform.bukkit.fs.GitRepoService
+import org.windy.windyagent.platform.bukkit.fs.ServerFileService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillArgs
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
@@ -24,7 +26,9 @@ class BukkitCapabilityHandler(
     private val behavior: BehaviorService? = null,
     private val skills: SkillRegistry? = null,
     private val skillEngine: SkillEngine? = null,
-    private val profileRegistry: ProfileDataRegistry? = null
+    private val profileRegistry: ProfileDataRegistry? = null,
+    private val files: ServerFileService? = null,
+    private val git: GitRepoService? = null
 ) {
 
     private val mapper = ObjectMapper()
@@ -154,6 +158,45 @@ class BukkitCapabilityHandler(
                 val s = skills ?: return fail(req, "本服未启用技能")
                 val count = s.reload(); onSkillsChanged()
                 ToolReply(req.requestId, true, mapper.createObjectNode().put("count", count).toString())
+            }
+            // 文件管理（中心 Agent 自动改配置/装插件的落地手；作用域+保护由 ServerFileService，版本化由 GitRepoService）
+            "fs_read" -> {
+                val f = files ?: return fail(req, "本服未启用文件管理（files.enabled）")
+                val path = args["path"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 path 参数")
+                ToolReply(req.requestId, true, f.read(path))
+            }
+            "fs_list" -> {
+                val f = files ?: return fail(req, "本服未启用文件管理（files.enabled）")
+                ToolReply(req.requestId, true, f.list(args["path"]?.asText() ?: ""))
+            }
+            "fs_write" -> {
+                val f = files ?: return fail(req, "本服未启用文件管理（files.enabled）")
+                val path = args["path"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 path 参数")
+                val content = args["content"]?.asText() ?: return fail(req, "缺少 content 参数")
+                val reason = args["reason"]?.asText()?.takeIf { it.isNotBlank() } ?: "Agent 修改"
+                val rel = f.relPath(path)
+                git?.baselineBeforeChange(rel)   // 改动前先存原始内容基线，回滚才能还原（而非删文件）
+                val n = f.write(path, content)
+                val commitMsg = git?.let { runCatching { it.commit(listOf(rel), "$reason（$path）") }.getOrElse { e -> "git 提交失败：${e.message}" } }
+                ToolReply(req.requestId, true, "已写入 $path（$n 字节）" + (commitMsg?.let { "；$it" } ?: ""))
+            }
+            "fs_delete" -> {
+                val f = files ?: return fail(req, "本服未启用文件管理（files.enabled）")
+                val path = args["path"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 path 参数")
+                val rel = f.relPath(path)
+                git?.baselineBeforeChange(rel)   // 删除前先把内容存一版，才能 revert 找回
+                val msg = f.delete(path)
+                val commitMsg = git?.let { runCatching { it.commit(listOf(rel), "删除 $path") }.getOrElse { e -> "git 提交失败：${e.message}" } }
+                ToolReply(req.requestId, true, msg + (commitMsg?.let { "；$it" } ?: ""))
+            }
+            "git_log" -> {
+                val g = git ?: return fail(req, "本服未启用配置版本化（files.git.enabled）")
+                ToolReply(req.requestId, true, g.history(args["path"]?.asText(), args["limit"]?.asInt() ?: 10))
+            }
+            "git_revert" -> {
+                val g = git ?: return fail(req, "本服未启用配置版本化（files.git.enabled）")
+                val commit = args["commit"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 commit 参数")
+                ToolReply(req.requestId, true, g.revert(commit))
             }
             // 画像数据（中心查子服的玩家画像快照，走缓存不查 CMI）
             "player_profile" -> {

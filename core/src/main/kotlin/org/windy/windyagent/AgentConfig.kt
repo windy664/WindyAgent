@@ -310,6 +310,24 @@ class AgentConfig private constructor(
     /** 技能执行的主线程超时看门狗（秒）：脚本久占主线程时解除 Agent 等待。 */
     fun skillTimeoutSec() = (getNode("skills.timeout-sec") as? Number)?.toLong() ?: 5L
 
+    // ── 文件管理 + 配置版本化（自动改配置/装插件的落地能力）──
+    // 属高危（Agent 可读写/删服务器文件），默认**关**，须显式开。作用域 files.roots 限定可动的目录，
+    // files.protected 挡住存档等只读区。写/删由子服侧 git 版本化（files.git），改错可回滚。
+    fun filesEnabled() = (getNode("files.enabled") as? Boolean) ?: false
+    fun fileRoots(): List<String> = strList("files.roots", listOf("plugins", "config"))
+    fun fileProtected(): List<String> = strList("files.protected", listOf("world", "world_nether", "world_the_end", "logs"))
+    fun fileMaxReadBytes() = (getNode("files.max-read-bytes") as? Number)?.toInt() ?: 262144
+    fun fileGitEnabled() = (getNode("files.git.enabled") as? Boolean) ?: true
+    fun fileGitRemote() = getString("files.git.remote", "")
+    fun fileGitBranch() = getString("files.git.branch", "master")
+    fun fileGitUser() = getString("files.git.username", "")
+    fun fileGitToken() = getString("files.git.token", "")
+    fun fileGitAutoPush() = (getNode("files.git.push") as? Boolean) ?: false
+    fun fileGitMaxCommitBytes() = (getNode("files.git.max-commit-bytes") as? Number)?.toLong() ?: 1_048_576L
+
+    private fun strList(path: String, default: List<String>): List<String> =
+        (getNode(path) as? List<*>)?.mapNotNull { it?.toString()?.takeIf { s -> s.isNotBlank() } }?.takeIf { it.isNotEmpty() } ?: default
+
     // MCP 工具接入（可选）：外部 MCP server 列表
     fun mcpServers(): List<McpServerConfig> {
         val list = getNode("mcp.servers") as? List<*> ?: return emptyList()
