@@ -10,6 +10,7 @@ import com.velocitypowered.api.proxy.ProxyServer
 import org.slf4j.Logger
 import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.Messages
+import org.windy.windyagent.agent.AgentRuntimeMessages
 import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
 import org.windy.windyagent.agent.ContextCompressor
@@ -64,7 +65,7 @@ import java.nio.file.Path
 @Plugin(
     id = "windyagent",
     name = "WindyAgent",
-    version = "1.0-SNAPSHOT",
+    version = "1.1-SNAPSHOT",
     description = "AI Agent for Minecraft server management"
 )
 class WindyAgentVelocityPlugin @Inject constructor(
@@ -118,7 +119,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 安全护栏 + 审计 + 人工审批闸（拦 AI 自动跑高危命令；可信来源高危走审批）
         val guard = buildCommandGuard(cfg)
         val audit = AuditLog(dataDirectory.resolve("audit.log"))
-        val pending = PendingApprovals()
+        val pending = PendingApprovals(executionFailureMessage = { Messages.t("approval.exec_failed", it) })
         logger.info(WindyLog.tag("Safety", "安全护栏：mode={}"), cfg.safetyMode())
 
         // 会话历史持久化（SQLite FTS5）：注入 FileLongTermMemory 供 recall 时搜历史原文
@@ -349,10 +350,13 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
             org.windy.windyagent.agent.TrajectoryRecorder(dataDirectory.resolve("trajectories")).also { trajectoryRecorderInst = it }
         } else null
+        val runtimeMessages = AgentRuntimeMessages { key, args ->
+            Messages.t(key, *args.map { it ?: "" }.toTypedArray())
+        }
 
         // 子任务并行编排器
         val subAgent = if (cfg.subAgentEnabled()) {
-            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt)
+            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
         } else null
 
         // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由；注入长期记忆做自动召回
@@ -360,8 +364,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // SystemHealth 数据聚合（供 Dashboard /api/system）——早建以便工具回调注册
         val systemHealth = org.windy.windyagent.ops.SystemHealth(usageTracker, sessions)
         val toolCallRecorder: (String, Long, Boolean) -> Unit = { tool, latency, success -> systemHealth.recordToolCall(tool, latency, success) }
-        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, onToolCall = toolCallRecorder)
-        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, onToolCall = toolCallRecorder)
+        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages, onToolCall = toolCallRecorder)
+        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages, onToolCall = toolCallRecorder)
         val agent = AgentRouter(costRouterLlm, react, plan, memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager, subAgent, cfg.profileUpdateMinIntervalSec() * 1000L)
 
         // 定时任务调度器：broadcast/command 走总线下发；**agent 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。

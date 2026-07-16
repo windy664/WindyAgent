@@ -1,6 +1,17 @@
 // ============================================================
 // WindyAgent — 多模块根构建（聚合器，本身不产出制品）
-//   core      —— 平台无关核心（agent / llm / prompt / 平台接口 / AgentTool）
+//   agent-api —— 稳定协议类型（AgentTool / ToolCall / ToolResult / LLMMessage / LLMResponse）
+//   execution-safety —— 信任上下文、命令护栏、审批队列、审计与限流
+//   tool-runtime —— 工具贡献者、装配与工具结果缓存
+//   skill-runtime —— 技能定义与工作流步骤协议类型
+//   workflow-runtime —— 工作流执行引擎与技能状态持久化
+//   llm-runtime —— LLM Provider、流式输出、Embedding 与用量追踪
+//   agent-runtime —— Agent 编排、上下文、路由、ReAct/PlanExecute 执行
+//   memory-runtime —— 长期记忆、知识库、RAG 查询扩展与记忆工具
+//   mcp-runtime —— MCP 客户端、工具发现与 AgentTool 适配
+//   capability-runtime —— 能力目录、命令检索与向量索引
+//   ops-runtime —— 健康监控、任务调度、错误缓冲与运维工具
+//   core      —— 平台无关核心（agent / llm provider / prompt / 平台接口）
 //   bus       —— 跨进程 Redis 总线（Velocity ↔ Bukkit 通信）
 //   velocity  —— Velocity 代理端载体（Agent 大脑所在，Java 11）。
 //                ★ 其 shadowJar 现在并入 :bukkit，产出「通用单 jar」windyagent-<ver>.jar，
@@ -35,5 +46,100 @@ subprojects {
     java.toolchain.languageVersion = JavaLanguageVersion.of(11)
     kotlin {
         jvmToolchain(11)
+    }
+}
+
+def architectureAllowedProjectDependencies = [
+    ':agent-api'        : [] as Set,
+    ':execution-safety' : [] as Set,
+    ':tool-runtime'    : [':agent-api'] as Set,
+    ':skill-runtime'   : [] as Set,
+    ':workflow-runtime': [':skill-runtime'] as Set,
+    ':llm-runtime'     : [':agent-api'] as Set,
+    ':agent-runtime'   : [':agent-api', ':execution-safety', ':llm-runtime', ':tool-runtime'] as Set,
+    ':memory-runtime'  : [':agent-runtime', ':execution-safety', ':llm-runtime'] as Set,
+    ':mcp-runtime'     : [':agent-api'] as Set,
+    ':capability-runtime': [':agent-api', ':bus', ':llm-runtime', ':memory-runtime'] as Set,
+    ':ops-runtime'     : [':agent-api', ':agent-runtime', ':execution-safety', ':llm-runtime'] as Set,
+    ':bus'             : [] as Set,
+    ':behavior'        : [] as Set,
+    ':core'            : [
+        ':agent-api',
+        ':execution-safety',
+        ':tool-runtime',
+        ':skill-runtime',
+        ':workflow-runtime',
+        ':llm-runtime',
+        ':agent-runtime',
+        ':memory-runtime',
+        ':mcp-runtime',
+        ':capability-runtime',
+        ':ops-runtime',
+        ':bus'
+    ] as Set,
+    ':web'             : [':core'] as Set,
+    ':bukkit'          : [':core', ':behavior'] as Set,
+    ':velocity'        : [':core', ':bus', ':web', ':bukkit'] as Set
+]
+
+abstract class VerifyArchitectureBoundariesTask extends org.gradle.api.DefaultTask {
+    @org.gradle.api.tasks.Input
+    abstract org.gradle.api.provider.ListProperty<String> getViolations()
+
+    VerifyArchitectureBoundariesTask() {
+        violations.convention([])
+    }
+
+    @org.gradle.api.tasks.TaskAction
+    void verify() {
+        def currentViolations = violations.get()
+        if (!currentViolations.isEmpty()) {
+            throw new org.gradle.api.GradleException(
+                "Architecture boundary violations:\n" +
+                    currentViolations.collect { " - ${it}" }.join('\n') +
+                    "\nUpdate ARCHITECTURE.md and build.gradle only when the boundary change is intentional."
+            )
+        }
+    }
+}
+
+def verifyArchitectureBoundariesTask = tasks.register('verifyArchitectureBoundaries', VerifyArchitectureBoundariesTask) {
+    group = 'verification'
+    description = 'Checks WindyAgent module dependency direction.'
+}
+
+gradle.projectsEvaluated {
+    def checkedConfigurations = ['api', 'implementation', 'compileOnly', 'runtimeOnly']
+    def violations = []
+
+    rootProject.subprojects.each { sourceProject ->
+        def allowedTargets = architectureAllowedProjectDependencies[sourceProject.path]
+        if (allowedTargets == null) {
+            return
+        }
+
+        checkedConfigurations.each { configurationName ->
+            def configuration = sourceProject.configurations.findByName(configurationName)
+            if (configuration == null) {
+                return
+            }
+
+            configuration.dependencies.withType(org.gradle.api.artifacts.ProjectDependency).each { dependency ->
+                def targetPath = dependency.path
+                if (!allowedTargets.contains(targetPath)) {
+                    violations << "${sourceProject.path}:${configurationName} -> ${targetPath}"
+                }
+            }
+        }
+    }
+
+    verifyArchitectureBoundariesTask.configure {
+        it.violations.set(violations)
+    }
+}
+
+subprojects {
+    tasks.named('check') {
+        dependsOn verifyArchitectureBoundariesTask
     }
 }

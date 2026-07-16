@@ -9,6 +9,7 @@ import org.windy.windyagent.platform.bukkit.behavior.BehaviorService
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
 import org.windy.windyagent.skill.SkillRegistry
+import org.windy.windyagent.skill.toCapabilityCommand
 import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.safety.PendingApprovals
 import org.windy.windyagent.bus.RedisBus
@@ -99,7 +100,12 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         }
         val transport = cfg.crossServerTransport()
         // provider 经 executeCommand 直接执行中心已 gate 的命令，pending 在此模式不参与
-        val actions = BukkitActions(this, buildCommandGuard(cfg), AuditLog(dataFolder.toPath().resolve("audit.log")), PendingApprovals())
+        val actions = BukkitActions(
+            this,
+            buildCommandGuard(cfg),
+            AuditLog(dataFolder.toPath().resolve("audit.log")),
+            PendingApprovals(executionFailureMessage = { Messages.t("approval.exec_failed", it) })
+        )
         val itemService = ItemService.build(this, cfg)?.also { it.warmup() }
         // 服主编写的 Groovy 技能：provider 无嵌入式 Agent，故技能经 run_skill 动作执行，
         // 并把技能目录随能力目录推回中心（中心用 search_capabilities 查、run_skill_on_server 调）。

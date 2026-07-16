@@ -3,8 +3,8 @@
 //   agent / llm / prompt / 平台接口(Platform) / AgentTool / 配置加载
 //   不依赖任何具体载体（Velocity / Bukkit）。被各载体模块依赖并 shade。
 //
-//   按 Java 8 字节码编译：所有依赖（anthropic-java 2.34.0 / okhttp 4.12 /
-//   jackson 2.17 / snakeyaml 2.2）均为 Java 8 基线，故 core 可降到 8，
+//   按 Java 8 字节码编译：核心与运行时模块依赖（okhttp 4.12 /
+//   jackson 2.17 / snakeyaml 2.2 / anthropic-java 2.34.0）均为 Java 8 基线，故 core 可降到 8，
 //   从而让 Java 8 的 bukkit 子服也能直接依赖 core 挂载嵌入式 Agent
 //   （单 Paper 服 / 无代理形态）。velocity 仍 Java 11，Java 8 的 core 照常运行。
 // ============================================================
@@ -16,6 +16,21 @@ kotlin {
 }
 
 dependencies {
+    // Stable agent/tool/LLM protocol types shared by core and platform modules.
+    api project(':agent-api')
+    // Shared execution guardrails used by core, platform loaders, web approval UI, and tools.
+    api project(':execution-safety')
+    // Shared tool assembly and result cache used by core and platform integrations.
+    api project(':tool-runtime')
+    api project(':skill-runtime')
+    api project(':workflow-runtime')
+    api project(':llm-runtime')
+    api project(':agent-runtime')
+    api project(':memory-runtime')
+    api project(':mcp-runtime')
+    api project(':capability-runtime')
+    api project(':ops-runtime')
+
     // 跨进程总线抽象 + 实现（Redis / Socket / InProcess）。用 api 暴露：
     //   - RemoteCommandTool（本模块）把远端总线能力包装成 AgentTool
     //   - 各载体据 transport 选择 MessageBus 实现
@@ -38,13 +53,7 @@ dependencies {
 
     // 以下仅 core 内部使用（LLM provider / 配置加载），载体编译期无需可见 → implementation。
     // 但它们仍在 core 的 runtimeClasspath 上，会被载体的 shadowJar 一并打进 fat jar。
-    implementation 'com.anthropic:anthropic-java:2.34.0'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'org.yaml:snakeyaml:2.2'
-
-    // Groovy：WorkflowEngine 用 GroovyShell 评估条件/脚本表达式。
-    // 3.0.x 兼容 Java 8 基线；运行时由 bukkit fat jar 提供（shade 进 fat jar）。
-    implementation 'org.codehaus.groovy:groovy:3.0.22'
 
     // 单元测试（守护 tool 配对/历史裁剪/成本熔断等易崩关键路径）
     testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5:2.2.20'

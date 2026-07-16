@@ -1,0 +1,1071 @@
+---
+title: CMI 权限
+tags: CMI, 权限
+source: https://www.zrips.net/cmi/permissions/
+---
+**Permission nodes can be checked in the game with /cmi checkperm (keyWord) command which will always gonna be up to date with all permission nodes used inside the plugin.**
+
+In most cases missing permission node will be shown by hovering the error message in-game chat. You should have **cmi.permisiononerror** permission node for this.
+
+All commands have permission nodes, if not listed below (base command permissions will not be shown to avoid clutter) you can follow the format of **cmi.command.[commandName]** to match **/cmi [command]**
+
+**Permission basic rule** is **cmi.command.[commandName]** to have access to a particular command (example: **cmi.command.heal**). Some of them will require an additional permission node if you are trying to perform a command not on your self: **cmi.command.[commandName].others** (example: **cmi.command.heal.others**)
+
+`**cmi.command**` – Gives players access to base usage of commands. A good starting point. 
+
+-   **cmi.security.admin** – Sets players security level
+-   **cmi.buttonteleport** – Allows to teleport to target location when clicking on inventory edit GUI on location icon
+-   **cmi.enderedit** – Allows to edit ender chest of some one else
+-   **cmi.bedhome** – Allows to set home location on interaction
+-   **cmi.actionbar.colors** – Allows to use colors in actionbarmsg command
+-   **cmi.totem.frominventory** – Consumes totem from inventory
+-   **cmi.elevator.use** – Allows to use elevator based on signs
+-   **cmi.elevator.create** – Allows to create elevator signs
+-   **cmi.bossbar.colors** – Allows to use colors in bossbarmsg command
+-   **cmi.bossbar.hpbar** – Allows to see hp boss bar when dealing damage to entity. Rechecks every minute.
+-   **cmi.dynmap.hidden** – Hides player from dynmap map
+-   **cmi.prewards.notification** – Allows to see playtime rewards notifications
+-   **cmi.prewards.[preward]** – Allows to get particular playtime reward
+-   **cmi.anvil.colors** – Allows to use colors when renaming item
+-   **cmi.anvil.bypassitalic** – Allows to bypass italic when renaming item
+-   **cmi.title.colors** – Allows to use colors in titlemsg command
+-   **cmi.tag.color** – Tagged player name gets colorized
+-   **cmi.colors.[type].*** – Allows all color usage in particular areas
+-   **cmi.colors.[type].[colorname/hex]** – Allows color usage in particular areas. Types: publicmessage, privatemessage, nickname, signs, books, me
+-   **cmi.seevanished** – Allows to see vanished people
+-   **cmi.vanishlevel.[1-10]** – Defines players possible max vanish level
+-   **cmi.messages.disablelogin** – Disables login message
+-   **cmi.messages.disablequit** – Disables logout message
+-   **cmi.scrollpainting** – Allows to modify paintings
+-   **cmi.autorespawn** – Allows to respawn automatically
+-   **cmi.elytralaunch** – Allows to use elytra launch feature
+-   **cmi.permisiononerror** – Allows to see missing permission on error message
+-   **cmi.invedit** – Allow to edit players inventory
+-   **cmi.book.colors** – Allows to colorize books
+-   **cmi.book.pages.[20to100]** – Defines max pages you can create in a book
+-   **cmi.damagecontrol.[groupname]** – Defines damage multiplier by group
+-   **cmi.chorusteleport** – Allows to use chorus to teleport around
+-   **cmi.teleport.with.[entitytype]** – Allows teleportation with defined mount
+-   **cmi.randomteleport.[worldname]** – Allows to random teleport inside specific world
+-   **cmi.randomteleport.cooldownbypass** – Allows to bypass random teleport cooldown
+-   **cmi.fullserver.bypass** – Allows to join full server
+-   **cmi.signs.shiftedit** – Allows to edit signs with shift right click
+-   **cmi.signs.shifteditbypass** – Allows to edit signs on protected land
+-   **cmi.netherportalbypass** – Allows nether portal creation when its disabled in config file
+-   **cmi.silentchest.editing** – Allows to edit chests while in silent open mode
+-   **cmi.interactivesign.[icname]** – Allows to create interactive signs when using [ic:[icName]] as top line of sign
+-   **cmi.versioncheck** – Allows to see new version message on login
+-   **cmi.worldlimit.gamemode.bypass** – Allows to bypass game mode limitations by worlds
+-   **cmi.worldlimit.fly.bypass** – Allows to bypass fly mode limitations by worlds
+-   **cmi.worldlimit.elytra.bypass** – Allows to bypass elytra mode limitations by worlds
+-   **cmi.worldlimit.fly.aboveroof** – Allows to fly over world build limit. Feature should be enabled in config file
+-   **cmi.worldlimit.god.bypass** – Allows to bypass god mode limitations by worlds
+-   **cmi.spawners.charge.bypass** – Allows to bypass charge limitations
+-   **cmi.inventoryhat** – Allows to put block on head from inventory
+-   **cmi.inventoryhat.bypass** – Allows to bypass item limitations
+-   **cmi.minecart.change.[minecarttype]** – Allows to change minecart type by right clicking with appropriate item
+-   **cmi.hologram.[hologramname]** – Allows to see hologram
+-   **cmi.kit.[kitname]** – Allows to use kit
+-   **cmi.kit.[kitname].preview** – Allows to preview kit without having access to kit
+-   **cmi.kit.bypass.money** – Allows to bypass kit money requirement
+-   **cmi.kit.bypass.exp** – Allows to bypass kit exp requirement
+-   **cmi.kit.bypass.time** – Allows to bypass kit time limitations
+-   **cmi.kit.bypass.onetimeuse** – Allows to bypass kit onetimeuse limitations
+-   **cmi.pvp.cmdBypass** – Allows to use commands during combat mode
+-   **cmi.pvp.godBypass** – Allows to damage player while being in god mode
+-   **cmi.pve.godBypass** – Allows to damage mobs while being in god mode
+-   **cmi.pvp.PFlyBypass** – Allows to keep flying while entering combat mode by player
+-   **cmi.pvp.MFlyBypass** – Allows to keep flying while entering combat mode by monster
+-   **cmi.spawnonjoin.bypass** – Allows to bypass spawnOnJoin option
+-   **cmi.spawngroup.[spawngroup]** – Defines player individual spawn point
+-   **cmi.respawngroup.[respawngroup]** – Defines player individual respawn point
+-   **cmi.rank.[rankname]** – Defines default player rank
+-   **cmi.select** – Allows to select with selection tool
+-   **cmi.chatgroup.[groupnumber]** – Defines player custom chat group for public message format
+-   **cmi.chatmessagegroup.[groupnumber]** – Defines player custom chat message group for public message format
+-   **cmi.chat.shout** – Allows to send messges over greater distances
+-   **cmi.chat.rangebypass** – Allows to send messages over greater distances
+-   **cmi.chat.rangespy** – Allows to see all messages over greater distances
+-   **cmi.tablist.[groupnumber]** – Defines player custom tab list group
+-   **cmi.elytra** – Allows to equip elytra
+-   **cmi.elytra.boost** – Allows to use basic elytra boost. Right click
+-   **cmi.elytra.superboost** – Allows to use elytra super boost. +Shift click
+-   **cmi.elytra.speedometer** – Allows to see speedometer while flying with elytra
+-   **cmi.elytra.freeflight** – Allows to use elytra boost for free
+-   **cmi.hunger.keepafterdeath** – Prevents from hunger to be replenished after death
+-   **cmi.anvil.itemrename.bypass** – Allows to rename items with black listed names. /itemanem and physical anvil
+-   **cmi.sleepignore** – Players with this permission node will be ignored when checking how many players are sleeping in the world to speed up time
+-   **cmi.chatfilter.inform** – Informs player when some one breaks chat filter rules
+-   **cmi.chatfilter.bypass.[groupname]** – Allows to bypass particular chat filter group
+-   **cmi.commandfilter.bypass** – Allows to bypass command spam filter
+-   **cmi.chatfilter.spambypass** – Allows to bypass chat spam filter
+-   **cmi.chatfilter.capbypass** – Allows to bypass chat caps filter
+-   **cmi.deathlocation** – Allows to see death location after death
+-   **cmi.saveinv** – Saves player inventory on death to be restored if needed later on
+-   **cmi.scheduler.exclude** – Excludes player from scheduler random player list
+-   **cmi.openshulker** – Allows to use shulkerbox as backpack
+-   **cmi.openshulker.edit** – Allows to edit shulkerbox
+-   **cmi.openshulker.free** – Allows to use shulkerbox for free
+-   **cmi.openshulker.shift** – Allows to use shulkerbox as backpack with shift right click
+-   **cmi.safeteleport** – Prevents teleportation to unsafe locations
+-   **cmi.safeteleport.bypass.[badfloor/void/suffocation/fall/unknown/plugin/unsafeteleportation/nopermission/missingworld]** – Allows to teleport into unsafe location without confirmation
+-   **cmi.viewrange** – Allows to have custom view range
+-   **cmi.viewrange.[range(1-15)]** – Defines custom view range
+-   **cmi.dropspawner** – Allows for spawner to be dropped after its being broken
+-   **cmi.dropspawner.[entitytype]** – Allows for spawner to be dropped after its being broken by defined type
+-   **cmi.dropspawner.nosilk** – Drops spawner without silk touch
+-   **cmi.dropspawner.basedropchance.[positivevalue]** – Defines base drop chance. Used in case its higher than defined one in config file
+-   **cmi.dropspawner.stopafter.[positivevalue]** – Defines mined spawner amount after which to stop dropping
+-   **cmi.spawners.proximity.bypass** – Bypass spawner place range limitations
+-   **cmi.spawners.charge.[groupname]** – Defines spawner charge group
+-   **cmi.keepinventory** – Allows to keep inventory after death
+-   **cmi.keepexp** – Allows to keep exp after death
+-   **cmi.informDurability** – Player will be informed when durability reaches threshold
+-   **cmi.egginteract.[entitytype]** – Allows to change spawner by interacting with egg
+-   **cmi.trialegginteract.[entitytype]** – Allows to change trial spawner by interacting with egg
+-   **cmi.placespawner** – Allows to place spawner and keep its type
+-   **cmi.placespawner.[entitytype]** – Allows to place spawner by particular type and keep its type
+-   **cmi.teleport.bypassblacklist** – Allows to bypass protection from teleporting with blacklisted items
+-   **cmi.teleport.currentlocation** – Allows to initiate teleportation to the current player location
+-   **cmi.armorstand.hands** – Allows to spawn armorstand with hands
+-   **cmi.armorstand.offhand** – Allows to manipulate armorstand off hand items
+-   **cmi.bungee.publicmessages.[servername]** – Allows to send public messages to target server
+-   **cmi.warmupbypass.[commandname]** – Allows to bypass particular CMI command warmup
+-   **cmi.warmuptime.[commandname].[timeinseconds]** – Allows to set warmup time. Lower is prioritized
+-   **cmi.command** – Gives access to base usage of commands
+-   **cmi.command.options.[visibleholograms/shiftsignedit/totembossbar/bossbarcompass/tagsound/chatspy/cmdspy/signspy/acceptingpm/acceptingtpa/acceptingmoney/chatbubble/pmsound/rideme/pvedamagenumbers/pvpdamagenumbers/informdurability/receivepets/deathmessages]** – Allows to modify specific options
+-   **cmi.command.jump.[distance]** – Defines max jump distance
+-   **cmi.costbypass.[commandname]** – Allows to bypass command cost
+-   **cmi.cooldownbypass.[commandname]** – Allows to bypass command cooldown
+-   **cmi.cooldown.[some_command].[timer]** – Defines command cooldown for player. Spaces need to be separate with _
+-   **cmi.command.armorstand.[updateitems/plate/size/visible/arms/gravity/glow/invulnerable/name/interactable/head/body/leftarm/rightarm/leftleg/rightleg/pos/torso/scale]** – Allows to access particular armor stand editor features
+-   **cmi.command.armorstand.renaming** – Allows to rename armor stand in armor stand editor
+-   **cmi.command.armorstand.movebypass** – Allows to move armor stand where you cant build. Can help to bypass AntiCheat plugin restrictions
+-   **cmi.command.armorstand.admin** – Allows to save/load/deleted saved armor stands
+-   **cmi.command.armorstand.template.[templatename]** – Allows to deploy saved armor stands
+-   **cmi.command.armorstand.scalemax.[value]** – Defines max armor stand scale
+-   **cmi.command.armorstand.scalemin.[value]** – Defines min armor stand scale
+-   **cmi.command.giftpet.bypass** – Allows to change pet’s owner when you are not the original owner
+-   **cmi.command.releasepet.bypass** – Allows to release pet when you are not the original owner
+-   **cmi.command.donate.bypass** – Prevents you from getting items with donate command
+-   **cmi.command.donate.accept** – Allows you to accept items sent throw donate command
+-   **cmi.command.donate.send** – Allows you to send items throw donate command
+-   **cmi.command.portal.[portalname]** – Allows to use portal
+-   **cmi.command.kill.byforce** – Allows to kill player independent of protection plugins
+-   **cmi.command.kiteditor.admin** – Allows to define more dangerous aspects of kits, like commands
+-   **cmi.command.itemframe.[invisible/fixed/invulnerable/all]** – Allows specific action
+-   **cmi.command.world.[worldname]** – Allows to teleport to particular world with command
+-   **cmi.command.skin.perm.[skinname]** – Allows to change skin to particular player
+-   **cmi.command.point.[particletype]** – Allows to change particle type
+-   **cmi.command.ender.preventmodify** – Prevents ender chest modification by some one else
+-   **cmi.command.ender.preventmodify.bypass** – Bypass for ender chest modification protection
+-   **cmi.command.inv.preventmodify** – Prevent inventory modifications by others
+-   **cmi.command.inv.location** – Shows target player location in GUI
+-   **cmi.command.inv.information** – Shows target player information in GUI
+-   **cmi.command.inv.preventmodify.bypass** – Bypass for regular inventory modification protection
+-   **cmi.command.give.max.[number]** – Max item stack size player can use
+-   **cmi.command.tfly.admin** – Allows to manage tfly for players
+-   **cmi.command.tfly.maxtime.[seconds]** – Defines max amount of time player can have with tfly command
+-   **cmi.command.spawner.shiftclick** – Allows to use spawner set GUI on shift clicking it
+-   **cmi.command.spawner.[entitytype]** – Allows to change spawner with command to defined type
+-   **cmi.command.repair.[hand/armor/all]** – Allows to repair specific area
+-   **cmi.command.head.othersource** – Allows to get head of another player
+-   **cmi.command.note.add** – Allows to add notes
+-   **cmi.command.note.remove** – Allows to remove or clear notes
+-   **cmi.command.gm.[gametype]** – Allows to change game mode to particular type
+-   **cmi.command.replaceblock.speed** – Allows to adjust replaceblock speed
+-   **cmi.command.scan.speed** – Allows to adjust scan speed
+-   **cmi.command.fixchunk.speed** – Allows to adjust chunk fix speed
+-   **cmi.command.enchant.bypasslimit** – Allows to bypass enchant limitations
+-   **cmi.command.enchant.bypassinvalid** – Allows to enchant items with enchants which usually are not possible on items
+-   **cmi.enchantments.** – Allows to enchant items with specific enchant
+-   **cmi.enchantments..$2** – Allows to enchant items with specific enchant to specific max level
+-   **cmi.command.attachcommand.cc** – Allows to attach console command to item
+-   **cmi.command.attachcommand.silent** – Allows to attach silent commands
+-   **cmi.command.sendall.bypass** – Prevents player from being sent to target server
+-   **cmi.command.heal.all** – Allows to heal every online player
+-   **cmi.command.feed.all** – Allows to feed every online player
+-   **cmi.command.[commandname].others** – Allows to perform command on another player
+-   **cmi.command.prewards.others.claim** – Allows to claim rewards for others
+-   **cmi.command.[commandname].others.[extra]** – Allows to perform command on another player
+-   **cmi.command.msg.vanish** – Allows to send private messages to vanished players
+-   **cmi.command.msg.togglebypass** – Allows to send private messages even if player has pm toggled off
+-   **cmi.command.msg.[maingroupname].send** – Allows to send private messages to specific player groups
+-   **cmi.command.bossbarmsg.admin** – Allows to use commands in bossbar automated messages
+-   **cmi.command.sell.[blocks/all]** – Allows to sell items not only from your hand
+-   **cmi.command.patrol.bypass** – Player with permission will not be included into patrol list
+-   **cmi.command.afk.auto** – Places player into afk mode automatically
+-   **cmi.command.afk.staffinform** – Uses different afk auto response message
+-   **cmi.command.afk.kickbypass** – Prevents player from being kicked out of server when afk mode triggers event
+-   **cmi.command.afk.kickOutIn.[[seconds]]** – Defines time in seconds when player needs to be kicked after he enter afk mode
+-   **cmi.command.cheque.admin** – Allows to give out cheque with money amount directly to target player without requiring paper
+-   **cmi.command.cheque.withdraw** – Allows to withdraw cheque balance when option in config file is enabled
+-   **cmi.command.invcheck.edit** – Allows to edit saved inventory
+-   **cmi.command.warp.[warpname]** – Allows to use particular warp if warp requires permission node
+-   **cmi.command.warp.showlist** – Allows to see warp list in chat or gui
+-   **cmi.command.warp.redefine** – Allows to redefine warps
+-   **cmi.command.warp.specificlocation** – Allows to define warps specific location
+-   **cmi.command.warp.diffdisplayname** – Allows to define different warp display name
+-   **cmi.command.setwarp.multiloc** – Allows to set more than one location for warp point
+-   **cmi.command.setwarp.unlimited** – Allows to have unlimited amount of warps
+-   **cmi.command.setwarp.[anypositivenumber]** – Allows to have defined amount of warps
+-   **cmi.command.removewarp.bypass** – Allows to remove warps which belong to anoher player
+-   **cmi.command.counter.autojoin** – Players will automatically join counter group on server join
+-   **cmi.command.tpa.warmupbypass** – Allows to bypass tpa command warmup
+-   **cmi.command.tpahere.warmupbypass** – Allows to bypass tpahere command warmup
+-   **cmi.command.home.bypassprivate** – Allows to teleport to private another player home location
+-   **cmi.command.homes.range** – Allows to see homes by range from you
+-   **cmi.command.sethome.unlimited** – Allows to have unlimited amount of homes
+-   **cmi.command.sethome.[anypositivenumber]** – Allows to have defined amount of homes
+-   **cmi.command.sethome.customloc** – Allows to define custom location for new home
+-   **cmi.command.sethome.iconpicker** – Allows to see icon picker after using command
+-   **cmi.command.sethome.iconpickeroncreation** – Automatically opens icon picket on home creation
+-   **cmi.command.sethome.overwrite** – Allows to overwrite existing home location
+-   **cmi.command.sethome.bypass** – Allows to bypass block break protection
+-   **cmi.command.sethome.bypasslimit** – Allows to bypass limits by worlds
+-   **cmi.command.mail.read** – Allows to read mail
+-   **cmi.command.mail.clear** – Allows to clear mail
+-   **cmi.command.mail.send** – Allows to send mail
+-   **cmi.command.mail.sendtemp** – Allows to send timed mail
+-   **cmi.command.itemlore.modification** – Allows to modify existing item lore
+-   **cmi.command.glow.color.[colorname]** – Allows to change glow color
+-   **cmi.command.walkspeed.[range0-10]** – Defines max walkspeed player can set
+-   **cmi.command.tptoggle.bypass** – Allows teleportation to players with disabled teleportations
+-   **cmi.command.sudo.bypass** – Prevents player from using sudo on player with permission
+-   **cmi.command.repair.repairshare.bypass** – Allows to bypass repair share being applied on item
+-   **cmi.command.repair.bypass** – Allows to bypass repair cost on item
+-   **cmi.command.nick.bypassblacklist** – Allows to bypass nick name black list
+-   **cmi.command.nick.bypassrealname** – Allows to bypass existing real name checks
+-   **cmi.command.nick.bypass.length** – Allows to bypass nick name length limitations
+-   **cmi.command.nick.bypassinuse** – Allows to bypass limitation in using already existing name
+-   **cmi.command.nick.different** – Allows to set nick name to different one than original
+-   **cmi.command.msg.clean** – Allows to send clean messages to player by using ! at beginning
+-   **cmi.command.msg.noreply** – Allows to send clean messages to player by using !- at beginning without option to reply
+-   **cmi.command.ignore.bypass** – Allows to perform commands on who ignores you
+-   **cmi.command.silence.bypass** – Allows to send messages who is in silence mode
+-   **cmi.command.more.oversize** – Allows to get oversized stacks
+-   **cmi.command.recipe.admin** – Allows to enable/disable recipes
+-   **cmi.command.recipe.custom** – Allows to see custom recipes
+-   **cmi.command.list.admin** – Places player into admin group in list
+-   **cmi.command.list.staff** – Places player into staff group in list
+-   **cmi.command.list.hidden** – Allows to see hidden players in player list
+-   **cmi.command.list.group.[groupnumber]** – Assigns player to defined group
+-   **cmi.command.checkban.seereason** – Allows to see players ban reason
+-   **cmi.command.checkban.modify** – Allows to modify players ban
+-   **cmi.command.mirror.nodeduct** – Will not use blocks when placing them in survival and in mirror mode
+-   **cmi.command.lfix.admin** – Allows to fix light in area bigger than you can see
+-   **cmi.command.commandspy.hide** – Hides performed commands from commandspy
+-   **cmi.command.commandspy.bypass** – Bypasses blacklisted command spy commands
+-   **cmi.command.signspy.hide** – Hides created signs from signspy
+-   **cmi.command.socialspy.hide** – Hides social messages from social spy
+-   **cmi.command.mute.max.[anypositivenumber]** – Allows to temp mute for defined max time
+-   **cmi.command.mute.bypass** – Bypass personal public chat mute
+-   **cmi.command.mutechat.bypass** – Bypass public chat mute
+-   **cmi.command.money.admin** – Allows to manipulate player balance
+-   **cmi.command.money.betweenworldgroups** – Allows money transfer between worlds
+-   **cmi.command.time.[freeze/unfreeze/day/morning/night/dusk/add/take/realtime/autorealtime]** – Allows to manipulate time
+-   **cmi.command.weather.[sun/rain/storm/lock]** – Allows to define change weather to specific state
+-   **cmi.command.weather.[sun/rain].[maxvalue]** – Allows to define max length player can change weather to
+-   **cmi.command.pweather.[sun/rain/reset]** – Allows to change personal weather to specific state
+-   **cmi.command.back.ondeath** – Allows returning to death location by using back command after death
+-   **cmi.command.back.worldbypass** – Allows returning to blacklisted worlds
+-   **cmi.command.flightcharge.admin** – Allows to edit flight charges for players
+-   **cmi.command.kick.bypass** – Prevent player from being kicked from server
+-   **cmi.command.ride.[entitytype]** – Allow to ride entity
+-   **cmi.command.sit.stairs** – Allows to sit on stairs automatically
+-   **cmi.command.sit.persistent** – Allows to sit with persistent mode
+-   **cmi.command.sit.location** – Allows to sit in specific location
+-   **cmi.command.maintenance.bypass** – Allows to bypass maintenance mode
+-   **cmi.command.alert.inform** – Player will get notification on player join with alert
+-   **cmi.command.helpop.inform** – Players with permission gets helpop messages
+-   **cmi.command.fly.safelogin** – Safely lands player after relog if he is in air
+-   **cmi.command.cuff.bypass** – Allows command usage while cuffed
+-   **cmi.command.jail.bypasscmd** – Allows command usage while jailed
+-   **cmi.command.jail.bypass** – Prevents player from being jailed
+-   **cmi.command.jail.maxtime.[seconds]** – Defines max amount of time player can jail someone
+-   **cmi.command.near.hide** – Hides player from being shown in near command
+-   **cmi.command.near.max.[blocks]** – Defines max distance for near command to override default
+-   **cmi.command.tpa.max.[blocks]** – Defines max distance for tpa command to override default
+-   **cmi.command.tpahere.max.[blocks]** – Defines max distance for tpahere command to override default
+-   **cmi.command.silent** – Allows to use -s variable in commands to avoid sending feedback messages to target player
+-   **cmi.command.warn.bypass** – Prevents player from being warned
+-   **cmi.command.ban.bypass** – Prevents player from being banned
+-   **cmi.command.banip.bypass** – Prevents player from being banned by ip
+-   **cmi.command.tempban.bypass** – Prevents player from being tempbanned
+-   **cmi.command.tempban.max.unlimited** – Allows to temp ban for more than config allows
+-   **cmi.command.tempban.max.[anypositivenumber]** – Allows to temp ban for defined max time
+-   **cmi.command.broadcast.colors** – Allows to use colors in broadcast messages
+-   **cmi.command.broadcast.clean** – Allows to use ! to send clean broadcast messages
+-   **cmi.command.charges.edit** – Allows to edit players spawner charges
+-   **cmi.command.checkaccount.showip** – Allows to see players ip in check account
+-   **cmi.command.info.ip** – Allows to see players ip in info page
+-   **cmi.command.info.pos** – Allows to see pos location in info page
+-   **cmi.command.info.bed** – Allows to see bed location in info page
+-   **cmi.command.info.back** – Allows to see back location in info page
+-   **cmi.command.info.deathlocation** – Allows to see death location in info page
+-   **cmi.command.clearchat.bypass** – Players chat with permission will not be cleared
+-   **cmi.command.counter.force** – Allows to force counter message on surrounding players
+-   **cmi.command.counter.time** – Allows to change counter default time
+-   **cmi.command.counter.range** – Allows to change counter default range
+-   **cmi.command.counter.center** – Allows to use counter custom location
+-   **cmi.command.counter.msg** – Allows to change counter default message
+-   **cmi.command.ctext.[ctextname]** – Allows to see defined custom message
+-   **cmi.command.flyspeed.[range1-10]** – Defines max flight speed player can set
+-   **cmi.command.shoot.[type]** – Allows to shoot specific type of entity
+-   **cmi.command.dialog.disabled** – Allows to see disabled dialogs
+-   **cmi.command.chat.kick** – Allows to kick players from chat room
+-   **cmi.command.chat.see** – Allows to see messages in chat room
+-   **cmi.command.chat.force** – Allows to force join player into chat room
+-   **cmi.command.chat.create** – Allows to create chatroom
+-   **cmi.command.chat.create.private** – Allows to create private chatrooms
+-   **cmi.command.chat.create.locked** – Allows to create locked chatrooms
+-   **cmi.command.chat.leave.locked** – Allows to leave locked chatrooms
+-   **cmi.command.chat.create.persistent** – Allows to create persistent chatrooms
+-   **cmi.command.chat.invite** – Allows to initiate player into chatroom
+-   **cmi.command.chat.joinbypass** – Allows to join private chat room without invitation
+-   **cmi.command.chat.seebypass** – Allows to see private chat room
+-   **cmi.command.chat.list** – Allows to list players in chat room
+-   **cmi.command.chat.listrooms** – Allows to list all chat rooms
+-   **cmi.customalias.[alias]** – Allows to use particular alias if it requires permission
+
+## Base command permission nodes
+
+-   **actionbarmsg** -> Sends action bar message to player
+    -   **cmi.command.actionbarmsg** -> default: **op**
+-   **afk** -> Toggle afk mode. Reason could be provided
+    -   **cmi.command.afk** -> default: **op**
+    -   **cmi.command.afk.others**
+-   **afkcheck** -> Check players afk status
+    -   **cmi.command.afkcheck** -> default: **op**
+    -   **cmi.command.afkcheck.others**
+-   **air** -> Set players air
+    -   **cmi.command.air** -> default: **op**
+    -   **cmi.command.air.others**
+-   **alert** -> Alerts administration on players login
+    -   **cmi.command.alert** -> default: **op**
+-   **alertlist** -> Lists all recorded alerts
+    -   **cmi.command.alertlist** -> default: **op**
+-   **aliaseditor** -> Alias editor
+    -   **cmi.command.aliaseditor** -> default: **op**
+-   **anvil** -> Open anvil
+    -   **cmi.command.anvil** -> default: **op**
+    -   **cmi.command.anvil.others**
+-   **anvilrepaircost** -> Set items repair cost
+    -   **cmi.command.anvilrepaircost** -> default: **op**
+    -   **cmi.command.anvilrepaircost.others**
+-   **armorstand** -> Open armor stand editor
+    -   **cmi.command.armorstand** -> default: **op**
+-   **attachcommand** -> Attaches command to item
+    -   **cmi.command.attachcommand** -> default: **op**
+-   **autorecharge** -> Toggle auto flight recharge
+    -   **cmi.command.autorecharge** -> default: **op**
+    -   **cmi.command.autorecharge.others**
+-   **back** -> Teleports back to last saved location
+    -   **cmi.command.back** -> default: **op**
+    -   **cmi.command.back.others**
+-   **balance** -> Check money balance
+    -   **cmi.command.balance** -> default: **op**
+    -   **cmi.command.balance.others**
+-   **baltop** -> Check top money list
+    -   **cmi.command.baltop** -> default: **op**
+    -   **cmi.command.baltop.others**
+-   **ban** -> Ban player
+    -   **cmi.command.ban** -> default: **op**
+-   **banlist** -> Ban list
+    -   **cmi.command.banlist** -> default: **op**
+-   **bbroadcast** -> Sends special message to all players on all servers
+    -   **cmi.command.bbroadcast** -> default: **op**
+-   **blockcycling** -> Cycle block states
+    -   **cmi.command.blockcycling** -> default: **op**
+-   **blockinfo** -> Check block information
+    -   **cmi.command.blockinfo** -> default: **op**
+-   **blocknbt** -> Show block NBT information
+    -   **cmi.command.blocknbt** -> default: **op**
+-   **book** -> Book editing
+    -   **cmi.command.book** -> default: **op**
+-   **bossbarmsg** -> Sends boss bar message to player
+    -   **cmi.command.bossbarmsg** -> default: **op**
+-   **broadcast** -> Sends special message to all players
+    -   **cmi.command.broadcast** -> default: **op**
+-   **burn** -> Burn a player
+    -   **cmi.command.burn** -> default: **op**
+    -   **cmi.command.burn.others**
+-   **cartographytable** -> Open cartography table
+    -   **cmi.command.cartographytable** -> default: **op**
+    -   **cmi.command.cartographytable.others**
+-   **charges** -> Shows left spawner charges
+    -   **cmi.command.charges** -> default: **op**
+    -   **cmi.command.charges.others**
+-   **chat** -> Create and join chat rooms
+    -   **cmi.command.chat** -> default: **op**
+-   **checkaccount** -> Search for a players other accounts
+    -   **cmi.command.checkaccount** -> default: **op**
+-   **checkban** -> Check players ban status
+    -   **cmi.command.checkban** -> default: **op**
+-   **checkcommand** -> Search for possible commands by keyword
+    -   **cmi.command.checkcommand** -> default: **op**
+-   **checkexp** -> Check players exp
+    -   **cmi.command.checkexp** -> default: **op**
+    -   **cmi.command.checkexp.others**
+-   **checkperm** -> Check possible permission nodes
+    -   **cmi.command.checkperm** -> default: **op**
+-   **cheque** -> Convert money into cheque
+    -   **cmi.command.cheque** -> default: **op**
+-   **clear** -> Clear players inventory
+    -   **cmi.command.clear** -> default: **op**
+    -   **cmi.command.clear.others**
+-   **clearchat** -> Clears chat
+    -   **cmi.command.clearchat** -> default: **op**
+-   **clearender** -> Clear players ender chest
+    -   **cmi.command.clearender** -> default: **op**
+    -   **cmi.command.clearender.others**
+-   **colorlimits** -> Shows all possible colors
+    -   **cmi.command.colorlimits** -> default: **op**
+    -   **cmi.command.colorlimits.others**
+-   **colorpicker** -> Pick hex color
+    -   **cmi.command.colorpicker** -> default: **op**
+    -   **cmi.command.colorpicker.others**
+-   **colors** -> Shows all possible colors
+    -   **cmi.command.colors** -> default: **op**
+    -   **cmi.command.colors.others**
+-   **compass** -> Set players compass point to your location
+    -   **cmi.command.compass** -> default: **op**
+    -   **cmi.command.compass.others**
+-   **condense** -> Condense items into blocks
+    -   **cmi.command.condense** -> default: **op**
+    -   **cmi.command.condense.others**
+-   **counter** -> Starts counter for surrounding players
+    -   **cmi.command.counter** -> default: **op**
+-   **cplaytime** -> Detailed playtime
+    -   **cmi.command.cplaytime** -> default: **op**
+    -   **cmi.command.cplaytime.others**
+-   **ctellraw** -> Send tellraw type message
+    -   **cmi.command.ctellraw** -> default: **op**
+-   **ctext** -> Shows custom text
+    -   **cmi.command.ctext** -> default: **true**
+    -   **cmi.command.ctext.others**
+-   **cuff** -> Suspends players actions
+    -   **cmi.command.cuff** -> default: **op**
+-   **customrecipe** -> Manages item custom recipes
+    -   **cmi.command.customrecipe** -> default: **op**
+-   **dback** -> Returns to death location
+    -   **cmi.command.dback** -> default: **op**
+    -   **cmi.command.dback.others**
+-   **disableenchant** -> Disable enchantment
+    -   **cmi.command.disableenchant** -> default: **op**
+-   **dispose** -> Dispose of unneeded items
+    -   **cmi.command.dispose** -> default: **op**
+    -   **cmi.command.dispose.others**
+-   **distance** -> Check distance between 2 points
+    -   **cmi.command.distance** -> default: **op**
+    -   **cmi.command.distance.others**
+-   **donate** -> Donate item you are holding
+    -   **cmi.command.donate** -> default: **op**
+-   **down** -> Teleport one floor down
+    -   **cmi.command.down** -> default: **op**
+    -   **cmi.command.down.others**
+-   **dsign** -> Manage dynamic signs
+    -   **cmi.command.dsign** -> default: **op**
+-   **dye** -> Dye leather armor
+    -   **cmi.command.dye** -> default: **op**
+    -   **cmi.command.dye.others**
+-   **editctext** -> Custom text editor
+    -   **cmi.command.editctext** -> default: **op**
+-   **editlocale** -> Edit your locale file
+    -   **cmi.command.editlocale** -> default: **op**
+-   **editplaytime** -> Edit players playtime
+    -   **cmi.command.editplaytime** -> default: **op**
+    -   **cmi.command.editplaytime.others**
+-   **editwarnings** -> Check player warnings
+    -   **cmi.command.editwarnings** -> default: **op**
+    -   **cmi.command.editwarnings.others**
+-   **editwarp** -> Edit warps
+    -   **cmi.command.editwarp** -> default: **op**
+    -   **cmi.command.editwarp.others**
+-   **effect** -> Adds potion effect to player. use clear to remove all effects
+    -   **cmi.command.effect** -> default: **op**
+    -   **cmi.command.effect.others**
+-   **enchant** -> Enchant items
+    -   **cmi.command.enchant** -> default: **op**
+    -   **cmi.command.enchant.others**
+-   **ender** -> Opens players ender chest
+    -   **cmi.command.ender** -> default: **op**
+    -   **cmi.command.ender.others**
+-   **endgateway** -> Toggle end gateway beam
+    -   **cmi.command.endgateway** -> default: **op**
+-   **entityinfo** -> Check entity information
+    -   **cmi.command.entityinfo** -> default: **op**
+-   **entitynbt** -> Check entity nbt information
+    -   **cmi.command.entitynbt** -> default: **op**
+-   **exp** -> Set players exp. Use L to set levels
+    -   **cmi.command.exp** -> default: **op**
+    -   **cmi.command.exp.others**
+-   **ext** -> Extinguish a player
+    -   **cmi.command.ext** -> default: **op**
+    -   **cmi.command.ext.others**
+-   **falldistance** -> Set players falldistance
+    -   **cmi.command.falldistance** -> default: **op**
+    -   **cmi.command.falldistance.others**
+-   **feed** -> Feed player
+    -   **cmi.command.feed** -> default: **op**
+    -   **cmi.command.feed.others**
+-   **findbiome** -> Finds nearest biome by name
+    -   **cmi.command.findbiome** -> default: **op**
+-   **fixchunk** -> Scans for damaged chunks
+    -   **cmi.command.fixchunk** -> default: **op**
+-   **flightcharge** -> Manage and check flight charges
+    -   **cmi.command.flightcharge** -> default: **op**
+    -   **cmi.command.flightcharge.others**
+-   **fly** -> Set players fly true or false
+    -   **cmi.command.fly** -> default: **op**
+    -   **cmi.command.fly.others**
+-   **flyc** -> Toggle flight charge mode
+    -   **cmi.command.flyc** -> default: **op**
+    -   **cmi.command.flyc.others**
+-   **flyspeed** -> Set players fly speed from 0 to 10
+    -   **cmi.command.flyspeed** -> default: **op**
+    -   **cmi.command.flyspeed.others**
+-   **gamerule** -> Manage gamerules
+    -   **cmi.command.gamerule** -> default: **op**
+-   **generateworth** -> Auto generate possible item worth values
+    -   **cmi.command.generateworth** -> default: **op**
+-   **getbook** -> Get book
+    -   **cmi.command.getbook** -> default: **op**
+    -   **cmi.command.getbook.others**
+-   **give** -> Give item to player
+    -   **cmi.command.give** -> default: **op**
+    -   **cmi.command.give.others**
+-   **giveall** -> Give item for all players
+    -   **cmi.command.giveall** -> default: **op**
+-   **glow** -> Set players glow mode
+    -   **cmi.command.glow** -> default: **op**
+    -   **cmi.command.glow.others**
+-   **gm** -> Set players game mode
+    -   **cmi.command.gm** -> default: **op**
+-   **god** -> Set players god mode to true or false
+    -   **cmi.command.god** -> default: **op**
+    -   **cmi.command.god.others**
+-   **grindstone** -> Open grindstone
+    -   **cmi.command.grindstone** -> default: **op**
+    -   **cmi.command.grindstone.others**
+-   **groundclean** -> Clears server from unnecessary items
+    -   **cmi.command.groundclean** -> default: **op**
+-   **haspermission** -> Check if player has particular permission
+    -   **cmi.command.haspermission** -> default: **op**
+    -   **cmi.command.haspermission.others**
+-   **hat** -> Place item like hat
+    -   **cmi.command.hat** -> default: **op**
+    -   **cmi.command.hat.others**
+-   **head** -> Get players head
+    -   **cmi.command.head** -> default: **op**
+    -   **cmi.command.head.others**
+-   **heal** -> Heal player
+    -   **cmi.command.heal** -> default: **op**
+    -   **cmi.command.heal.others**
+-   **helpop** -> Sends message for help to staff members
+    -   **cmi.command.helpop** -> default: **op**
+-   **hideflags** -> Hides item flags
+    -   **cmi.command.hideflags** -> default: **op**
+    -   **cmi.command.hideflags.others**
+-   **hologram** -> Manage holograms
+    -   **cmi.command.hologram** -> default: **op**
+-   **hologrampages** -> Change hologram page
+    -   **cmi.command.hologrampages** -> default: **op**
+    -   **cmi.command.hologrampages.others**
+-   **home** -> Teleport to home location
+    -   **cmi.command.home** -> default: **op**
+    -   **cmi.command.home.others**
+-   **homes** -> A list of homes that you can click to teleport to.
+    -   **cmi.command.homes** -> default: **op**
+    -   **cmi.command.homes.others**
+-   **hunger** -> Set players hunger
+    -   **cmi.command.hunger** -> default: **op**
+    -   **cmi.command.hunger.others**
+-   **ic** -> Create interactive command
+    -   **cmi.command.ic** -> default: **op**
+-   **ifoffline** -> Perform command only when player is offline
+    -   **cmi.command.ifoffline** -> default: **op**
+-   **ifonline** -> Perform command only when player is online
+    -   **cmi.command.ifonline** -> default: **op**
+-   **ignore** -> Ignores player
+    -   **cmi.command.ignore** -> default: **op**
+    -   **cmi.command.ignore.others**
+-   **importfrom** -> Import data from other plugins
+    -   **cmi.command.importfrom** -> default: **op**
+-   **importoldusers** -> Imports users from playerdata folder in main world folder. Server can suffer lag spike during import
+    -   **cmi.command.importoldusers** -> default: **op**
+-   **info** -> Show players information
+    -   **cmi.command.info** -> default: **op**
+    -   **cmi.command.info.others**
+-   **inv** -> Opens players inventory
+    -   **cmi.command.inv** -> default: **op**
+-   **invcheck** -> Open saved inventory in preview mode
+    -   **cmi.command.invcheck** -> default: **op**
+    -   **cmi.command.invcheck.others**
+-   **invlist** -> Show saved inventories list
+    -   **cmi.command.invlist** -> default: **op**
+    -   **cmi.command.invlist.others**
+-   **invload** -> Load saved inventory
+    -   **cmi.command.invload** -> default: **op**
+    -   **cmi.command.invload.others**
+-   **invremove** -> Remove saved inventories for player
+    -   **cmi.command.invremove** -> default: **op**
+    -   **cmi.command.invremove.others**
+-   **invremoveall** -> Removes all saved inventories
+    -   **cmi.command.invremoveall** -> default: **op**
+-   **invsave** -> Save inventory
+    -   **cmi.command.invsave** -> default: **op**
+    -   **cmi.command.invsave.others**
+-   **ipban** -> Ban ip
+    -   **cmi.command.ipban** -> default: **op**
+-   **ipbanlist** -> Ban ip list
+    -   **cmi.command.ipbanlist** -> default: **op**
+-   **item** -> Give item to yourself
+    -   **cmi.command.item** -> default: **op**
+-   **itemcmdata** -> Check or modify items custom model data
+    -   **cmi.command.itemcmdata** -> default: **op**
+    -   **cmi.command.itemcmdata.others**
+-   **itemframe** -> Manage item frames
+    -   **cmi.command.itemframe** -> default: **op**
+-   **iteminfo** -> Show item information
+    -   **cmi.command.iteminfo** -> default: **op**
+    -   **cmi.command.iteminfo.others**
+-   **itemlore** -> Change items lore
+    -   **cmi.command.itemlore** -> default: **op**
+    -   **cmi.command.itemlore.others**
+-   **itemname** -> Rename items
+    -   **cmi.command.itemname** -> default: **op**
+    -   **cmi.command.itemname.others**
+-   **itemnbt** -> Show item NBT information
+    -   **cmi.command.itemnbt** -> default: **op**
+    -   **cmi.command.itemnbt.others**
+-   **jail** -> Jail player for time period
+    -   **cmi.command.jail** -> default: **op**
+-   **jailedit** -> Edit jails
+    -   **cmi.command.jailedit** -> default: **op**
+-   **jaillist** -> List jails
+    -   **cmi.command.jaillist** -> default: **op**
+-   **jump** -> Jump to target block
+    -   **cmi.command.jump** -> default: **op**
+-   **kick** -> Kick player with custom message
+    -   **cmi.command.kick** -> default: **op**
+-   **kill** -> Kill player
+    -   **cmi.command.kill** -> default: **op**
+-   **killall** -> Kill mobs around you
+    -   **cmi.command.killall** -> default: **op**
+-   **kit** -> Gives predefined kit.
+    -   **cmi.command.kit** -> default: **true**
+    -   **cmi.command.kit.others**
+-   **kitcdreset** -> Reset kit timer
+    -   **cmi.command.kitcdreset** -> default: **op**
+    -   **cmi.command.kitcdreset.others**
+-   **kiteditor** -> Kit editor.
+    -   **cmi.command.kiteditor** -> default: **op**
+-   **kitusagereset** -> Reset kit usage counter
+    -   **cmi.command.kitusagereset** -> default: **op**
+    -   **cmi.command.kitusagereset.others**
+-   **lastonline** -> Show played players from last x minutes
+    -   **cmi.command.lastonline** -> default: **op**
+-   **launch** -> Launch at direction you are looking or at angle
+    -   **cmi.command.launch** -> default: **op**
+    -   **cmi.command.launch.others**
+-   **lfix** -> Fix light in chunks around you
+    -   **cmi.command.lfix** -> default: **op**
+-   **list** -> Shows online player list
+    -   **cmi.command.list** -> default: **op**
+-   **lockip** -> Prevents logging into account from different ip
+    -   **cmi.command.lockip** -> default: **op**
+    -   **cmi.command.lockip.others**
+-   **loom** -> Open loom
+    -   **cmi.command.loom** -> default: **op**
+    -   **cmi.command.loom.others**
+-   **mail** -> Send and receive mail
+    -   **cmi.command.mail** -> default: **op**
+    -   **cmi.command.mail.others**
+-   **mailall** -> Check or send mail to all players
+    -   **cmi.command.mailall** -> default: **op**
+-   **maintenance** -> Set server into maintenance mode
+    -   **cmi.command.maintenance** -> default: **op**
+-   **maxhp** -> Set a player’s max hp
+    -   **cmi.command.maxhp** -> default: **op**
+    -   **cmi.command.maxhp.others**
+-   **maxplayers** -> Changes maximum amount of players who can connect to server
+    -   **cmi.command.maxplayers** -> default: **op**
+-   **me** -> Sends special message to all players
+    -   **cmi.command.me** -> default: **op**
+-   **merchant** -> Open merchant trade window
+    -   **cmi.command.merchant** -> default: **op**
+    -   **cmi.command.merchant.others**
+-   **migratedatabase** -> Changes database system and migrates all data
+    -   **cmi.command.migratedatabase** -> default: **op**
+-   **mirror** -> Starts block place/break mirroring.
+    -   **cmi.command.mirror** -> default: **op**
+-   **mobhead** -> Get mob head
+    -   **cmi.command.mobhead** -> default: **op**
+    -   **cmi.command.mobhead.others**
+-   **money** -> Manage money balance
+    -   **cmi.command.money** -> default: **op**
+-   **more** -> Fills item stack to maximum amount
+    -   **cmi.command.more** -> default: **op**
+    -   **cmi.command.more.others**
+-   **msg** -> Sends message to player
+    -   **cmi.command.msg** -> default: **op**
+-   **mute** -> Mute player
+    -   **cmi.command.mute** -> default: **op**
+-   **mutechat** -> Prevent public messages
+    -   **cmi.command.mutechat** -> default: **op**
+-   **nameplate** -> Set players name plate prefix, suffix or its color
+    -   **cmi.command.nameplate** -> default: **op**
+    -   **cmi.command.nameplate.others**
+-   **near** -> Check who is near you
+    -   **cmi.command.near** -> default: **op**
+-   **nick** -> Changes player name
+    -   **cmi.command.nick** -> default: **op**
+    -   **cmi.command.nick.others**
+-   **notarget** -> Toggle no-mob target mode
+    -   **cmi.command.notarget** -> default: **op**
+    -   **cmi.command.notarget.others**
+-   **note** -> Manage players notes
+    -   **cmi.command.note** -> default: **op**
+    -   **cmi.command.note.others**
+-   **openbook** -> Open book gui
+    -   **cmi.command.openbook** -> default: **true**
+    -   **cmi.command.openbook.others**
+-   **oplist** -> Check operator player list
+    -   **cmi.command.oplist** -> default: **op**
+-   **options** -> Modify personal options
+    -   **cmi.command.options** -> default: **op**
+    -   **cmi.command.options.others**
+-   **panimation** -> Play custom particle animation
+    -   **cmi.command.panimation** -> default: **op**
+    -   **cmi.command.panimation.others**
+-   **patrol** -> Patrol
+    -   **cmi.command.patrol** -> default: **op**
+-   **pay** -> Perform money transaction
+    -   **cmi.command.pay** -> default: **op**
+-   **ping** -> Shows players ping
+    -   **cmi.command.ping** -> default: **op**
+    -   **cmi.command.ping.others**
+-   **placeholders** -> List out all placeholders
+    -   **cmi.command.placeholders** -> default: **op**
+-   **playercollision** -> Set players collision mode
+    -   **cmi.command.playercollision** -> default: **op**
+    -   **cmi.command.playercollision.others**
+-   **playtime** -> Shows player total play time
+    -   **cmi.command.playtime** -> default: **op**
+    -   **cmi.command.playtime.others**
+-   **playtimetop** -> Shows top list of player total play time
+    -   **cmi.command.playtimetop** -> default: **op**
+-   **point** -> Point to block
+    -   **cmi.command.point** -> default: **op**
+-   **portals** -> Set portals
+    -   **cmi.command.portals** -> default: **op**
+-   **pos** -> Show current position of a player
+    -   **cmi.command.pos** -> default: **op**
+    -   **cmi.command.pos.others**
+-   **preview** -> Load chunk for given range
+    -   **cmi.command.preview** -> default: **op**
+-   **prewards** -> Check playtime rewards
+    -   **cmi.command.prewards** -> default: **op**
+    -   **cmi.command.prewards.others**
+-   **ptime** -> Controls player personal time
+    -   **cmi.command.ptime** -> default: **op**
+    -   **cmi.command.ptime.others**
+-   **purge** -> Cleans player data from world folder by inactive days
+    -   **cmi.command.purge** -> default: **op**
+-   **pweather** -> Controls player weather
+    -   **cmi.command.pweather** -> default: **op**
+    -   **cmi.command.pweather.others**
+-   **rankdown** -> Decrease your rank
+    -   **cmi.command.rankdown** -> default: **op**
+    -   **cmi.command.rankdown.others**
+-   **rankinfo** -> Your rank information
+    -   **cmi.command.rankinfo** -> default: **op**
+    -   **cmi.command.rankinfo.others**
+-   **ranklist** -> List of possible ranks
+    -   **cmi.command.ranklist** -> default: **op**
+-   **rankset** -> Set a players rank
+    -   **cmi.command.rankset** -> default: **op**
+    -   **cmi.command.rankset.others**
+-   **rankup** -> Increase your rank
+    -   **cmi.command.rankup** -> default: **op**
+    -   **cmi.command.rankup.others**
+-   **realname** -> Check players real name
+    -   **cmi.command.realname** -> default: **op**
+-   **recipe** -> Check item recipe
+    -   **cmi.command.recipe** -> default: **op**
+-   **reload** -> Reloads plugins config and locale files
+    -   **cmi.command.reload** -> default: **op**
+-   **removehome** -> Remove home
+    -   **cmi.command.removehome** -> default: **op**
+    -   **cmi.command.removehome.others**
+-   **removeuser** -> Removes user and its data
+    -   **cmi.command.removeuser** -> default: **op**
+-   **removewarp** -> Remove warp
+    -   **cmi.command.removewarp** -> default: **op**
+-   **repair** -> Repair items
+    -   **cmi.command.repair** -> default: **op**
+    -   **cmi.command.repair.others**
+-   **repaircost** -> Check items repair cost
+    -   **cmi.command.repaircost** -> default: **op**
+    -   **cmi.command.repaircost.others**
+-   **replaceblock** -> Replaces blocks in current world around you
+    -   **cmi.command.replaceblock** -> default: **op**
+-   **reply** -> Reply to last message sender
+    -   **cmi.command.reply** -> default: **op**
+-   **resetback** -> Resets players back location
+    -   **cmi.command.resetback** -> default: **op**
+    -   **cmi.command.resetback.others**
+-   **resetdbfields** -> Resets particular database columns to default value
+    -   **cmi.command.resetdbfields** -> default: **op**
+-   **ride** -> Ride target entity
+    -   **cmi.command.ride** -> default: **op**
+-   **rt** -> Teleports to random location
+    -   **cmi.command.rt** -> default: **op**
+    -   **cmi.command.rt.others**
+-   **sameip** -> List players logged in from same ip
+    -   **cmi.command.sameip** -> default: **op**
+-   **saturation** -> Set players saturation
+    -   **cmi.command.saturation** -> default: **op**
+    -   **cmi.command.saturation.others**
+-   **saveall** -> Saves every player inventory
+    -   **cmi.command.saveall** -> default: **op**
+-   **saveditems** -> Save or manage saved items
+    -   **cmi.command.saveditems** -> default: **op**
+    -   **cmi.command.saveditems.others**
+-   **sc** -> Starts sign copy process
+    -   **cmi.command.sc** -> default: **op**
+-   **scan** -> Scans for items in current world
+    -   **cmi.command.scan** -> default: **op**
+-   **scavenge** -> Recycle item and its enchantments
+    -   **cmi.command.scavenge** -> default: **op**
+    -   **cmi.command.scavenge.others**
+-   **schedule** -> Trigger schedule
+    -   **cmi.command.schedule** -> default: **op**
+-   **se** -> Changes sign text line.
+    -   **cmi.command.se** -> default: **op**
+-   **search** -> Search items/enchants/fly/maxhp/gm/oversize modes and other stuff from all users
+    -   **cmi.command.search** -> default: **op**
+    -   **cmi.command.search.others**
+-   **seen** -> Check when player was last seen
+    -   **cmi.command.seen** -> default: **op**
+-   **select** -> Manage selection area
+    -   **cmi.command.select** -> default: **op**
+    -   **cmi.command.select.others**
+-   **sell** -> Sell items from inventory
+    -   **cmi.command.sell** -> default: **op**
+-   **sendall** -> Send all online players to target server
+    -   **cmi.command.sendall** -> default: **op**
+-   **server** -> Connect to bungeecord server
+    -   **cmi.command.server** -> default: **op**
+    -   **cmi.command.server.others**
+-   **serverlist** -> Show server list
+    -   **cmi.command.serverlist** -> default: **op**
+    -   **cmi.command.serverlist.others**
+-   **servertime** -> Show server time
+    -   **cmi.command.servertime** -> default: **op**
+-   **setenchantworth** -> Change enchantment worth
+    -   **cmi.command.setenchantworth** -> default: **op**
+-   **setfirstspawn** -> Sets first spawn point
+    -   **cmi.command.setfirstspawn** -> default: **op**
+-   **sethome** -> Sets home location
+    -   **cmi.command.sethome** -> default: **op**
+    -   **cmi.command.sethome.others**
+-   **setmotd** -> Set server motd
+    -   **cmi.command.setmotd** -> default: **op**
+-   **setrt** -> Set random teleport bounds
+    -   **cmi.command.setrt** -> default: **op**
+-   **setspawn** -> Sets spawn command teleport point
+    -   **cmi.command.setspawn** -> default: **op**
+-   **setwarp** -> Sets warp location
+    -   **cmi.command.setwarp** -> default: **op**
+-   **setworth** -> Change item worth
+    -   **cmi.command.setworth** -> default: **op**
+-   **shadowmute** -> Mute player without telling him that he is muted
+    -   **cmi.command.shadowmute** -> default: **op**
+-   **shakeitoff** -> Dismount any entity riding you
+    -   **cmi.command.shakeitoff** -> default: **op**
+-   **shoot** -> Shoot projectile
+    -   **cmi.command.shoot** -> default: **op**
+    -   **cmi.command.shoot.others**
+-   **silence** -> Blocks public messages
+    -   **cmi.command.silence** -> default: **op**
+-   **silentchest** -> Toggles silent chest
+    -   **cmi.command.silentchest** -> default: **op**
+-   **sit** -> Sit in your position
+    -   **cmi.command.sit** -> default: **op**
+    -   **cmi.command.sit.others**
+-   **skin** -> Changes players skin
+    -   **cmi.command.skin** -> default: **op**
+    -   **cmi.command.skin.others**
+-   **smite** -> Strike ground or player with lightning
+    -   **cmi.command.smite** -> default: **op**
+    -   **cmi.command.smite.others**
+-   **smithingtable** -> Open smithing table
+    -   **cmi.command.smithingtable** -> default: **op**
+    -   **cmi.command.smithingtable.others**
+-   **solve** -> Solve equation
+    -   **cmi.command.solve** -> default: **op**
+-   **sound** -> Play sound at target location
+    -   **cmi.command.sound** -> default: **op**
+    -   **cmi.command.sound.others**
+-   **spawn** -> Teleports back to spawn location
+    -   **cmi.command.spawn** -> default: **op**
+    -   **cmi.command.spawn.others**
+-   **spawner** -> Sets spawner
+    -   **cmi.command.spawner** -> default: **op**
+-   **spawnereditor** -> Edit spawner
+    -   **cmi.command.spawnereditor** -> default: **op**
+-   **spawnmob** -> Spawns entity at your location
+    -   **cmi.command.spawnmob** -> default: **op**
+-   **speed** -> Set players walk or fly speed
+    -   **cmi.command.speed** -> default: **op**
+    -   **cmi.command.speed.others**
+-   **staffmsg** -> Sends message to staff channel
+    -   **cmi.command.staffmsg** -> default: **op**
+-   **stats** -> Check players stats
+    -   **cmi.command.stats** -> default: **op**
+    -   **cmi.command.stats.others**
+-   **statsedit** -> Edit players statistics
+    -   **cmi.command.statsedit** -> default: **op**
+-   **status** -> Show server status
+    -   **cmi.command.status** -> default: **op**
+-   **stonecutter** -> Open stonecutter
+    -   **cmi.command.stonecutter** -> default: **op**
+    -   **cmi.command.stonecutter.others**
+-   **sudo** -> Force another player to perform command
+    -   **cmi.command.sudo** -> default: **op**
+-   **suicide** -> Kill your self
+    -   **cmi.command.suicide** -> default: **op**
+    -   **cmi.command.suicide.others**
+-   **switchplayerdata** -> Switch all data from one player to another
+    -   **cmi.command.switchplayerdata** -> default: **op**
+-   **tablistupdate** -> Force tablist update for all or specific player
+    -   **cmi.command.tablistupdate** -> default: **op**
+-   **tempban** -> TempBan player
+    -   **cmi.command.tempban** -> default: **op**
+-   **tempipban** -> Temp ban ip
+    -   **cmi.command.tempipban** -> default: **op**
+-   **tfly** -> Set temporary players fly mode until relog or until time ends
+    -   **cmi.command.tfly** -> default: **op**
+    -   **cmi.command.tfly.others**
+-   **tgod** -> Set players temporarily god mode until relog or time end
+    -   **cmi.command.tgod** -> default: **op**
+    -   **cmi.command.tgod.others**
+-   **time** -> Controls server time
+    -   **cmi.command.time** -> default: **op**
+-   **titlemsg** -> Sends title message to player
+    -   **cmi.command.titlemsg** -> default: **op**
+-   **toast** -> Sends toast message to player
+    -   **cmi.command.toast** -> default: **op**
+-   **top** -> Teleport to highest point at your location
+    -   **cmi.command.top** -> default: **op**
+    -   **cmi.command.top.others**
+-   **tp** -> Teleports to player’s location
+    -   **cmi.command.tp** -> default: **op**
+    -   **cmi.command.tp.others**
+-   **tpa** -> Ask the player if you can teleport to them
+    -   **cmi.command.tpa** -> default: **op**
+-   **tpaall** -> Ask all online players to teleport to your location
+    -   **cmi.command.tpaall** -> default: **op**
+-   **tpaccept** -> Accept teleport request
+    -   **cmi.command.tpaccept** -> default: **op**
+-   **tpahere** -> Asks player to accept teleportation to your location
+    -   **cmi.command.tpahere** -> default: **op**
+-   **tpall** -> Teleports all online players to location
+    -   **cmi.command.tpall** -> default: **op**
+-   **tpallworld** -> Teleports ALL players from specific world
+    -   **cmi.command.tpallworld** -> default: **op**
+-   **tpbypass** -> Bypass teleportation to unsafe location
+    -   **cmi.command.tpbypass** -> default: **op**
+    -   **cmi.command.tpbypass.others**
+-   **tpdeny** -> Deny teleport request
+    -   **cmi.command.tpdeny** -> default: **op**
+-   **tphere** -> Teleports player to your location
+    -   **cmi.command.tphere** -> default: **op**
+    -   **cmi.command.tphere.others**
+-   **tpo** -> Teleports to player’s location by force
+    -   **cmi.command.tpo** -> default: **op**
+    -   **cmi.command.tpo.others**
+-   **tpohere** -> Teleports player to your location by force
+    -   **cmi.command.tpohere** -> default: **op**
+    -   **cmi.command.tpohere.others**
+-   **tpopos** -> Teleports to location by force
+    -   **cmi.command.tpopos** -> default: **op**
+    -   **cmi.command.tpopos.others**
+-   **tppos** -> Teleports to location
+    -   **cmi.command.tppos** -> default: **op**
+    -   **cmi.command.tppos.others**
+-   **tps** -> Check servers tps status
+    -   **cmi.command.tps** -> default: **op**
+-   **tree** -> Spawn tree where you are looking
+    -   **cmi.command.tree** -> default: **op**
+    -   **cmi.command.tree.others**
+-   **unban** -> Unban player or ip
+    -   **cmi.command.unban** -> default: **op**
+-   **unbreakable** -> Makes item unbreakable
+    -   **cmi.command.unbreakable** -> default: **op**
+    -   **cmi.command.unbreakable.others**
+-   **uncondense** -> Uncondense items into smaller parts
+    -   **cmi.command.uncondense** -> default: **op**
+    -   **cmi.command.uncondense.others**
+-   **unjail** -> Release player from jail
+    -   **cmi.command.unjail** -> default: **op**
+-   **unloadchunks** -> Unloads chunks from server memory
+    -   **cmi.command.unloadchunks** -> default: **op**
+-   **unmute** -> Unmute player
+    -   **cmi.command.unmute** -> default: **op**
+-   **unmutechat** -> Unmute public chat
+    -   **cmi.command.unmutechat** -> default: **op**
+-   **usermeta** -> Manage players meta data
+    -   **cmi.command.usermeta** -> default: **op**
+-   **util** -> Administration tools
+    -   **cmi.command.util** -> default: **op**
+-   **vanish** -> Vanish player
+    -   **cmi.command.vanish** -> default: **op**
+    -   **cmi.command.vanish.others**
+-   **vanishedit** -> Edit vanish mode for player
+    -   **cmi.command.vanishedit** -> default: **op**
+    -   **cmi.command.vanishedit.others**
+-   **version** -> Show plugin version
+    -   **cmi.command.version** -> default: **op**
+-   **viewrange** -> Change view range
+    -   **cmi.command.viewrange** -> default: **op**
+    -   **cmi.command.viewrange.others**
+-   **voteedit** -> Manage players votes
+    -   **cmi.command.voteedit** -> default: **op**
+    -   **cmi.command.voteedit.others**
+-   **votes** -> Check players vote count
+    -   **cmi.command.votes** -> default: **op**
+    -   **cmi.command.votes.others**
+-   **votetop** -> Check top vote list
+    -   **cmi.command.votetop** -> default: **op**
+    -   **cmi.command.votetop.others**
+-   **walkspeed** -> Set players walk speed from 0 to 10
+    -   **cmi.command.walkspeed** -> default: **op**
+    -   **cmi.command.walkspeed.others**
+-   **warn** -> Warn player
+    -   **cmi.command.warn** -> default: **op**
+-   **warnings** -> Check player warnings
+    -   **cmi.command.warnings** -> default: **op**
+    -   **cmi.command.warnings.others**
+-   **warp** -> Teleports to warp location
+    -   **cmi.command.warp** -> default: **op**
+    -   **cmi.command.warp.others**
+-   **warpgroups** -> Lists warp groups
+    -   **cmi.command.warpgroups** -> default: **op**
+-   **weather** -> Controls server weather
+    -   **cmi.command.weather** -> default: **op**
+-   **whowas** -> Shows players previous names
+    -   **cmi.command.whowas** -> default: **op**
+-   **workbench** -> Open workbench
+    -   **cmi.command.workbench** -> default: **op**
+    -   **cmi.command.workbench.others**
+-   **world** -> Teleports to different world
+    -   **cmi.command.world** -> default: **op**
+    -   **cmi.command.world.others**
+-   **worth** -> Check item worth
+    -   **cmi.command.worth** -> default: **op**
+-   **worthlist** -> Check list of items with set sell prices
+    -   **cmi.command.worthlist** -> default: **op**
+    -   **cmi.command.worthlist.others**

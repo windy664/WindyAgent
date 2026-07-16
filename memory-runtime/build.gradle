@@ -1,0 +1,14 @@
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    api project(':agent-runtime')
+    api project(':execution-safety')
+    api project(':llm-runtime')
+
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0'
+}

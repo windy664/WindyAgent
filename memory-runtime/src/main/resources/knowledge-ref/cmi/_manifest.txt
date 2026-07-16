@@ -1,0 +1,45 @@
+# CMI 官方文档知识库种子（爬自 zrips.net，只读参考库）
+# 资源文件名|虚拟路径(=分类/条目id)
+about.md|参考/CMI/CMI 简介
+permissions.md|参考/CMI/CMI 权限
+custom-text.md|参考/CMI/CMI 自定义文本
+kits.md|参考/CMI/CMI 礼包
+rankup-system.md|参考/CMI/CMI 升阶系统
+placeholders.md|参考/CMI/CMI 占位符
+portals.md|参考/CMI/CMI 传送门
+playtime-rewards.md|参考/CMI/CMI 在线奖励
+holograms.md|参考/CMI/CMI 悬浮字
+jail.md|参考/CMI/CMI 监狱
+faq.md|参考/CMI/CMI 常见问题
+api.md|参考/CMI/CMI API
+armor-stand-editor.md|参考/CMI/CMI 盔甲架编辑器
+dynamic-signs.md|参考/CMI/CMI 动态告示牌
+bungeecord.md|参考/CMI/CMI 跨服信息
+schedule.md|参考/CMI/CMI 定时任务
+commands.md|参考/CMI/命令/CMI 命令列表
+cmd-specialized.md|参考/CMI/命令/CMI 专用命令
+cmd-dialogs.md|参考/CMI/命令/CMI 对话框
+cmd-interactive.md|参考/CMI/命令/CMI 交互命令
+cmd-bossbar.md|参考/CMI/命令/CMI Boss栏消息
+cmd-warps.md|参考/CMI/命令/CMI 传送点 Warps
+cmd-spawn.md|参考/CMI/命令/CMI 出生点 Spawn
+cmd-spawnmob.md|参考/CMI/命令/CMI 生成生物
+cmd-icwol.md|参考/CMI/命令/CMI 单行造物品
+cmd-usermeta.md|参考/CMI/命令/CMI 用户元数据
+cmd-alias.md|参考/CMI/命令/CMI 自定义别名
+cmd-attached.md|参考/CMI/命令/CMI 附加命令
+cmd-warmups.md|参考/CMI/命令/CMI 前置延迟 Warmup
+cmd-rtp.md|参考/CMI/命令/CMI 随机传送 RTP
+cmd-killall.md|参考/CMI/命令/CMI 清理实体 KillAll
+ex-recipes.md|参考/CMI/扩展/CMI 自定义合成
+ex-tablist.md|参考/CMI/扩展/CMI TabList
+ex-totems.md|参考/CMI/扩展/CMI 图腾
+ex-flight.md|参考/CMI/扩展/CMI 飞行计费
+ex-scan.md|参考/CMI/扩展/CMI 扫描 Scan
+ex-search.md|参考/CMI/扩展/CMI 搜索 Search
+ex-elevator.md|参考/CMI/扩展/CMI 电梯
+ex-particles.md|参考/CMI/扩展/CMI 粒子效果
+ex-mobheads.md|参考/CMI/扩展/CMI 自定义头颅
+ex-scavenge.md|参考/CMI/扩展/CMI 拾荒 Scavenge
+ex-chatfilter.md|参考/CMI/扩展/CMI 聊天过滤
+ex-chatrooms.md|参考/CMI/扩展/CMI 聊天室

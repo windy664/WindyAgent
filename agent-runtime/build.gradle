@@ -1,0 +1,22 @@
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    api project(':agent-api')
+    api project(':execution-safety')
+    api project(':llm-runtime')
+    api project(':tool-runtime')
+
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0'
+
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5:2.2.20'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+test {
+    useJUnitPlatform()
+}

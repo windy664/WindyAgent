@@ -6,7 +6,7 @@ import org.windy.xingtubot.common.handler.BotMessageHandler
 import org.windy.xingtubot.common.handler.PermissionChecker
 
 /**
- * 昕途消息 → 运维 Agent 的观察者（昕途 [MessageHandler] 适配器）。
+ * 昕途消息 → 运维 Agent 的观察者（昕途 [BotMessageHandler] 适配器）。
  *
  * 作为观察者注册（HandlerRegistry.registerObserver）：与昕途自身命令/群服互联并行，不互相阻断。
  * 只由 [XingtuBotWiring] 在确认昕途已安装后创建，故其对昕途类型的引用运行时安全。

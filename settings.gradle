@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = 'windyagent'
-include 'core', 'bus', 'velocity', 'bukkit', 'web', 'behavior'
+include 'agent-api', 'execution-safety', 'tool-runtime', 'skill-runtime', 'workflow-runtime', 'llm-runtime', 'agent-runtime', 'memory-runtime', 'mcp-runtime', 'capability-runtime', 'ops-runtime', 'core', 'bus', 'velocity', 'bukkit', 'web', 'behavior'

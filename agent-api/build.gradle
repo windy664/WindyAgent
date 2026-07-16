@@ -1,0 +1,7 @@
+// Stable API shared by the agent core, platform loaders, tools, and tests.
+// Keep this module small and dependency-light so higher layers can depend on
+// protocol types without pulling in the full runtime.
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}

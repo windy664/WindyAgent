@@ -1,0 +1,3 @@
+# 内置只读参考库的 pack 清单：id|显示名|简介（每行一个 pack；对应 <id>/_manifest.txt）
+cmi|CMI 官方文档|Zrips CMI 插件官方 wiki 全文（命令/权限/占位符/各模块），只读、随版本更新
+decentholograms|DecentHolograms 官方文档|DecentHolograms 悬浮字插件官方 wiki 全文（命令/配置/特性/API），只读、随版本更新

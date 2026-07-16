@@ -1,0 +1,13 @@
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+kotlin {
+    jvmToolchain(8)
+}
+
+dependencies {
+    api project(':agent-api')
+
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'com.anthropic:anthropic-java:2.34.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}

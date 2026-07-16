@@ -2,8 +2,10 @@ package org.windy.windyagent.platform.bukkit
 
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.AgentConfig
+import org.windy.windyagent.Messages
 import org.windy.windyagent.agent.AgentRouter
 import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.agent.AgentRuntimeMessages
 import org.windy.windyagent.agent.ContextCompressor
 import org.windy.windyagent.agent.PersonalityLoader
 import org.windy.windyagent.agent.PlanExecuteAgent
@@ -82,7 +84,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         val guard = buildCommandGuard(cfg)
         val audit = AuditLog(plugin.dataFolder.toPath().resolve("audit.log"))
-        val pending = PendingApprovals()
+        val pending = PendingApprovals(executionFailureMessage = { Messages.t("approval.exec_failed", it) })
         val actions = BukkitActions(plugin, guard, audit, pending)
 
         // 用量追踪（成本熔断 + token 统计）——提前建，好把 get_llm_usage 工具接进工具集
@@ -241,14 +243,17 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
             org.windy.windyagent.agent.TrajectoryRecorder(plugin.dataFolder.toPath().resolve("trajectories"))
         } else null
+        val runtimeMessages = AgentRuntimeMessages { key, args ->
+            Messages.t(key, *args.map { it ?: "" }.toTypedArray())
+        }
 
         // 子任务并行编排器
         val subAgent = if (cfg.subAgentEnabled()) {
-            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt)
+            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
         } else null
 
-        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder)
-        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder)
+        val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages)
+        val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages)
         val agent = AgentRouter(costRouterLlm, react, plan, memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager, subAgent, cfg.profileUpdateMinIntervalSec() * 1000L)
         val sessions = SessionManager(cfg.maxHistory())
 

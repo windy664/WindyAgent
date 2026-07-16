@@ -13,7 +13,7 @@ package org.windy.windyagent.ui
  */
 object WindyLog {
 
-    const val VERSION = "1.0-SNAPSHOT"
+    const val VERSION = "1.1-SNAPSHOT"
 
     /** 给一条消息加统一的 `[模块]` 前缀。slf4j 占位符 `{}` 原样保留。 */
     fun tag(tag: String, msg: String): String = "[$tag] $msg"
