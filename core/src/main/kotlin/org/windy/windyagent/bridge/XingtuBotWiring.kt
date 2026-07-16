@@ -49,11 +49,6 @@ internal object XingtuBotWiring {
                 "QQ 联动必须在【大脑】节点(跑 bot 的那个：Velocity 代理 或 独立 Bukkit)启用。这正是你 QQ 没反应的可能原因。")
         }
 
-        // 说明：旧版这里还会经 host.getService(BindingRepository) 给玩家管理面板注册「绑定QQ」列。
-        // 昕途 core/auth 拆分后 BindingRepository 已从 common-core 迁到独立的 xt-auth 插件（id xingtubot-auth），
-        // WindyAgent 未依赖该插件、其类型也不在编译类路径上，故暂时移除这一列（仅影响玩家面板的绑定 QQ 展示，
-        // 不影响 QQ→Agent 联动本身）。后续如需恢复，应把对 BindingRepository 的触碰隔离进独立类、
-        // 并声明对 xingtubot-auth 的可选依赖。
         return true
     }
 }

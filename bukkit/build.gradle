@@ -8,6 +8,7 @@
 // ============================================================
 plugins {
     id 'com.gradleup.shadow'
+    id 'io.izzel.taboolib' version '2.0.38'
 }
 
 // 覆盖根 subprojects 的 Java 11 默认 → 8（兼容 1.12/1.13+ 老服）
@@ -15,6 +16,16 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(8)
 kotlin {
     jvmToolchain(8)
 }
+
+taboolib {
+    env {
+        install('minecraft-kether')
+    }
+    version {
+        taboolib = mod_version_taboolib   // gradle.properties 里统一管理
+    }
+}
+
 
 base {
     archivesName = "${mod_id}-bukkit"   // → windyagent-bukkit-<version>.jar
@@ -74,11 +85,9 @@ dependencies {
     // 模组物品库：嵌入式 SQLite（解析模组 jar 的物品/配方落库做估值），Java 8 兼容，shade 进 fat jar
     implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
 
-    // TabooLib Kether：Bukkit 端技能脚本 DSL。compileOnly，不手动 shadow；运行服需提供 TabooLib。
-    compileOnly 'io.izzel.taboolib:common:6.3.0-4bced1a'
-    compileOnly 'io.izzel.taboolib:common-platform-api:6.3.0-4bced1a'
-    compileOnly 'io.izzel.taboolib:platform-bukkit:6.3.0-4bced1a'
-    compileOnly 'io.izzel.taboolib:minecraft-kether:6.3.0-4bced1a'
+    // TabooLib Kether：Gradle 插件只自动 shade 核心模块（common），
+    // 非核心的 minecraft-kether 需要手动加到 implementation 才能被 shadowJar 打进 fat jar。
+    implementation "io.izzel.taboolib:minecraft-kether:${mod_version_taboolib}"
 
     // JGit：给「Agent 改过的配置文件」做本地版本化 + 可选远端备份（自动改配置/装插件的撤销键）。
     // 5.13.x 是最后一条兼容 Java 8 的线（6.x 需 Java 11），与本模块 toolchain 一致；shade 进 fat jar。
@@ -86,11 +95,10 @@ dependencies {
     implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r'
 }
 
-// 带分类器 'all'，避免空分类器让 shadow 把本模块的 fat jar 设成对外消费制品
-// （那会导致 :velocity 误拉 bukkit 的 fat jar、重复打包 core/bus 并把 slf4j 烧进去无法排除）。
-// → :velocity 以 project(':bukkit') 消费时拿到的是「瘦 jar + 真实依赖」，可干净排除 slf4j。
-// 本 fat jar 仅作无 slf4j 远古 1.12 单机的回退：windyagent-bukkit-<ver>-all.jar
+// TabooLib 插件创建 taboo 配置存放 Kether 模块；implementation 存放 core/behavior/slf4j/sqlite-jdbc/jgit。
+// 两者都纳入 shadowJar，产出完整 fat jar。带分类器 'all' 避免 :velocity 误拉。
 shadowJar {
+    configurations = [project.configurations.taboo, project.configurations.runtimeClasspath]
     archiveClassifier.set('all')
 }
 
