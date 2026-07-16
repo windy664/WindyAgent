@@ -37,6 +37,10 @@ repositories {
         name = 'placeholderapi'
         url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
     }
+    maven {
+        name = 'tabooproject'
+        url = 'https://repo.tabooproject.org/repository/releases'
+    }
 }
 
 dependencies {
@@ -70,10 +74,11 @@ dependencies {
     // 模组物品库：嵌入式 SQLite（解析模组 jar 的物品/配方落库做估值），Java 8 兼容，shade 进 fat jar
     implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
 
-    // Groovy 技能引擎：服主写 .groovy 脚本扩展 Agent 能力，内嵌 GroovyShell 执行。
-    // 3.0.x 支持 Java 8（与本模块 toolchain 一致）；shade 进 fat jar。不 relocate：
-    // Bukkit 插件类加载器天然隔离，同居插件自带的 Groovy 各走各的，不冲突（不同于 Velocity 宿主共享的 jackson）。
-    implementation 'org.codehaus.groovy:groovy:3.0.22'
+    // TabooLib Kether：Bukkit 端技能脚本 DSL。compileOnly，不手动 shadow；运行服需提供 TabooLib。
+    compileOnly 'io.izzel.taboolib:common:6.3.0-4bced1a'
+    compileOnly 'io.izzel.taboolib:common-platform-api:6.3.0-4bced1a'
+    compileOnly 'io.izzel.taboolib:platform-bukkit:6.3.0-4bced1a'
+    compileOnly 'io.izzel.taboolib:minecraft-kether:6.3.0-4bced1a'
 
     // JGit：给「Agent 改过的配置文件」做本地版本化 + 可选远端备份（自动改配置/装插件的撤销键）。
     // 5.13.x 是最后一条兼容 Java 8 的线（6.x 需 Java 11），与本模块 toolchain 一致；shade 进 fat jar。
@@ -92,3 +97,4 @@ shadowJar {
 tasks.named('build') {
     dependsOn tasks.named('shadowJar')
 }
+

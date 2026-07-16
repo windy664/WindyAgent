@@ -1,0 +1,3 @@
+# name: online_report
+# description: 通过原版 list 指令查看当前在线玩家数与名单；想快速了解服务器在线情况时用
+wa_command "list"

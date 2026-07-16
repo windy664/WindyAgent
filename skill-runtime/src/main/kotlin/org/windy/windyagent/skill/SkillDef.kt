@@ -26,10 +26,10 @@ data class SkillArg(
  * 一个由服主编写、放在中心技能库 `skills/` 目录的技能。对齐 Anthropic Agent Skills：以 `name` + `description`
  * 暴露给 Agent，**正文/脚本按需加载**。三种形态：
  *  - **纯文字**（[script] == null）：正文是一套操作流程，Agent 读懂后用**现有工具**执行（不写代码）。中心直接执行。
- *  - **纯脚本**（[body] == null）：Groovy 脚本，做现有工具做不到的事。**只能在 bukkit 子服执行**（需 Bukkit API）。
+ *  - **纯脚本**（[body] == null）：Kether 脚本，做现有工具做不到的事。**只能在 bukkit 子服执行**（需 Bukkit/Kether runtime）。
  *  - **脚本+文字**：[body] 说清「何时用/怎么用」（进工具描述供 LLM 选择），[script] 是真正执行的肌肉。
  *
- * 文件形态：扁平 `x.md`(纯文字) / `x.groovy`(纯脚本) / 文件夹含 `SKILL.md`(+脚本)。
+ * 文件形态：扁平 `x.md`(纯文字) / `x.kether`(纯脚本) / 文件夹含 `SKILL.md`(+脚本)。
  * [targets]：脚本技能的下发目标子服名；空 = 下发到所有在线子服（all）。文字技能忽略此字段（中心本地执行）。
  * 信任：能往中心库放文件的即服主 → 视为已审过的确定性扩展，不过 CommandGuard，但每次执行记 audit。
  */
@@ -38,11 +38,13 @@ data class SkillDef(
     val description: String,
     /** 文字正文：纯文字技能的指令；脚本+文字技能的「用法说明」。纯脚本为 null。 */
     val body: String?,
-    /** Groovy 源码；纯文字技能为 null。 */
+    /** 脚本源码；纯文字技能为 null。 */
     val script: String?,
+    /** 脚本语言；当前脚本技能统一使用 kether。 */
+    val scriptLanguage: String = "kether",
     /** 参数声明。 */
     val args: List<SkillArg>,
-    /** 展示用相对路径（如 welcome_vip 或 online_count.groovy）。 */
+    /** 展示用相对路径（如 welcome_vip 或 online_count.kether）。 */
     val source: String,
     /** 文字文件相对路径（SKILL.md 或 x.md）；无文字为 null。 */
     val mdPath: String?,
@@ -65,8 +67,8 @@ data class SkillDef(
     val isScript: Boolean get() = script != null
     /** 是否为工作流技能（有多阶段步骤）。 */
     val isWorkflow: Boolean get() = !steps.isNullOrEmpty()
-    /** WebUI/删除句柄：统一去后缀（文件夹技能=文件夹名，扁平技能=去 .md/.groovy 的文件名）。 */
-    val handle: String get() = source.removeSuffix(".md").removeSuffix(".groovy")
+    /** WebUI/删除句柄：统一去后缀（文件夹技能=文件夹名，扁平技能=去 .md/.kether 的文件名）。 */
+    val handle: String get() = source.removeSuffix(".md").removeSuffix(".kether")
 
     /** 该脚本技能是否应下发到指定子服（targets 空=全部）。 */
     fun appliesTo(server: String): Boolean = targets.isEmpty() || targets.any { it.equals(server, true) }
@@ -170,3 +172,5 @@ data class SkillDef(
         const val SOURCE = "WindyAgent 技能"
     }
 }
+
+

@@ -142,6 +142,38 @@ class BukkitCapabilityHandler(
                     .put("handle", handle).put("isScript", c.isScript)
                     .put("md", c.md).put("script", c.script).put("scriptFile", c.scriptFile).toString())
             }
+            "skill_validate" -> {
+                val engine = skillEngine ?: return fail(req, "本服未启用 Kether 技能引擎")
+                val script = args["script"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 script 参数")
+                val mode = args["mode"]?.asText()?.takeIf { it.isNotBlank() } ?: "compile"
+                val name = args["name"]?.asText()?.takeIf { it.isNotBlank() } ?: "remote_validate"
+                val argsMap = SkillArgs.toMap(args["args"])
+                val compileError = engine.compile(script, name)
+                if (compileError != null) {
+                    ToolReply(req.requestId, true, mapper.createObjectNode()
+                        .put("success", false)
+                        .put("mode", "compile")
+                        .put("error", compileError)
+                        .putArray("operations")
+                        .toString())
+                } else if (mode.equals("compile", true)) {
+                    ToolReply(req.requestId, true, mapper.createObjectNode()
+                        .put("success", true)
+                        .put("mode", "compile")
+                        .putNull("error")
+                        .putArray("operations")
+                        .toString())
+                } else {
+                    val dry = engine.dryRun(script, argsMap, name)
+                    val out = mapper.createObjectNode()
+                        .put("success", dry.success)
+                        .put("mode", "dryRun")
+                    if (dry.error == null) out.putNull("error") else out.put("error", dry.error)
+                    val ops = out.putArray("operations")
+                    dry.operations.forEach { ops.add(it) }
+                    ToolReply(req.requestId, true, out.toString())
+                }
+            }
             "skill_save" -> {
                 val s = skills ?: return fail(req, "本服未启用技能")
                 val handle = args["handle"]?.asText()?.takeIf { it.isNotBlank() } ?: return fail(req, "缺少 handle 参数")

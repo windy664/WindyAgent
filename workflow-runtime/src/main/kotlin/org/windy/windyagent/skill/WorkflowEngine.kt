@@ -1,10 +1,5 @@
 package org.windy.windyagent.skill
 
-import groovy.lang.Binding
-import groovy.lang.GroovyShell
-import groovy.transform.ThreadInterrupt
-import org.codehaus.groovy.control.CompilerConfiguration
-import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
@@ -15,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * 设计原则：
  *  - **纯 Kotlin、不依赖 Bukkit/Platform**（下沉 core）；工具调用通过 [toolFinder] 回调委派。
- *  - Groovy 仅用于条件评估（[WorkflowStep.condition]）和 repeat 表达式，不替代主逻辑。
+ *  - 条件和 repeat 使用受限表达式，不再执行任意脚本。
  *  - 每步执行后通过 [onProgress] 推送进度（前端实时展示用）。
  *  - 失败策略 [WorkflowStep.onFail] 控制：abort / continue / retry。
  *
@@ -30,8 +25,6 @@ class WorkflowEngine(
     private val toolFinder: (String) -> AgentToolRef?,
     /** 技能间调用：按 name 查找 SkillDef。 */
     private val skillRegistry: SkillRegistryRef?,
-    /** Groovy 脚本/条件执行的 ClassLoader。 */
-    private val groovyClassLoader: ClassLoader? = null,
     /** 进度回调（每步开始/完成时推送）。 */
     private val onProgress: ((StepProgress) -> Unit)? = null,
     /** 技能状态（跨次执行持久化；null = 无状态）。 */
@@ -40,10 +33,6 @@ class WorkflowEngine(
     private val log = LoggerFactory.getLogger(WorkflowEngine::class.java)
     /** 共享线程池（所有并行组复用，避免每次创建新池导致泄漏）。 */
     private val parallelPool = Executors.newFixedThreadPool(4) { r -> Thread(r, "wf-parallel").apply { isDaemon = true } }
-    /** Groovy 编译配置：注入 ThreadInterrupt 让循环具备协作式取消（#25, #26）。 */
-    private val compilerConfig = CompilerConfiguration().apply {
-        addCompilationCustomizers(ASTTransformationCustomizer(ThreadInterrupt::class.java))
-    }
     companion object {
         private const val MAX_RECURSE_DEPTH = 5
         private val SINGLE_VAR = Regex("""^\{(\w+(?:\.\w+)*)}$""")
@@ -236,7 +225,7 @@ class WorkflowEngine(
         val args = interpolateArgs(step.args, ctx)
         return when (step.actionType) {
             WorkflowStep.ActionType.TOOL -> dispatchTool(step.tool!!, args)
-            WorkflowStep.ActionType.SCRIPT -> dispatchScript(step.script!!, args, ctx)
+            WorkflowStep.ActionType.SCRIPT -> dispatchScript(step.script!!)
             WorkflowStep.ActionType.SKILL -> dispatchSkill(step.skill!!, args, ctx)
             WorkflowStep.ActionType.NONE -> null
         }
@@ -251,12 +240,8 @@ class WorkflowEngine(
         return result.content
     }
 
-    private fun dispatchScript(script: String, args: Map<String, Any?>, ctx: Map<String, Any?>): Any? {
-        val binding = Binding()
-        ctx.forEach { (k, v) -> binding.setVariable(k, v) }
-        args.forEach { (k, v) -> binding.setVariable(k, v) }
-        val cl = groovyClassLoader ?: javaClass.classLoader
-        return GroovyShell(cl, binding, compilerConfig).evaluate(script, "wf_step.groovy")
+    private fun dispatchScript(script: String): Any? {
+        throw UnsupportedOperationException("工作流内联脚本已移除，请改用 tool/skill 步骤，或将脚本迁移为 .kether 技能：${script.take(40)}")
     }
 
     private fun dispatchSkill(skillName: String, args: Map<String, Any?>, ctx: Map<String, Any?>): String? {
@@ -315,12 +300,38 @@ class WorkflowEngine(
         }
     }
 
-    /** 用 GroovyShell 评估一个表达式（条件 / repeat），注入上下文变量。带 ThreadInterrupt 防死循环。 */
+    /** 评估受限表达式：支持 true/false、数字、变量、!var、var == value、var != value。 */
     private fun evalExpression(expr: String, ctx: Map<String, Any?>): Any? {
-        val binding = Binding()
-        ctx.forEach { (k, v) -> binding.setVariable(k, v) }
-        val cl = groovyClassLoader ?: javaClass.classLoader
-        return GroovyShell(cl, binding, compilerConfig).evaluate(expr, "wf_eval.groovy")
+        val trimmed = expr.trim()
+        if (trimmed.equals("true", true)) return true
+        if (trimmed.equals("false", true)) return false
+        trimmed.toIntOrNull()?.let { return it }
+        trimmed.toLongOrNull()?.let { return it }
+        val not = trimmed.removePrefix("!")
+        if (not != trimmed) return !truthy(resolveVar(not.trim(), ctx))
+        val operators = listOf("==", "!=")
+        for (op in operators) {
+            val idx = trimmed.indexOf(op)
+            if (idx > 0) {
+                val left = resolveComparable(trimmed.substring(0, idx), ctx)
+                val right = resolveComparable(trimmed.substring(idx + op.length), ctx)
+                return if (op == "==") left == right else left != right
+            }
+        }
+        return resolveVar(trimmed, ctx) ?: trimmed.trim('"', '\'')
+    }
+
+    private fun resolveComparable(raw: String, ctx: Map<String, Any?>): Any? {
+        val value = raw.trim().trim('"', '\'')
+        return resolveVar(value, ctx) ?: value.toLongOrNull() ?: value
+    }
+
+    private fun truthy(value: Any?): Boolean = when (value) {
+        is Boolean -> value
+        is Number -> value.toDouble() != 0.0
+        is String -> value.isNotBlank()
+        null -> false
+        else -> true
     }
 
     /**
@@ -400,3 +411,5 @@ data class StepProgress(
 )
 
 enum class StepStatus { RUNNING, DONE, FAILED, SKIPPED, RETRYING }
+
+

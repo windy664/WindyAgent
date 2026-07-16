@@ -48,6 +48,20 @@ class SkillSync(
                 .put("script", content.script)
                 .put("isScript", true)
                 .toString()
+            val validateNode = mapper.createObjectNode()
+                .put("name", def.name)
+                .put("script", content.script)
+                .put("mode", "dryRun")
+            validateNode.replace("args", mapper.createObjectNode())
+            val validatePayload = validateNode.toString()
+            val valid = runCatching {
+                val reply = bus.dispatch(server, "skill_validate", validatePayload, timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS)
+                reply.success && (mapper.readTree(reply.content)["success"]?.asBoolean() == true)
+            }.getOrDefault(false)
+            if (!valid) {
+                log.warn("[SkillSync] 技能「{}」在子服「{}」验证未通过，已跳过下发", def.name, server)
+                continue
+            }
             val ok = runCatching {
                 bus.dispatch(server, "skill_save", payload, timeoutMs).get(timeoutMs + 1000, TimeUnit.MILLISECONDS).success
             }.getOrDefault(false)

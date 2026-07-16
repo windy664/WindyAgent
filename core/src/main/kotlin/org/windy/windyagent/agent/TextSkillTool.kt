@@ -56,9 +56,7 @@ class TextSkillTool(
                 val state = skillsDir?.let { SkillState(def.name, it) }
                 val engine = WorkflowEngine(
                     toolFinder = { findTool(it) },
-                    skillRegistry = skillRegistry,
-                    groovyClassLoader = javaClass.classLoader,
-                    skillState = state
+                    skillRegistry = skillRegistry,                    skillState = state
                 )
                 val result = engine.execute(def, argsMap)
                 audit.record("center", "run_skill", def.name, if (result.success) "WF_OK" else "WF_ERR")
@@ -87,3 +85,4 @@ class TextSkillTool(
         }
     }
 }
+

@@ -15,7 +15,7 @@ import java.io.File
  * （ALLOW / ERROR），与命令路径同一本审计账。
  *
  * 工作流技能（[SkillDef.isWorkflow]）走 [WorkflowEngine] 多阶段编排；
- * 脚本技能走 [SkillEngine] 单次 Groovy 执行；纯文字直接返回正文。
+ * 脚本技能走 [SkillEngine] 单次 Kether 执行；纯文字直接返回正文。
  */
 class SkillTool(
     private val def: SkillDef,
@@ -85,9 +85,9 @@ class SkillTool(
                     }
                 }
             },
-            skillRegistry = skillRegistry,
-            groovyClassLoader = javaClass.classLoader,
-            skillState = state
+            skillRegistry = skillRegistry,            skillState = state
         )
     }
 }
+
+

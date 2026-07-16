@@ -171,7 +171,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             extraTools += org.windy.windyagent.agent.CreateSkillTool(reg, audit, isUpdate = true)
             extraTools += org.windy.windyagent.agent.ListSkillsTool(reg)
             extraTools += org.windy.windyagent.agent.ReadSkillTool(reg)
-            // 脚本验证：Velocity 中心无 Groovy 运行时，验证委托给子服（standalone/hub 的 bukkit 侧有完整验证）
+            // 脚本验证：Velocity 中心不执行 Bukkit Kether，验证委托给子服（standalone/hub 的 bukkit 侧有完整验证）
             logger.info(WindyLog.tag("Skill", "技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）"),
                 reg.all().size, texts.size, reg.all().size - texts.size, reg.all().count { it.isWorkflow })
         }
@@ -199,8 +199,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit, pending)
                 extraTools += RemoteBalanceTool(b, cfg.remoteTimeoutMs())
                 extraTools += org.windy.windyagent.agent.RemotePlayerProfileTool(b, cfg.remoteTimeoutMs())
-                // 服主编写的子服技能（GroovyShell 执行）：人工审过的确定性扩展，不过 guard，记 audit
+                // 服主编写的子服技能（Bukkit Kether 执行）：人工审过的确定性扩展，不过 guard，记 audit
                 extraTools += org.windy.windyagent.agent.RemoteSkillTool(b, cfg.remoteTimeoutMs(), audit)
+                extraTools += org.windy.windyagent.agent.RemoteValidateSkillTool(b, cfg.remoteTimeoutMs())
                 // 物品估值 / 礼包提案（数据在子服，远端调用）
                 extraTools += RemoteAppraiseTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteProposePackTool(b, cfg.remoteTimeoutMs())

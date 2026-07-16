@@ -1,0 +1,3 @@
+wa_command "give {player} minecraft:diamond 5"
+wa_broadcast "§e欢迎 VIP §b{player}§e！"
+wa_log "welcome_vip completed for {player}"

@@ -304,7 +304,7 @@ class AgentConfig private constructor(
     fun embeddingApiBaseUrl() = getString("embedding.api-base-url", "").ifBlank { apiBaseUrl() }
     fun embeddingApiKey() = getString("embedding.api-key", "").ifBlank { apiKey() }
 
-    // Groovy 技能（服主编写的扩展能力，放插件数据目录的 skills/ 下，启动/插件变更时热重载）
+    // Kether 技能（服主编写的扩展能力，放插件数据目录的 skills/ 下，启动/插件变更时热重载）
     fun skillsEnabled() = (getNode("skills.enabled") as? Boolean) ?: true
     fun skillsDir() = getString("skills.dir", "skills")
     /** 技能执行的主线程超时看门狗（秒）：脚本久占主线程时解除 Agent 等待。 */
@@ -355,3 +355,4 @@ class AgentConfig private constructor(
         return cur
     }
 }
+

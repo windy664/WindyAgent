@@ -5,7 +5,7 @@ import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.skill.SkillRegistry
 
 /**
- * 让 Agent 读取一个技能的完整内容（SKILL.md 正文 + Groovy 脚本）。
+ * 让 Agent 读取一个技能的完整内容（SKILL.md 正文 + Kether 脚本）。
  * 用于：① 服主问某个技能的详情；② Agent 更新技能前先读取现有定义。
  */
 class ReadSkillTool(
@@ -15,7 +15,7 @@ class ReadSkillTool(
     private val mapper = ObjectMapper()
 
     override val name = "read_skill"
-    override val description = "读取一个技能的完整内容（SKILL.md 正文 + Groovy 脚本）。当服主问某个技能详情、或需要更新技能前先读取现有定义时调用。"
+    override val description = "读取一个技能的完整内容（SKILL.md 正文 + Kether 脚本）。当服主问某个技能详情、或需要更新技能前先读取现有定义时调用。"
     override val inputSchema = """{"type":"object","properties":{"name":{"type":"string","description":"技能名"}},"required":["name"]}"""
 
     override fun execute(toolCallId: String, inputJson: String): ToolResult {
@@ -38,9 +38,11 @@ class ReadSkillTool(
         sb.append("\n### SKILL.md\n```\n${content.md}\n```\n")
 
         if (content.script.isNotBlank()) {
-            sb.append("\n### Groovy 脚本\n```groovy\n${content.script}\n```\n")
+            sb.append("\n### Kether 脚本\n```kether\n${content.script}\n```\n")
         }
 
         return ToolResult.success(toolCallId, sb.toString().trimEnd())
     }
 }
+
+

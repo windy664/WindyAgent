@@ -5,13 +5,13 @@ package org.windy.windyagent.skill
  *
  * 每步必须指定一种动作（互斥，优先级：tool > script > skill）：
  *  - [tool]   → 调用 Platform 上已注册的 AgentTool（如 run_command_on_server）
- *  - [script] → 内联 Groovy 脚本（在 WorkflowEngine 的 GroovyShell 中执行）
+ *  - [script] → 内联脚本已废弃；请改用 tool/skill，或拆成 .kether 技能
  *  - [skill]  → 调用另一个技能（递归进入 SkillRegistry → WorkflowEngine 或原路径）
  *
  * 控制流：
- *  - [condition] → Groovy 布尔表达式，为 false 时跳过本步
+ *  - [condition] → 受限布尔表达式，为 false 时跳过本步
  *  - [assign]    → 把本步结果存入上下文变量（后续步骤用 `{var}` 引用）
- *  - [repeat]    → Groovy 表达式返回 Iterable，对每个元素重复执行本步
+ *  - [repeat]    → 受限表达式返回次数或变量，对每个元素重复执行本步
  *  - [forEach]   → 上下文中已有列表变量名，对每个元素重复执行本步
  *  - [onFail]    → 失败策略：abort（默认，中止）/ continue（跳过）/ retry:N（重试 N 次）
  *
@@ -27,7 +27,7 @@ data class WorkflowStep(
     // ── 动作（三选一）──
     /** 调用已有 AgentTool 的 name。 */
     val tool: String? = null,
-    /** 内联 Groovy 脚本源码。 */
+    /** 内联脚本源码（已废弃；保留用于提示迁移）。 */
     val script: String? = null,
     /** 调用另一个技能的 name。 */
     val skill: String? = null,
@@ -35,11 +35,11 @@ data class WorkflowStep(
     /** 传给动作的参数（支持 `{var}` 插值）。 */
     val args: Map<String, String> = emptyMap(),
     // ── 控制流 ──
-    /** Groovy 布尔表达式；为 false/空串时跳过本步。null = 无条件执行。 */
+    /** 受限布尔表达式；为 false/空串时跳过本步。null = 无条件执行。 */
     val condition: String? = null,
     /** 把本步结果存入此变量名（后续 `{assign}` 可引用）。 */
     val assign: String? = null,
-    /** Groovy 表达式返回 Iterable，对每个元素执行本步（当前元素 → `{item}`）。 */
+    /** 受限表达式返回次数或变量，对每个元素执行本步（当前元素 → `{item}`）。 */
     val repeat: String? = null,
     /** 上下文中已有列表变量名，对每个元素执行本步。 */
     val forEach: String? = null,
@@ -67,3 +67,5 @@ data class WorkflowStep(
         private val RETRY_RE = Regex("""retry[:\s]*(\d+)""", RegexOption.IGNORE_CASE)
     }
 }
+
+

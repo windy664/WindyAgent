@@ -57,6 +57,28 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
     private var chatListener: BukkitChatListener? = null
     private var logWatcher: org.windy.windyagent.ops.LogWatcher? = null
 
+
+    private fun createSkillEngine(cfg: AgentConfig, actions: BukkitActions): SkillEngine? {
+        return runCatching { SkillEngine(plugin, actions, cfg.skillTimeoutSec()) }
+            .getOrElse { err ->
+                if (isKetherRuntimeMissing(err)) {
+                    plugin.logger.warning(WindyLog.tag("Skill", "Kether 技能引擎未启用：未检测到 TabooLib/Kether runtime。请安装与 TrChat 同款的 TabooLib 6.3.0-4bced1a，或关闭 skills.enabled。"))
+                    null
+                } else {
+                    throw err
+                }
+            }
+    }
+
+    private fun isKetherRuntimeMissing(err: Throwable): Boolean {
+        return generateSequence(err) { it.cause }.any {
+            it is NoClassDefFoundError ||
+                it is ClassNotFoundException ||
+                it.message?.contains("taboolib", ignoreCase = true) == true ||
+                it.message?.contains("kether", ignoreCase = true) == true
+        }
+    }
+
     /** 关闭 standalone 模式注册的所有组件（命令入口、聊天监听、日志监控）。关服时调用。 */
     fun shutdown() {
         // 注销 /ai 命令
@@ -141,11 +163,11 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             org.windy.windyagent.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
         ) { plugin.logger.info(it) }
         profileRegistry?.let { extraTools += PlayerProfileTool(it) } // 玩家聚合画像工具
-        // 服主编写的 Groovy 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
+        // 服主编写的 Kether 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
         // standalone/hub 本机即中心，技能库在本地 → 首启释放默认技能（provider 模式不释放，由中心下发）。
         val skillsDir = plugin.dataFolder.toPath().resolve(cfg.skillsDir()).toFile()
         val skills = if (cfg.skillsEnabled()) SkillRegistry(skillsDir) else null
-        val skillEngine = skills?.let { SkillEngine(plugin, actions, cfg.skillTimeoutSec()) }
+        val skillEngine = skills?.let { createSkillEngine(cfg, actions) }
         if (skills != null && skillEngine != null) {
             org.windy.windyagent.skill.SkillDefaults.releaseIfEmpty(skillsDir)
             val n = skills.reload()
@@ -168,7 +190,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                 }
             )
             plugin.logger.info("[Skill] 技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
-            if (n > 0) plugin.logger.warning("[Skill] ⚠ 安全提示(#4)：脚本技能以 Groovy 执行 = 服务器进程内的任意代码，可读写文件/访问网络/操作服务器。已做基础限制(禁 Runtime/ProcessBuilder)但非强沙箱、可被绕过。请只启用你信任来源的脚本技能。")
+            if (n > 0) plugin.logger.warning("[Skill] ⚠ 安全提示(#4)：脚本技能以 Kether 执行，只能调用已注册动作；高危动作仍走护栏/审批/审计。请只启用你信任来源的技能。")
         }
         // 日志读取工具 + 日志监控
         val logDir = plugin.server.worldContainer.resolve("logs")
@@ -309,3 +331,4 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         return true
     }
 }
+

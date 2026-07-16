@@ -107,11 +107,11 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
             PendingApprovals(executionFailureMessage = { Messages.t("approval.exec_failed", it) })
         )
         val itemService = ItemService.build(this, cfg)?.also { it.warmup() }
-        // 服主编写的 Groovy 技能：provider 无嵌入式 Agent，故技能经 run_skill 动作执行，
+        // 服主编写的 Kether 技能：provider 无嵌入式 Agent，故技能经 run_skill 动作执行，
         // 并把技能目录随能力目录推回中心（中心用 search_capabilities 查、run_skill_on_server 调）。
         val skills = if (cfg.skillsEnabled())
             SkillRegistry(dataFolder.toPath().resolve(cfg.skillsDir()).toFile()) else null
-        val skillEngine = skills?.let { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
+        val skillEngine = skills?.let { createSkillEngine(cfg, actions) }
         skills?.let { logger.info(WindyLog.tag("Skill", "技能已加载 — ${it.reload()} 个（skills/ 目录）")) }
         // 文件管理 + 配置版本化（自动改配置/装插件的落地手；默认关，files.enabled 显式开）
         val serverRoot = server.worldContainer
@@ -196,6 +196,28 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         }
     }
 
+
+    private fun createSkillEngine(cfg: AgentConfig, actions: BukkitActions): SkillEngine? {
+        return runCatching { SkillEngine(this, actions, cfg.skillTimeoutSec()) }
+            .getOrElse { err ->
+                if (isKetherRuntimeMissing(err)) {
+                    logger.warning(WindyLog.tag("Skill", "Kether 技能引擎未启用：未检测到 TabooLib/Kether runtime。请安装与 TrChat 同款的 TabooLib 6.3.0-4bced1a，或关闭 skills.enabled。"))
+                    null
+                } else {
+                    throw err
+                }
+            }
+    }
+
+    private fun isKetherRuntimeMissing(err: Throwable): Boolean {
+        return generateSequence(err) { it.cause }.any {
+            it is NoClassDefFoundError ||
+                it is ClassNotFoundException ||
+                it.message?.contains("taboolib", ignoreCase = true) == true ||
+                it.message?.contains("kether", ignoreCase = true) == true
+        }
+    }
+
     /** 子服侧总线（provider）：redis 客户端 / socket 客户端。 */
     private fun buildClientBus(cfg: AgentConfig, transport: String): MessageBus = when (transport) {
         "socket" -> SocketClientBus(cfg.socketHost(), cfg.socketPort(), cfg.socketSecret().ifBlank { null })
@@ -218,3 +240,4 @@ class WindyAgentBukkitPlugin : JavaPlugin() {
         logger.info(WindyLog.tag("Boot", "WindyAgent 已停止"))
     }
 }
+

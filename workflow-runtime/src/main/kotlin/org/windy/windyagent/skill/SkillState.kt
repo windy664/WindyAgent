@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 技能状态持久化：per-skill 的 key-value 存储，跨次执行保留数据。
  *
  * 存储位置：`skills/<name>/state.json`（与 SKILL.md 同目录）。
- * 脚本里通过 `state` 变量读写（Groovy binding），工作流步骤通过 `{state.xxx}` 插值读取。
+ * 脚本里通过 `state` 变量读写，工作流步骤通过 `{state.xxx}` 插值读取。
  *
  * 用途示例：
  *  - 记录上次执行时间/路径：`state.lastBackupPath = "/backups/world_123"`
@@ -87,3 +87,4 @@ class SkillState(
         private const val MAX_STATE_BYTES = 1024 * 1024
     }
 }
+

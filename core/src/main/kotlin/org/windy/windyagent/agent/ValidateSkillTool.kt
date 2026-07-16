@@ -4,14 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.windy.windyagent.llm.ToolResult
 
 /**
- * 让 Agent 在保存技能前验证 Groovy 脚本——**编译检查 + dry-run 模拟**。
+ * 让 Agent 在保存技能前验证 Kether 脚本——**编译检查 + dry-run 模拟**。
  *
  * 两步验证：
  *  1. 编译检查（compile）：只检查语法，不执行任何代码，100% 安全。
- *  2. Dry-run（dryRun）：用 mock 对象执行脚本，记录"会做什么操作"但不碰真实服务器状态。
+ *  2. Dry-run（dryRun）：用 Kether dry-run 上下文执行脚本，记录"会做什么操作"但不执行真实服务器动作。
  *
  * 典型流程（AI 自动调用，服主无感）：
- *  AI: [生成 Groovy 脚本]
+ *  AI: [生成 Kether 脚本]
  *      → validate_skill(script=..., mode="compile")  语法检查
  *      → validate_skill(script=..., args=..., mode="dryRun")  模拟执行
  *      → 显示 dry-run 结果给服主："脚本会执行以下操作，确认后保存"
@@ -29,8 +29,8 @@ class ValidateSkillTool(
     private val mapper = ObjectMapper()
 
     override val name = "validate_skill"
-    override val description = "验证 Groovy 脚本的正确性。mode=compile 只检查语法（安全），mode=dryRun 用 mock 对象模拟执行并记录「会做什么」（不碰真实服务器）。在 create_skill 之前调用，确保脚本无误。"
-    override val inputSchema = """{"type":"object","properties":{"script":{"type":"string","description":"Groovy 脚本源码"},"args":{"type":"object","description":"模拟参数（dryRun 用；可省略）"},"mode":{"type":"string","description":"验证模式：compile（只编译）或 dryRun（编译+模拟执行）","enum":["compile","dryRun"]}},"required":["script","mode"]}"""
+    override val description = "验证 Kether 脚本的正确性。mode=compile 只检查语法（安全），mode=dryRun 用 Kether dry-run 上下文模拟执行并记录「会做什么」（不碰真实服务器）。在 create_skill 之前调用，确保脚本无误。"
+    override val inputSchema = """{"type":"object","properties":{"script":{"type":"string","description":"Kether 脚本源码"},"args":{"type":"object","description":"模拟参数（dryRun 用；可省略）"},"mode":{"type":"string","description":"验证模式：compile（只编译）或 dryRun（编译+模拟执行）","enum":["compile","dryRun"]}},"required":["script","mode"]}"""
 
     override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {
         val node = mapper.readTree(inputJson)
@@ -85,3 +85,6 @@ data class DryRunSummary(
         return sb.toString().trimEnd()
     }
 }
+
+
+

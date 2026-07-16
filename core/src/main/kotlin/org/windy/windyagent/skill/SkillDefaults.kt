@@ -37,10 +37,10 @@ object SkillDefaults {
         return n
     }
 
-    /** 目录里是否已有任何技能文件（.md/.groovy 或子目录），有则不覆盖。 */
+    /** 目录里是否已有任何技能文件（.md/.kether 或子目录），有则不覆盖。 */
     private fun hasAnySkill(dir: File): Boolean {
         val files = dir.listFiles() ?: return false
-        return files.any { it.isDirectory || it.name.endsWith(".md", true) || it.name.endsWith(".groovy", true) }
+        return files.any { it.isDirectory || it.name.endsWith(".md", true) || it.name.endsWith(".kether", true) }
     }
 
     private fun readManifest(): List<String> {
@@ -50,3 +50,4 @@ object SkillDefaults {
         }
     }
 }
+

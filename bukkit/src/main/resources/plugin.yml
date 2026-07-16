@@ -6,7 +6,7 @@ author: windy664
 # api-version 1.13：在 1.13+ 以现代模式运行；1.12 及更早会忽略该字段，仍正常加载
 api-version: "1.13"
 # 软依赖：装了就接，没装也照常启动。PlaceholderAPI=玩家画像数据源(需先加载好占位符)；CMI=运维动作工具；Vault=经济；DecentHolograms=全息文字(welcome_hologram 等技能，运行时解析、无则优雅降级)。
-softdepend: [PlaceholderAPI, CMI, Vault, DecentHolograms]
+softdepend: [TabooLib, PlaceholderAPI, CMI, Vault, DecentHolograms]
 commands:
   ai:
     description: 向 WindyAgent 提问或下达指令（standalone / hub 模式）
@@ -27,3 +27,4 @@ permissions:
   windyagent.admin:
     description: 触发高危操作走审批 + 审批/驳回权限
     default: op
+

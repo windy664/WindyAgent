@@ -76,7 +76,7 @@ class CostRouter(
         if (toolCount > 10) score += 2
 
         // 代码/脚本相关
-        if (text.contains("脚本") || text.contains("script") || text.contains("groovy")) score += 2
+        if (text.contains("脚本") || text.contains("script") || text.contains("kether")) score += 2
 
         return score
     }

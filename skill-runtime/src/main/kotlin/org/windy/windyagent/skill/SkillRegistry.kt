@@ -8,14 +8,14 @@ import org.slf4j.LoggerFactory
  * 扫描技能库 skills/ 目录，解析三态技能（对齐 Anthropic Agent Skills 的 SKILL.md 形态）：
  *  - 文件夹 `skills/<handle>/SKILL.md`（+ 可选脚本）：脚本+文字 或 纯文字
  *  - 扁平 `skills/<handle>.md`：纯文字技能
- *  - 扁平 `skills/<handle>.groovy`：纯脚本技能（头部 `//` 注释声明元数据）
+ *  - 扁平 `skills/<handle>.kether`：纯脚本技能（头部 `#` 或 `//` 注释声明元数据）
  *
  * `SKILL.md` 用 YAML frontmatter 声明元数据，`---` 之间：
  * ```
  * ---
  * name: welcome_vip
  * description: 给玩家发 VIP 礼包
- * script: welcome.groovy        # 省略=纯文字技能
+ * script: welcome.kether        # 省略=纯文字技能
  * targets: [survival, lobby]    # 省略=下发到所有在线子服
  * args:
  *   - player: string 玩家名
@@ -46,7 +46,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
                     f.isDirectory -> File(f, "SKILL.md").takeIf { it.isFile && it.length() <= maxFileSize }?.let { parseFolder(f, it) }
                     f.name.equals("SKILL.md", true) -> null  // 顶层裸 SKILL.md 跳过
                     f.name.endsWith(".md", true) -> if (f.length() <= maxFileSize) parseFlatText(f) else null
-                    f.name.endsWith(".groovy", true) -> if (f.length() <= maxFileSize) parseFlatScript(f) else null
+                    f.name.endsWith(".kether", true) -> if (f.length() <= maxFileSize) parseFlatScript(f) else null
                     else -> null
                 }
             }.onSuccess { def -> if (def != null) found[def.name.lowercase()] = def }
@@ -105,7 +105,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         )
     }
 
-    /** 扁平纯脚本技能：x.groovy，头部 `//` 注释声明 name/description/arg/target。 */
+    /** 扁平纯脚本技能：x.kether，头部 `#` 或 `//` 注释声明 name/description/arg/target。 */
     private fun parseFlatScript(f: File): SkillDef {
         val text = f.readText()
         var name = f.nameWithoutExtension
@@ -115,8 +115,8 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
-            if (!line.startsWith("//")) break
-            val b = line.removePrefix("//").trim()
+            if (!line.startsWith("//") && !line.startsWith("#")) break
+            val b = line.removePrefix("//").removePrefix("#").trim()
             when {
                 b.startsWith("name:", true) -> name = b.substringAfter(':').trim().ifBlank { name }
                 b.startsWith("description:", true) -> desc = b.substringAfter(':').trim()
@@ -127,7 +127,26 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
                 }
             }
         }
-        return SkillDef(name, desc.ifBlank { name }, null, text, args, f.name, null, f.name, targets)
+        val scriptBody = text.replace("\r\n", "\n")
+            .lineSequence()
+            .dropWhile { raw ->
+                val line = raw.trim()
+                line.isEmpty() || line.startsWith("//") || line.startsWith("#")
+            }
+            .joinToString("\n")
+            .trim()
+        return SkillDef(
+            name = name,
+            description = desc.ifBlank { name },
+            body = null,
+            script = scriptBody.ifBlank { text },
+            scriptLanguage = "kether",
+            args = args,
+            source = f.name,
+            mdPath = null,
+            scriptPath = f.name,
+            targets = targets
+        )
     }
 
     /** 取 `---` 之间的 frontmatter（解析成扁平 map，args/targets 原样留字符串待后续解析），其余为正文。 */
@@ -305,7 +324,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
                 currentScript = null
                 continue
             }
-            if (currentArgs != null && (raw.startsWith("      ") || raw.startsWith("\t\t") || raw.startsWith("    "))) {
+            if (currentArgs != null && (raw.startsWith("      ") || raw.startsWith("\t\t"))) {
                 // 缩进行 = args 的 key: value
                 if (trimmed.contains(":")) {
                     val k = trimmed.substringBefore(":").trim()
@@ -324,7 +343,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
                 currentScript = StringBuilder()
                 continue
             }
-            if (currentScript != null && (raw.startsWith("      ") || raw.startsWith("\t\t") || raw.startsWith("    "))) {
+            if (currentScript != null && (raw.startsWith("      ") || raw.startsWith("\t\t"))) {
                 if (currentScript!!.isNotEmpty()) currentScript!!.append("\n")
                 currentScript!!.append(trimmed)
                 continue
@@ -386,7 +405,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         if (def.tags.isNotEmpty()) sb.append("tags: [${def.tags.joinToString(", ")}]\n")
         if (def.permission != "trusted") sb.append("permission: ${def.permission}\n")
         if (def.isScript) {
-            sb.append("script: script.groovy\n")
+            sb.append("script: script.kether\n")
             if (def.targets.isNotEmpty()) sb.append("targets: [${def.targets.joinToString(", ")}]\n")
         }
         if (def.args.isNotEmpty()) {
@@ -428,8 +447,8 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
     }
 
     /**
-     * 写一个技能（统一落成文件夹格式 `<handle>/SKILL.md` + 可选 `<handle>/script.groovy`）并热重载。
-     * @param hasScript true=脚本技能（写 script.groovy 并在 frontmatter 标 script）；false=纯文字（只写 SKILL.md）。
+     * 写一个技能（统一落成文件夹格式 `<handle>/SKILL.md` + 可选 `<handle>/script.kether`）并热重载。
+     * @param hasScript true=脚本技能（写 script.kether 并在 frontmatter 标 script）；false=纯文字（只写 SKILL.md）。
      * @return 重载后的技能总数；handle 非法返回 -1。
      */
     fun write(handle: String, md: String, script: String, hasScript: Boolean): Int {
@@ -437,11 +456,11 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         val folder = File(dir, safe)
         // 同名扁平文件先清掉，避免与文件夹双份加载
         File(dir, "$safe.md").takeIf { it.isFile }?.delete()
-        File(dir, "$safe.groovy").takeIf { it.isFile }?.delete()
+        File(dir, "$safe.kether").takeIf { it.isFile }?.delete()
         folder.mkdirs()
         val mdText = if (hasScript && !md.contains("script:")) ensureScriptField(md) else md
         File(folder, "SKILL.md").writeText(mdText)
-        val scriptFile = File(folder, "script.groovy")
+        val scriptFile = File(folder, "script.kether")
         if (hasScript) scriptFile.writeText(script) else scriptFile.takeIf { it.isFile }?.delete()
         return reload()
     }
@@ -452,7 +471,7 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         var ok = false
         File(dir, safe).takeIf { it.isDirectory }?.let { ok = it.deleteRecursively() || ok }
         File(dir, "$safe.md").takeIf { it.isFile }?.let { ok = it.delete() || ok }
-        File(dir, "$safe.groovy").takeIf { it.isFile }?.let { ok = it.delete() || ok }
+        File(dir, "$safe.kether").takeIf { it.isFile }?.let { ok = it.delete() || ok }
         reload()
         return ok
     }
@@ -462,16 +481,16 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         val lines = md.replace("\r\n", "\n").split("\n").toMutableList()
         if (lines.firstOrNull()?.trim() == "---") {
             val end = lines.drop(1).indexOfFirst { it.trim() == "---" }
-            if (end >= 0) { lines.add(end + 1, "script: script.groovy"); return lines.joinToString("\n") }
+            if (end >= 0) { lines.add(end + 1, "script: script.kether"); return lines.joinToString("\n") }
         }
         // 无 frontmatter：补一段
-        return "---\nscript: script.groovy\n---\n$md"
+        return "---\nscript: script.kether\n---\n$md"
     }
 
     /** handle 限定在 skills/ 内：剥离路径分量、去后缀、挡 `..`。 */
     private fun safeHandle(handle: String): String? {
         val base = File(handle.trim()).name
-            .removeSuffix(".md").removeSuffix(".groovy")
+            .removeSuffix(".md").removeSuffix(".kether")
             .takeIf { it.isNotBlank() && it != "." && it != ".." } ?: return null
         return base
     }
@@ -486,3 +505,8 @@ class SkillRegistry(private val dir: File, private val maxFileSize: Long = 512 *
         val isWorkflow: Boolean = false
     )
 }
+
+
+
+
+

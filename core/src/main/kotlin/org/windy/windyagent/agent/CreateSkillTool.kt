@@ -6,16 +6,16 @@ import org.windy.windyagent.safety.AuditLog
 import org.windy.windyagent.skill.SkillRegistry
 
 /**
- * 让 Agent **对话式创建/更新技能**——服主说人话，AI 生成 SKILL.md + Groovy 脚本，本工具负责落盘。
+ * 让 Agent **对话式创建/更新技能**——服主说人话，AI 生成 SKILL.md + Kether 脚本，本工具负责落盘。
  *
  * 两种操作：
  *  - `create_skill`：创建新技能（已存在则拒绝，除非 overwrite=true）
  *  - `update_skill`：更新已有技能内容
  *
- * Agent（LLM）负责理解服主意图并生成完整的 SKILL.md 正文（含 frontmatter）和可选的 Groovy 脚本。
+ * Agent（LLM）负责理解服主意图并生成完整的 SKILL.md 正文（含 frontmatter）和可选的 Kether 脚本。
  * 本工具只做文件 I/O + 热重载，不参与内容生成。
  *
- * 设计意图：服主不需要会写 Groovy 或 SKILL.md 语法——只要说"帮我做个技能，每天给在线玩家发钻石"，
+ * 设计意图：服主不需要会写 Kether 或 SKILL.md 语法——只要说"帮我做个技能，每天给在线玩家发钻石"，
  * AI 就能生成完整定义并保存，服主后续说"改成10个"AI 就更新。
  */
 class CreateSkillTool(
@@ -28,14 +28,14 @@ class CreateSkillTool(
 
     override val name = if (isUpdate) "update_skill" else "create_skill"
     override val description = if (isUpdate) {
-        "更新一个已有技能的内容。传入技能名和新的 SKILL.md 正文（含 frontmatter），可选传入 Groovy 脚本。"
+        "更新一个已有技能的内容。传入技能名和新的 SKILL.md 正文（含 frontmatter），可选传入 Kether 脚本。"
     } else {
         "创建一个新技能。传入技能名和 SKILL.md 正文（含 frontmatter：name/description/args/steps 等），" +
-        "可选传入 Groovy 脚本。保存后立即生效（热重载）。" +
+        "可选传入 Kether 脚本。保存后立即生效（热重载）。" +
         "已存在同名技能时会拒绝（除非设 overwrite=true）。"
     }
-    override val inputSchema = if (isUpdate) """{"type":"object","properties":{"name":{"type":"string","description":"技能名（须已存在）"},"md":{"type":"string","description":"完整的 SKILL.md 内容（含 --- frontmatter --- 和正文）"},"script":{"type":"string","description":"Groovy 脚本内容（脚本技能才需要；纯文字/工作流技能省略）"}},"required":["name","md"]}"""
-    else """{"type":"object","properties":{"name":{"type":"string","description":"技能名（英文字母/数字/下划线，如 daily_diamond）"},"md":{"type":"string","description":"完整的 SKILL.md 内容（含 --- frontmatter --- 和正文）"},"script":{"type":"string","description":"Groovy 脚本内容（脚本技能才需要；纯文字/工作流技能省略）"},"overwrite":{"type":"boolean","description":"已存在同名技能时是否覆盖（默认 false）"}},"required":["name","md"]}"""
+    override val inputSchema = if (isUpdate) """{"type":"object","properties":{"name":{"type":"string","description":"技能名（须已存在）"},"md":{"type":"string","description":"完整的 SKILL.md 内容（含 --- frontmatter --- 和正文）"},"script":{"type":"string","description":"Kether 脚本内容（脚本技能才需要；纯文字/工作流技能省略）"}},"required":["name","md"]}"""
+    else """{"type":"object","properties":{"name":{"type":"string","description":"技能名（英文字母/数字/下划线，如 daily_diamond）"},"md":{"type":"string","description":"完整的 SKILL.md 内容（含 --- frontmatter --- 和正文）"},"script":{"type":"string","description":"Kether 脚本内容（脚本技能才需要；纯文字/工作流技能省略）"},"overwrite":{"type":"boolean","description":"已存在同名技能时是否覆盖（默认 false）"}},"required":["name","md"]}"""
 
     override fun execute(toolCallId: String, inputJson: String): ToolResult = runCatching {
         val node = mapper.readTree(inputJson)
@@ -84,3 +84,4 @@ class CreateSkillTool(
         mapper.readTree(json)["name"]?.asText() ?: "?"
     }.getOrDefault("?")
 }
+
