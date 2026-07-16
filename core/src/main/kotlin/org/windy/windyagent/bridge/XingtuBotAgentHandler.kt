@@ -1,8 +1,8 @@
 package org.windy.windyagent.bridge
 
 import org.slf4j.Logger
-import org.windy.xingtubot.common.event.BotMessageEvent
-import org.windy.xingtubot.common.handler.MessageHandler
+import org.windy.xingtubot.common.event.BotMessageContext
+import org.windy.xingtubot.common.handler.BotMessageHandler
 import org.windy.xingtubot.common.handler.PermissionChecker
 
 /**
@@ -32,10 +32,10 @@ class XingtuBotAgentHandler(
     private val permission: PermissionChecker,
     private val logger: Logger,
     /** 惰性问昕途主链「这条会被某具体命令认领吗」；返回 false/抛错都当「无命令」放行给 Agent。 */
-    private val handledByCommand: (String, BotMessageEvent) -> Boolean = { _, _ -> false },
-) : MessageHandler {
+    private val handledByCommand: (String, BotMessageContext) -> Boolean = { _, _ -> false },
+) : BotMessageHandler {
 
-    override fun matches(message: String?, event: BotMessageEvent): Boolean {
+    override fun matches(message: String?, event: BotMessageContext): Boolean {
         if (message == null || message.trim().isEmpty()) return false
         // 跳过群成员增减等非聊天事件
         val et = event.eventType
@@ -45,10 +45,10 @@ class XingtuBotAgentHandler(
         //    QQ 没反应时对照：能看到这行 = 消息已到达本联动；看不到 = 消息没进昕途分发(见下方排查清单)。
         val directed = !event.isGroupMessage || event.isGroupAtMessage
         if (directed) {
-            val admin = runCatching { permission.isAdmin(event.formId) }.getOrDefault(false)
+            val admin = runCatching { permission.isAdmin(event.senderId) }.getOrDefault(false)
             val isCmd = admin && isOtherCommand(message.trim(), event)
             logger.info("[XingtuBot] 收到定向消息：openid={} 超管={} 私聊={} 群@={} et={} → {}",
-                event.formId, admin, !event.isGroupMessage, event.isGroupAtMessage, et,
+                event.senderId, admin, !event.isGroupMessage, event.isGroupAtMessage, et,
                 when {
                     !admin -> "忽略(此 openid 不在昕途 admin-openids)"
                     isCmd -> "忽略(昕途某命令会认领，交主链处理)"
@@ -57,7 +57,7 @@ class XingtuBotAgentHandler(
         }
 
         // 只认超管
-        if (!permission.isAdmin(event.formId)) return false
+        if (!permission.isAdmin(event.senderId)) return false
         // 只认「私聊」或「群内 @机器人」；群内非 @ 一律不响应
         if (event.isGroupMessage && !event.isGroupAtMessage) return false
         // 不抢别的命令：斜杠命令 + 昕途主链任何会认领它的具体命令，交给它们处理，Agent 不响应
@@ -72,16 +72,16 @@ class XingtuBotAgentHandler(
      *     用真 matches() 判定，不靠猜前缀，故白名单「登录」这类只 matches 不声明 triggers 的也覆盖。
      * 判定失败（NoSuchMethod/版本不符等）只降级为「不按命令拦」，绝不因此吞掉超管的正常提问。
      */
-    private fun isOtherCommand(text: String, event: BotMessageEvent): Boolean {
+    private fun isOtherCommand(text: String, event: BotMessageContext): Boolean {
         if (text.isEmpty()) return false
         val c = text[0]
         if (c == '/' || c == '!' || c == '！') return true
         return runCatching { handledByCommand(text, event) }.getOrDefault(false)
     }
 
-    override fun handle(message: String, event: BotMessageEvent) {
+    override fun handle(message: String, event: BotMessageContext) {
         // 与 web 共用的 session id：im-<openid>。首次即登记固定对话（懒注册），web 前端据此置顶。
-        val sid = "im-" + event.formId
+        val sid = "im-" + event.senderId
         logger.info("[XingtuBot] ▶ 受理超管消息 sid={} : {}", sid, message.trim().take(60))
         val title = event.username?.takeIf { it.isNotBlank() }?.let { "QQ · $it" } ?: "QQ 超管"
         ImThreadRegistry.register(sid, "QQ", title)
