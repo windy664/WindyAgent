@@ -24,9 +24,9 @@ data class ScheduledTask(
     val id: String = "",
     val name: String = "",
     val enabled: Boolean = true,
-    val action: String = "broadcast",   // broadcast | command | agent(实时) | script(LLM 编译的固定步骤)
+    val action: String = "broadcast",   // broadcast | command | tools(实时) | script(LLM 编译的固定步骤)
     val target: String = "",            // 子服名 或 "*"=全部已连
-    val payload: String = "",           // 广播文案 / 命令 / (script)需求描述 / (agent)指令
+    val payload: String = "",           // 广播文案 / 命令 / (script)需求描述 / (tools)指令
     /** action=script 时：LLM 编译出的待执行步骤序列（到点确定性执行，不再调 LLM/Agent）。 */
     val script: List<TaskStep> = emptyList(),
     val type: String = "interval",      // interval | daily

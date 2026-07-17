@@ -1,9 +1,9 @@
 package org.windy.windyagent.platform.bukkit.integration
 
 import org.bukkit.plugin.java.JavaPlugin
-import org.windy.windyagent.agent.AgentTool
-import org.windy.windyagent.agent.ToolAssembly
-import org.windy.windyagent.agent.ToolContributor
+import org.windy.windyagent.tools.AgentTool
+import org.windy.windyagent.tools.ToolAssembly
+import org.windy.windyagent.tools.ToolContributor
 import org.windy.windyagent.platform.bukkit.cmi.CmiIntegration
 import org.windy.windyagent.safety.AuditLog
 

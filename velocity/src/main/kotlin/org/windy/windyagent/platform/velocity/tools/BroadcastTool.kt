@@ -3,7 +3,7 @@ package org.windy.windyagent.platform.velocity.tools
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.velocitypowered.api.proxy.ProxyServer
 import net.kyori.adventure.text.Component
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.llm.ToolResult
 
 class BroadcastTool(private val server: ProxyServer) : AgentTool {

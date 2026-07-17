@@ -5,6 +5,7 @@ kotlin {
 
 dependencies {
     api project(':agent-runtime')
+    api project(':tool-runtime')
     api project(':execution-safety')
     api project(':llm-runtime')
 

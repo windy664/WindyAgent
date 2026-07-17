@@ -1,6 +1,6 @@
 // ============================================================
 // core —— 平台无关核心库
-//   agent / llm / prompt / 平台接口(Platform) / AgentTool / 配置加载
+//   tools / llm / prompt / 平台接口(Platform) / AgentTool / 配置加载
 //   不依赖任何具体载体（Velocity / Bukkit）。被各载体模块依赖并 shade。
 //
 //   按 Java 8 字节码编译：核心与运行时模块依赖（okhttp 4.12 /
@@ -16,16 +16,16 @@ kotlin {
 }
 
 dependencies {
-    // Stable agent/tool/LLM protocol types shared by core and platform modules.
-    api project(':agent-api')
+    // Stable tools/tool/LLM protocol types shared by core and platform modules.
     // Shared execution guardrails used by core, platform loaders, web approval UI, and tools.
     api project(':execution-safety')
+    api project(':agent-runtime')
     // Shared tool assembly and result cache used by core and platform integrations.
     api project(':tool-runtime')
     api project(':skill-runtime')
     api project(':workflow-runtime')
     api project(':llm-runtime')
-    api project(':agent-runtime')
+    api project(':tool-runtime')
     api project(':memory-runtime')
     api project(':mcp-runtime')
     api project(':capability-runtime')

@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.windy.windyagent.agent.AgentTool
-import org.windy.windyagent.agent.StreamingProvider
+import org.windy.windyagent.tools.AgentTool
+import org.windy.windyagent.tools.StreamingProvider
 import org.windy.windyagent.llm.*
 import java.util.concurrent.TimeUnit
 

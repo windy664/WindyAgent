@@ -1,7 +1,7 @@
 package org.windy.windyagent.platform
 
-import org.windy.windyagent.agent.AgentTool
-import org.windy.windyagent.agent.SystemPrompt
+import org.windy.windyagent.tools.AgentTool
+import org.windy.windyagent.tools.SystemPrompt
 
 interface Platform {
     val name: String

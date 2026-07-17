@@ -1,8 +1,7 @@
 package org.windy.windyagent.llm
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
@@ -25,7 +24,7 @@ class LLMUsageTracker private constructor(
     private val delegate: LLMProvider,
     private val dbPath: Path,
     private val dailyTokenBudget: Long = 0
-) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
+) : LLMProvider, org.windy.windyagent.tools.StreamingProvider {
 
     override val name: String get() = delegate.name
 
@@ -48,7 +47,7 @@ class LLMUsageTracker private constructor(
         checkBudget()
         val start = System.currentTimeMillis()
         val out = ChatStream()
-        val sp = target as? org.windy.windyagent.agent.StreamingProvider
+        val sp = target as? org.windy.windyagent.tools.StreamingProvider
         if (sp != null) {
             val src = sp.chatStream(systemPrompt, messages, tools)
             Thread({
@@ -144,7 +143,7 @@ class LLMUsageTracker private constructor(
      *  共享同一 queue/flusher/连接，避免多连接写同库的 SQLite 锁问题。 */
     fun track(other: LLMProvider): LLMProvider = SecondaryTracked(other)
 
-    private inner class SecondaryTracked(private val d: LLMProvider) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
+    private inner class SecondaryTracked(private val d: LLMProvider) : LLMProvider, org.windy.windyagent.tools.StreamingProvider {
         override val name: String get() = d.name
         override fun chat(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): LLMResponse =
             trackedChat(d, "", systemPrompt, messages, tools)

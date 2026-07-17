@@ -29,7 +29,7 @@ class GitRepoService(
     /** 单文件提交上限：超过则跳过不提交（防大文件进仓库撑爆）。默认 1MB。 */
     private val maxCommitBytes: Long = 1_048_576L
 ) {
-    private val author = PersonIdent("WindyAgent", "agent@windyagent.local")
+    private val author = PersonIdent("WindyAgent", "tools@windyagent.local")
 
     private companion object {
         // 二进制/易膨胀扩展名：一律不进 git（jar 走"提交清单"而非本体）。

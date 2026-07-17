@@ -374,7 +374,7 @@ class WorkflowEngine(
 
 // ── 引擎依赖的最小接口（避免循环依赖）──
 
-/** AgentTool 的最小引用接口（WorkflowEngine 不直接依赖 agent 包）。 */
+/** AgentTool 的最小引用接口（WorkflowEngine 不直接依赖 tools 包）。 */
 interface AgentToolRef {
     val name: String
     fun execute(toolCallId: String, inputJson: String): ToolResultRef

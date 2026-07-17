@@ -3,8 +3,6 @@
 //   provider   能力提供方：连总线、执行中心 Agent 下发的动作（只需 bus）。
 //   standalone 单机嵌入式 Agent：本机直接跑 Agent（需 core，无总线）。
 //   hub        嵌入式 Agent + 总线中枢：服务本服并派发到其它子服（core + bus 中枢侧）。
-//   core 现已降到 Java 8，故 bukkit 可直接依赖 core 挂 Agent，连 1.12 老服也能跑。
-//   编译期用 spigot-api 1.12.2 + 仅调跨版本稳定 API → 一个 jar 兼容 1.12 ~ 1.13+。
 // ============================================================
 plugins {
     id 'com.gradleup.shadow'
@@ -20,9 +18,15 @@ kotlin {
 taboolib {
     env {
         install('minecraft-kether')
+        install('platform-bukkit')
+        install('platform-bukkit-impl')
     }
     version {
         taboolib = mod_version_taboolib   // gradle.properties 里统一管理
+    }
+    description {
+        name(rootProject.name)
+        desc("能力提供方 / 单机嵌入式 Agent / 总线中枢（按 config.yml 的 mode）")
     }
 }
 
@@ -61,48 +65,63 @@ dependencies {
     // Vault 经济 API：运行时由 Vault 插件提供（softdepend），编译期可见即可，不打包
     compileOnly 'com.github.MilkBowl:VaultAPI:1.7'
 
-
     compileOnly 'com.github.Zrips:CMI-API:9.8.6.4'
 
     // PlaceholderAPI：玩家画像的通用数据源（softdepend，运行时由 PAPI 插件提供，不打包）。
-    // 各插件（Vault/LuckPerms/CMI/统计…）都往 PAPI 注册占位符，画像直接读占位符即可，无需逐个插件写集成。
     compileOnly 'me.clip:placeholderapi:2.11.6'
 
-    // core（Agent/LLM/工具）+ bus（总线），及其传递依赖均被下方 shadowJar 打进 fat jar。
-    // core 已 api 暴露 bus，故依赖 core 即含 bus；provider 模式也只多打不用到的 Agent 类，无害。
+    // core（Agent/LLM/工具）+ bus（总线），jar task 里 from(':core'.output) 打进 fat jar
     implementation project(':core')
 
-    // 玩家行为数据平台（平台无关：存储 + 聚合 + 规则画像）。bukkit 只提供采集器(吃 Bukkit 事件)，
-    // 库/分析逻辑都在 :behavior。它带 sqlite-jdbc + jackson，随 fat jar 一并打包。
+    // 玩家行为数据平台
     implementation project(':behavior')
 
-    // core 内部用 slf4j 记日志，而老 Spigot(1.12) 运行时不带 slf4j 实现 →
-    // 打包 slf4j-api + 转 JUL 的绑定（slf4j-jdk14），让 Agent 日志在任意宿主都能落地。
-    // （现代 Paper 自带 slf4j，插件类加载器用自带这份亦无妨。）
-    implementation 'org.slf4j:slf4j-api:1.7.36'
-    implementation 'org.slf4j:slf4j-jdk14:1.7.36'
+    // ── 以下用 taboo 配置打进 fat jar（TrChat 官方方式） ──
 
-    // 模组物品库：嵌入式 SQLite（解析模组 jar 的物品/配方落库做估值），Java 8 兼容，shade 进 fat jar
-    implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
+    // TabooLib 模块（env install 自动安装可能不生效，手动声明）
+    taboo "io.izzel.taboolib:platform-bukkit-impl:${mod_version_taboolib}"
+    taboo "io.izzel.taboolib:common-util:${mod_version_taboolib}"
+    taboo "io.izzel.taboolib:common-env:${mod_version_taboolib}"
+    taboo "io.izzel.taboolib:common-platform-api:${mod_version_taboolib}"
 
-    // TabooLib Kether：Gradle 插件只自动 shade 核心模块（common），
-    // 非核心的 minecraft-kether 需要手动加到 implementation 才能被 shadowJar 打进 fat jar。
-    implementation "io.izzel.taboolib:minecraft-kether:${mod_version_taboolib}"
+    // slf4j：core 内部用 slf4j 记日志，老 Spigot(1.12) 运行时不带 slf4j 实现
+    taboo 'org.slf4j:slf4j-api:1.7.36'
+    taboo 'org.slf4j:slf4j-jdk14:1.7.36'
 
-    // JGit：给「Agent 改过的配置文件」做本地版本化 + 可选远端备份（自动改配置/装插件的撤销键）。
-    // 5.13.x 是最后一条兼容 Java 8 的线（6.x 需 Java 11），与本模块 toolchain 一致；shade 进 fat jar。
-    // 只用 HTTPS+token 推送（provider 无关：Gitee/GitHub/GitLab/自建都行），不引 SSH 依赖。
-    implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r'
+    // 模组物品库：嵌入式 SQLite
+    taboo 'org.xerial:sqlite-jdbc:3.45.3.0'
+
+    // JGit：配置文件版本化（有签名依赖，不能放 taboo，暂时 compileOnly，后续单独处理）
+    compileOnly 'org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r'
 }
 
-// TabooLib 插件创建 taboo 配置存放 Kether 模块；implementation 存放 core/behavior/slf4j/sqlite-jdbc/jgit。
-// 两者都纳入 shadowJar，产出完整 fat jar。带分类器 'all' 避免 :velocity 误拉。
-shadowJar {
-    configurations = [project.configurations.taboo, project.configurations.runtimeClasspath]
-    archiveClassifier.set('all')
+// ── TrChat 方式：jar task 直接打包，taboolibMainTask 做 ASM 处理 ──
+// 包含 core / behavior 子模块源码 + runtimeClasspath（core 传递依赖：Jackson/OkHttp/Jedis 等）
+// 用闭包延迟解析 runtimeClasspath，避免配置阶段冲突
+// exclude 签名文件避免 "Invalid signature file digest"
+// 不 exclude taboolib/** —— taboolibMainTask 需要原始类来生成 relocated 版本
+jar {
+    archiveBaseName.set(rootProject.name)
+    from(project(':core').sourceSets['main'].output)
+    from(project(':behavior').sourceSets['main'].output)
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    // 声明对 runtimeClasspath 所有关联任务的依赖
+    dependsOn configurations.runtimeClasspath.buildDependencies
 }
 
 tasks.named('build') {
-    dependsOn tasks.named('shadowJar')
+    dependsOn tasks.named('jar')
 }
 
+// 暴露最终 jar 给 Velocity
+configurations {
+    tabooFatJar {
+        canBeConsumed = true
+        canBeResolved = false
+    }
+}
+
+artifacts {
+    tabooFatJar(tasks.named('jar'))
+}

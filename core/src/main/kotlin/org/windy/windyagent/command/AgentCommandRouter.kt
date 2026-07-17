@@ -1,8 +1,8 @@
 package org.windy.windyagent.command
 
 import org.windy.windyagent.Messages
-import org.windy.windyagent.agent.ContextCompressor
-import org.windy.windyagent.agent.UserProfileManager
+import org.windy.windyagent.tools.ContextCompressor
+import org.windy.windyagent.tools.UserProfileManager
 import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.memory.LongTermMemory
 import org.windy.windyagent.platform.SessionManager

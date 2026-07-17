@@ -2,7 +2,7 @@ package org.windy.windyagent.platform.bukkit
 
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.platform.Platform
 
 /**

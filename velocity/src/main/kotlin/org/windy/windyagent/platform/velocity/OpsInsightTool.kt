@@ -2,7 +2,7 @@ package org.windy.windyagent.platform.velocity
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.bus.MessageBus
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.web.AlertCenter

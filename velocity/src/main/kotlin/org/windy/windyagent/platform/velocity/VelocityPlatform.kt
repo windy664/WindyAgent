@@ -2,7 +2,7 @@ package org.windy.windyagent.platform.velocity
 
 import com.velocitypowered.api.proxy.ProxyServer
 import net.kyori.adventure.text.Component
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.platform.Platform
 import org.windy.windyagent.platform.velocity.tools.BroadcastTool
 import org.windy.windyagent.platform.velocity.tools.GetOnlinePlayersTool

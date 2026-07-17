@@ -12,4 +12,28 @@ plugins {
 }
 
 rootProject.name = 'windyagent'
-include 'agent-api', 'execution-safety', 'tool-runtime', 'skill-runtime', 'workflow-runtime', 'llm-runtime', 'agent-runtime', 'memory-runtime', 'mcp-runtime', 'capability-runtime', 'ops-runtime', 'core', 'bus', 'velocity', 'bukkit', 'web', 'behavior'
+
+// ============================================================
+// 17 个规划中的子模块
+// ============================================================
+def plannedModules = [
+        'agent-api', 'agent-runtime', 'execution-safety', 'tool-runtime', 'skill-runtime',
+        'workflow-runtime', 'llm-runtime', 'memory-runtime',
+        'mcp-runtime', 'capability-runtime', 'ops-runtime', 'core', 'bus',
+        'velocity', 'bukkit', 'web', 'behavior'
+]
+
+// ============================================================
+// 动态安全加载：只 include 物理存在的目录，缺失的打印警告并跳过
+// ============================================================
+plannedModules.each { moduleName ->
+    def dir = file(moduleName)
+    if (dir.exists() && dir.isDirectory()) {
+        include moduleName
+    } else {
+        // 打印显眼的警告信息
+        println "\n⚠️  [架构诊断] 发现幽灵模块！目录不存在: '${moduleName}'"
+        println "   👉 请在项目根目录下创建该文件夹，或者在 settings.gradle 中将其移除。"
+        println "   👉 预期路径: ${dir.absolutePath}\n"
+    }
+}

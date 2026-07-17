@@ -1,28 +1,24 @@
 package org.windy.windyagent.platform.velocity
 
-import com.google.inject.Inject
-import com.velocitypowered.api.event.Subscribe
-import com.velocitypowered.api.event.proxy.ProxyInitializeEvent
-import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
-import com.velocitypowered.api.plugin.Plugin
-import com.velocitypowered.api.plugin.annotation.DataDirectory
-import com.velocitypowered.api.proxy.ProxyServer
-import org.slf4j.Logger
+import taboolib.common.platform.Platform
+import taboolib.common.platform.PlatformSide
+import taboolib.common.platform.Plugin
+import taboolib.platform.VelocityPlugin
 import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.Messages
-import org.windy.windyagent.agent.AgentRuntimeMessages
-import org.windy.windyagent.agent.AgentRouter
-import org.windy.windyagent.agent.AgentTool
-import org.windy.windyagent.agent.ContextCompressor
-import org.windy.windyagent.agent.PersonalityLoader
-import org.windy.windyagent.agent.PlanExecuteAgent
-import org.windy.windyagent.agent.ReActAgent
-import org.windy.windyagent.agent.RemoteAppraiseTool
-import org.windy.windyagent.agent.RemoteBalanceTool
-import org.windy.windyagent.agent.RemoteCommandTool
-import org.windy.windyagent.agent.RemoteProposePackTool
-import org.windy.windyagent.agent.RemoteRefreshItemsTool
-import org.windy.windyagent.agent.UserProfileManager
+import org.windy.windyagent.tools.AgentRuntimeMessages
+import org.windy.windyagent.tools.AgentRouter
+import org.windy.windyagent.tools.AgentTool
+import org.windy.windyagent.tools.ContextCompressor
+import org.windy.windyagent.tools.agent.PersonalityLoader
+import org.windy.windyagent.tools.PlanExecuteAgent
+import org.windy.windyagent.tools.ReActAgent
+import org.windy.windyagent.tools.agent.RemoteAppraiseTool
+import org.windy.windyagent.tools.agent.RemoteBalanceTool
+import org.windy.windyagent.tools.agent.RemoteCommandTool
+import org.windy.windyagent.tools.agent.RemoteProposePackTool
+import org.windy.windyagent.tools.agent.RemoteRefreshItemsTool
+import org.windy.windyagent.tools.UserProfileManager
 import org.windy.windyagent.capability.CapabilityRegistry
 import org.windy.windyagent.capability.SearchCapabilitiesTool
 import org.windy.windyagent.command.AgentCommandRouter
@@ -39,7 +35,7 @@ import org.windy.windyagent.knowledge.KnowledgeManager
 import org.windy.windyagent.knowledge.PlayerQa
 import org.windy.windyagent.knowledge.ReferenceLibrary
 import org.windy.windyagent.ops.ScheduledTask
-import org.windy.windyagent.agent.AgentContext
+import org.windy.windyagent.tools.AgentContext
 import org.windy.windyagent.llm.LLMMessage
 import org.windy.windyagent.safety.TrustLevel
 import org.windy.windyagent.memory.FileLongTermMemory
@@ -62,17 +58,14 @@ import org.windy.windyagent.ui.WindyLog
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.nio.file.Path
 
-@Plugin(
-    id = "windyagent",
-    name = "WindyAgent",
-    version = "1.1-SNAPSHOT",
-    description = "AI Agent for Minecraft server management"
-)
-class WindyAgentVelocityPlugin @Inject constructor(
-    private val server: ProxyServer,
-    private val logger: Logger,
-    @DataDirectory private val dataDirectory: Path
-) {
+@PlatformSide(Platform.VELOCITY)
+object WindyAgentVelocityPlugin : Plugin() {
+
+    private val plugin by lazy { VelocityPlugin.getInstance() }
+    private val server get() = plugin.server
+    private val logger get() = plugin.logger
+    private val dataDirectory get() = plugin.configDirectory
+
     private var bus: MessageBus? = null
     private var web: DashboardServer? = null
     private var chatWords: ChatWordCollector? = null
@@ -80,14 +73,12 @@ class WindyAgentVelocityPlugin @Inject constructor(
     private var scheduler: TaskScheduler? = null
     private var usageTrackerInst: LLMUsageTracker? = null
     private var configWatcherInst: org.windy.windyagent.ConfigWatcher? = null
-    // 新增组件（shutdown 需清理）
     private var sessionStoreInst: org.windy.windyagent.platform.SessionStore? = null
     private var consolidatorInst: org.windy.windyagent.memory.MemoryConsolidator? = null
     private var opsInsightInst: OpsInsightTool? = null
-    private var trajectoryRecorderInst: org.windy.windyagent.agent.TrajectoryRecorder? = null
+    private var trajectoryRecorderInst: org.windy.windyagent.tools.TrajectoryRecorder? = null
 
-    @Subscribe
-    fun onProxyInitialize(event: ProxyInitializeEvent) {
+    override fun onEnable() {
         logger.info(WindyLog.tag("Boot", "中心 Agent 初始化中…（Velocity）"))
 
         val cfg = runCatching { AgentConfig.load(dataDirectory) }.getOrElse {
@@ -142,8 +133,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val knowledge = KnowledgeManager(dataDirectory.resolve("knowledge"), reference)
         // 核心工具统一装配（knowledge/usage/memory/mcp）——与 Bukkit 同源，加一个只改 CoreToolContributors 一处。
         // MCP 也并入此处（原下方单独注册的 mcpTools 已收编）。
-        extraTools += org.windy.windyagent.agent.ToolAssembly.assemble(
-            org.windy.windyagent.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
+        extraTools += org.windy.windyagent.tools.ToolAssembly.assemble(
+            org.windy.windyagent.tools.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
         ) { logger.info(WindyLog.tag("Tools", it)) }
         logger.info(WindyLog.tag("Knowledge", "知识库已加载 — {} 条"), knowledge.size())
         // 玩家问答：游戏内 !ai / 非管理员 /ai 走这个——只检索知识库作答，不进 Agent、不碰工具
@@ -164,13 +155,13 @@ class WindyAgentVelocityPlugin @Inject constructor(
             val texts = reg.all().filter { !it.isScript }
             val toolsRef = { extraTools.toList() }
             texts.forEach { def ->
-                extraTools += org.windy.windyagent.agent.TextSkillTool(def, audit, toolsRef, reg, sdirFile)
+                extraTools += org.windy.windyagent.tools.agent.TextSkillTool(def, audit, toolsRef, reg, sdirFile)
             }
             // 对话式技能管理：服主说人话 → AI 生成 → 落盘
-            extraTools += org.windy.windyagent.agent.CreateSkillTool(reg, audit, isUpdate = false)
-            extraTools += org.windy.windyagent.agent.CreateSkillTool(reg, audit, isUpdate = true)
-            extraTools += org.windy.windyagent.agent.ListSkillsTool(reg)
-            extraTools += org.windy.windyagent.agent.ReadSkillTool(reg)
+            extraTools += org.windy.windyagent.tools.agent.CreateSkillTool(reg, audit, isUpdate = false)
+            extraTools += org.windy.windyagent.tools.agent.CreateSkillTool(reg, audit, isUpdate = true)
+            extraTools += org.windy.windyagent.tools.agent.ListSkillsTool(reg)
+            extraTools += org.windy.windyagent.tools.agent.ReadSkillTool(reg)
             // 脚本验证：Velocity 中心不执行 Bukkit Kether，验证委托给子服（standalone/hub 的 bukkit 侧有完整验证）
             logger.info(WindyLog.tag("Skill", "技能库已加载 — 共 {} 个（文字 {} 在中心执行 / 脚本 {} 下发子服，其中 {} 个工作流）"),
                 reg.all().size, texts.size, reg.all().size - texts.size, reg.all().count { it.isWorkflow })
@@ -179,14 +170,14 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         // 日志读取工具（Agent 可主动读日志做诊断）
         val logDir = dataDirectory.resolve("../logs").normalize().toFile()
-        extraTools += org.windy.windyagent.agent.ReadLogTool(logDir)
+        extraTools += org.windy.windyagent.tools.agent.ReadLogTool(logDir)
         // 日志异常缓冲（各子服经总线推来的错误，Agent 可读取分析，持久化到 errors.json）
         val errorBuffer = org.windy.windyagent.ops.RecentErrorBuffer(
             persistFile = dataDirectory.resolve("errors.json").toFile()
         )
-        extraTools += org.windy.windyagent.agent.GetRecentErrorsTool(errorBuffer)
+        extraTools += org.windy.windyagent.tools.GetRecentErrorsTool(errorBuffer)
         // LLM 状态查询（管理员问"用的什么模型"时）
-        extraTools += org.windy.windyagent.agent.LLMStatusTool(llm)
+        extraTools += org.windy.windyagent.tools.LLMStatusTool(llm)
 
         // MCP 工具接入已收编进上方 CoreToolContributors（"mcp" 组），此处不再单独注册。
 
@@ -198,22 +189,22 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 b.startReplyListener()
                 extraTools += RemoteCommandTool(b, cfg.remoteTimeoutMs(), guard, audit, pending)
                 extraTools += RemoteBalanceTool(b, cfg.remoteTimeoutMs())
-                extraTools += org.windy.windyagent.agent.RemotePlayerProfileTool(b, cfg.remoteTimeoutMs())
+                extraTools += org.windy.windyagent.tools.agent.RemotePlayerProfileTool(b, cfg.remoteTimeoutMs())
                 // 服主编写的子服技能（Bukkit Kether 执行）：人工审过的确定性扩展，不过 guard，记 audit
-                extraTools += org.windy.windyagent.agent.RemoteSkillTool(b, cfg.remoteTimeoutMs(), audit)
-                extraTools += org.windy.windyagent.agent.RemoteValidateSkillTool(b, cfg.remoteTimeoutMs())
+                extraTools += org.windy.windyagent.tools.agent.RemoteSkillTool(b, cfg.remoteTimeoutMs(), audit)
+                extraTools += org.windy.windyagent.tools.agent.RemoteValidateSkillTool(b, cfg.remoteTimeoutMs())
                 // 物品估值 / 礼包提案（数据在子服，远端调用）
                 extraTools += RemoteAppraiseTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteProposePackTool(b, cfg.remoteTimeoutMs())
                 extraTools += RemoteRefreshItemsTool(b, cfg.remoteTimeoutMs())
                 // 子服文件管理 + 配置版本化（自动改配置/装插件的落地手）：默认关，files.enabled 显式开
                 if (cfg.filesEnabled()) {
-                    extraTools += org.windy.windyagent.agent.RemoteReadFileTool(b, cfg.remoteTimeoutMs(), audit)
-                    extraTools += org.windy.windyagent.agent.RemoteListDirTool(b, cfg.remoteTimeoutMs(), audit)
-                    extraTools += org.windy.windyagent.agent.RemoteWriteFileTool(b, cfg.remoteTimeoutMs(), audit)
-                    extraTools += org.windy.windyagent.agent.RemoteDeleteFileTool(b, cfg.remoteTimeoutMs(), audit, pending)
-                    extraTools += org.windy.windyagent.agent.RemoteGitHistoryTool(b, cfg.remoteTimeoutMs())
-                    extraTools += org.windy.windyagent.agent.RemoteRollbackTool(b, cfg.remoteTimeoutMs(), audit, pending)
+                    extraTools += org.windy.windyagent.tools.agent.RemoteReadFileTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.tools.agent.RemoteListDirTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.tools.agent.RemoteWriteFileTool(b, cfg.remoteTimeoutMs(), audit)
+                    extraTools += org.windy.windyagent.tools.agent.RemoteDeleteFileTool(b, cfg.remoteTimeoutMs(), audit, pending)
+                    extraTools += org.windy.windyagent.tools.agent.RemoteGitHistoryTool(b, cfg.remoteTimeoutMs())
+                    extraTools += org.windy.windyagent.tools.agent.RemoteRollbackTool(b, cfg.remoteTimeoutMs(), audit, pending)
                 }
                 // 子服能力目录：收齐推来的目录入中心注册表，Agent 用 search_capabilities 本地检索（零往返）。
                 // 配了 embedding 则走语义检索（L3 RAG），否则关键词（L2）。
@@ -320,7 +311,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         // Prompt 版本化：加载自定义 system prompt（如有），追加到 personality
         val promptVersioning = if (cfg.promptVersioningEnabled()) {
-            org.windy.windyagent.agent.PromptVersioning(dataDirectory.resolve("prompts")).also {
+            org.windy.windyagent.tools.PromptVersioning(dataDirectory.resolve("prompts")).also {
                 val loaded = it.load()
                 if (loaded.isNotBlank()) {
                     platform.personality = if (platform.personality.isNotBlank()) platform.personality + "\n\n" + loaded else loaded
@@ -339,17 +330,17 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         // 成本路由：按复杂度自动选便宜/贵模型
         val costRouterLlm = if (cfg.costRouterEnabled() && fastLlm != null) {
-            org.windy.windyagent.agent.CostRouter(effectiveLlm, fastLlm).also {
+            org.windy.windyagent.tools.CostRouter(effectiveLlm, fastLlm).also {
                 logger.info(WindyLog.tag("LLM", "成本路由已启用 — cheap: ${fastLlm.name}, expensive: ${effectiveLlm.name}"))
             }
         } else effectiveLlm
 
         // 失败检测 + 工具缓存 + 自检 + 轨迹记录
-        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.agent.FailureDetector() else null
-        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.agent.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
-        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.agent.SelfChecker(fastLlm ?: effectiveLlm) else null
+        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.tools.FailureDetector() else null
+        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.tools.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
+        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.tools.SelfChecker(fastLlm ?: effectiveLlm) else null
         val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
-            org.windy.windyagent.agent.TrajectoryRecorder(dataDirectory.resolve("trajectories")).also { trajectoryRecorderInst = it }
+            org.windy.windyagent.tools.TrajectoryRecorder(dataDirectory.resolve("trajectories")).also { trajectoryRecorderInst = it }
         } else null
         val runtimeMessages = AgentRuntimeMessages { key, args ->
             Messages.t(key, *args.map { it ?: "" }.toTypedArray())
@@ -357,7 +348,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
 
         // 子任务并行编排器
         val subAgent = if (cfg.subAgentEnabled()) {
-            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
+            org.windy.windyagent.tools.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
         } else null
 
         // 自动在简单(ReAct) / 复杂多步(Plan-Execute) 任务间路由；注入长期记忆做自动召回
@@ -369,8 +360,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
         val plan = PlanExecuteAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages, onToolCall = toolCallRecorder)
         val agent = AgentRouter(costRouterLlm, react, plan, memory, cfg.memoryRecallTopK(), fastLlm, compressor, profileManager, subAgent, cfg.profileUpdateMinIntervalSec() * 1000L)
 
-        // 定时任务调度器：broadcast/command 走总线下发；**agent 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。
-        // 建在 agent 之后（agent 任务要用它）；需跨服总线（下发/取数走总线）。内置一条凌晨 0 点的知识整理任务。
+        // 定时任务调度器：broadcast/command 走总线下发；**tools 任务交给 Agent 自己执行**（无人值守、高危自动拦截）。
+        // 建在 tools 之后（tools 任务要用它）；需跨服总线（下发/取数走总线）。内置一条凌晨 0 点的知识整理任务。
         val schedMapper = ObjectMapper()
         scheduler = bus?.let { b ->
             // 一步确定性执行（broadcast/command 下发到目标子服）；脚本任务逐步调它
@@ -389,7 +380,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             TaskScheduler(dataDirectory.resolve("tasks.json")) { task ->
                 when (task.action) {
                     // 实时：现场交给 Agent 判断执行（夜间整理这类要读数据决策的）
-                    "agent" -> {
+                    "tools" -> {
                         val sid = "scheduler-${task.id}"
                         // {today} 占位符 → 运行时实际日期（供夜间报告按日期归档，不依赖模型自己算日期）
                         val payload = task.payload.replace("{today}", java.time.LocalDate.now().toString())
@@ -426,7 +417,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             }
         }
         // 对话式定时任务管理
-        scheduler?.let { sch -> extraTools += org.windy.windyagent.agent.ScheduleTool(sch, audit) }
+        scheduler?.let { sch -> extraTools += org.windy.windyagent.tools.ScheduleTool(sch, audit) }
 
         // 载体无关的元命令路由（help/clear/history/status/approve…）
         val statusSupplier = {
@@ -435,8 +426,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
         }
         val router = AgentCommandRouter(sessions, pending, audit, memory, statusSupplier, valueExecutor, usageTracker, compressor, profileManager)
 
-        // AI 管理控制台（WebUI）：聊天接 router/agent（多轮靠 SessionManager），知识库接 KnowledgeManager，
-        // 行为看板经总线。放最后装配（依赖 agent/会话）；webEnabled 即开，与跨服是否启用无关。
+        // AI 管理控制台（WebUI）：聊天接 router/tools（多轮靠 SessionManager），知识库接 KnowledgeManager，
+        // 行为看板经总线。放最后装配（依赖 tools/会话）；webEnabled 即开，与跨服是否启用无关。
 
         // 共享聊天存档：web 控制台与 IM 联动（QQ 等）共用同一实例、同 session id → 记录互通、对话无缝衔接。
         val chatArchive = org.windy.windyagent.web.ChatArchive(dataDirectory)
@@ -527,7 +518,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
             // Web 对话流式：曾用 costRouterLlm.chatStream(...) 逐 token 真流式，但那是「裸 LLM」
             // (工具传 emptyList) —— 不能查在线 / 执行命令，AI 只能瞎编(如 0 人在线却答 15 人)，
             // 还会把思维链模型的 null delta 发成满屏 "null"。
-            // 故置 null：ChatHandler 退回「假切片」路径，用带工具的 Agent(chat = agent.run) 跑出
+            // 故置 null：ChatHandler 退回「假切片」路径，用带工具的 Agent(chat = tools.run) 跑出
             // 真实回复后再按块推送 —— 既能真正调用工具，又保留打字机观感。
             val streamChat: ((String, String, (String) -> Unit) -> String)? = null
             val draftSys = "你帮服主把一段话整理成一条服务器知识库条目。只输出 JSON：" +
@@ -554,7 +545,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 val arr = if (i in 0 until j) raw.substring(i, j + 1) else "[]"
                 runCatching { cmapper.readTree(arr).takeIf { it.isArray }?.toString() }.getOrNull() ?: "[]"
             }
-            // 技能起草：把服主一句话需求 → 一份「纯文字技能」SKILL.md（流程型，给 Agent 照做用）
+
             val draftSkillSys = "你帮服主把一段话整理成一个 WindyAgent「纯文字技能」的 SKILL.md。" +
                 "格式：以 --- 开头的 YAML frontmatter，含 name(英文小写下划线) 和 description(一句话说明「何时使用本技能」)，" +
                 "再 --- 结束，之后是 markdown 正文，写清 Agent 应遵循的操作步骤。" +
@@ -635,17 +626,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
         // 玩家游戏内聊天触发：!ai <message>（永远只走知识库问答，不进 Agent）
         server.eventManager.register(this, VelocityChatListener(playerQa, platform, router, logger, cfg.trigger()))
 
-        // 命令触发（控制台 + 玩家）：/ai <message>，命令名由 trigger 去掉前缀符号得出
+        // 命令触发：注入运行时依赖到 TabooLib 注解式命令
         val commandName = cfg.trigger().trimStart('!', '/', '.', ' ').ifBlank { "ai" }
-        val commandManager = server.commandManager
-        val meta = commandManager.metaBuilder(commandName).plugin(this).build()
-        commandManager.register(meta, AgentCommand(agent, playerQa, platform, sessions, router, logger, rateLimiter))
-
-        // 顶层审批命令（薄适配 → router）
-        for (act in listOf("approve", "deny", "pending")) {
-            val m = commandManager.metaBuilder("ai-$act").plugin(this).build()
-            commandManager.register(m, AgentApprovalCommand(router, act))
-        }
+        VelocityCommands.holder = VelocityCommands.CommandHolder(agent, playerQa, platform, sessions, router, rateLimiter, logger)
 
         logger.info(WindyLog.banner(buildList {
             add("角色" to "中心 Agent · Velocity")
@@ -671,20 +654,9 @@ class WindyAgentVelocityPlugin @Inject constructor(
                 srv.register(org.windy.windyagent.web.handlers.SetupHandler(srv, cfg))
                 srv.start()
             }
-            logger.warn(WindyLog.banner(buildList {
-                add("状态" to "⚠ 尚未配置 LLM API Key —— 进入配置向导")
-                add("配置页" to url)
-                // 不在日志打印 token 本身（防截图/上传泄漏）；token 看配置文件 web.token 行
-                add("token" to "见 plugins/windyagent/windyagent-config.yml 的 web.token")
-                add("手动改" to "或编辑同文件的 llm.api-key")
-                add("生效" to "配好后重启 Velocity 代理")
-            }))
+            logger.warn(WindyLog.tag("Boot", "⚠ 尚未配置 LLM API Key —— 进入配置向导，配置页: $url"))
         } else {
-            logger.warn(WindyLog.banner(buildList {
-                add("状态" to "⚠ 尚未配置 LLM API Key，且 web 已关闭")
-                add("请手动" to "编辑 windyagent-config.yml 填 llm.api-key 后重启")
-                add("或" to "设 web.enabled: true 用网页向导配置")
-            }))
+            logger.warn(WindyLog.tag("Boot", "⚠ 尚未配置 LLM API Key，且 web 已关闭，请编辑 windyagent-config.yml"))
         }
     }
 
@@ -716,7 +688,7 @@ class WindyAgentVelocityPlugin @Inject constructor(
         id = "builtin-nightly-curation",
         name = "夜间知识整理（内置）",
         enabled = true,
-        action = "agent",
+        action = "tools",
         target = "",
         payload = "现在是夜间无人值守整理时间。请依次：" +
             "1) 调用 ops_digest 拉取今日各子服运营摘要（若返回的是「最近一次快照」也照常沉淀）；" +
@@ -742,8 +714,8 @@ class WindyAgentVelocityPlugin @Inject constructor(
         return runCatching { advisor.chat(sys, listOf(LLMMessage.User(detail))).textContent }.getOrNull()?.trim().orEmpty()
     }
 
-    @Subscribe
-    fun onProxyShutdown(event: ProxyShutdownEvent) {
+    override fun onDisable() {
+        VelocityCommands.holder = null
         configWatcherInst?.stop(); configWatcherInst = null
         sentinel?.stop(); sentinel = null
         scheduler?.stop(); scheduler = null

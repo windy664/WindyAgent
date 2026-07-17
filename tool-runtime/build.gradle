@@ -4,5 +4,13 @@ kotlin {
 }
 
 dependencies {
+    api 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    // 反序列化总线目录（Kotlin data class）需 kotlin module
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0'
+
     api project(':agent-api')
+    api project(':skill-runtime')
+    api project(':workflow-runtime')
+    api project(':execution-safety')
+    api project(':bus')
 }

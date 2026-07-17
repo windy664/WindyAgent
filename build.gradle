@@ -1,17 +1,17 @@
 // ============================================================
 // WindyAgent — 多模块根构建（聚合器，本身不产出制品）
-//   agent-api —— 稳定协议类型（AgentTool / ToolCall / ToolResult / LLMMessage / LLMResponse）
+//   tools-api —— 稳定协议类型（AgentTool / ToolCall / ToolResult / LLMMessage / LLMResponse）
 //   execution-safety —— 信任上下文、命令护栏、审批队列、审计与限流
 //   tool-runtime —— 工具贡献者、装配与工具结果缓存
 //   skill-runtime —— 技能定义与工作流步骤协议类型
 //   workflow-runtime —— 工作流执行引擎与技能状态持久化
 //   llm-runtime —— LLM Provider、流式输出、Embedding 与用量追踪
-//   agent-runtime —— Agent 编排、上下文、路由、ReAct/PlanExecute 执行
+//   tools-runtime —— Agent 编排、上下文、路由、ReAct/PlanExecute 执行
 //   memory-runtime —— 长期记忆、知识库、RAG 查询扩展与记忆工具
 //   mcp-runtime —— MCP 客户端、工具发现与 AgentTool 适配
 //   capability-runtime —— 能力目录、命令检索与向量索引
 //   ops-runtime —— 健康监控、任务调度、错误缓冲与运维工具
-//   core      —— 平台无关核心（agent / llm provider / prompt / 平台接口）
+//   core      —— 平台无关核心（tools / llm provider / prompt / 平台接口）
 //   bus       —— 跨进程 Redis 总线（Velocity ↔ Bukkit 通信）
 //   velocity  —— Velocity 代理端载体（Agent 大脑所在，Java 11）。
 //                ★ 其 shadowJar 现在并入 :bukkit，产出「通用单 jar」windyagent-<ver>.jar，
@@ -52,25 +52,25 @@ subprojects {
 def architectureAllowedProjectDependencies = [
     ':agent-api'        : [] as Set,
     ':execution-safety' : [] as Set,
-    ':tool-runtime'    : [':agent-api'] as Set,
+    ':tool-runtime'    : [':agent-api', ':skill-runtime', ':workflow-runtime', ':execution-safety', ':bus'] as Set,
     ':skill-runtime'   : [] as Set,
     ':workflow-runtime': [':skill-runtime'] as Set,
     ':llm-runtime'     : [':agent-api'] as Set,
     ':agent-runtime'   : [':agent-api', ':execution-safety', ':llm-runtime', ':tool-runtime'] as Set,
-    ':memory-runtime'  : [':agent-runtime', ':execution-safety', ':llm-runtime'] as Set,
+    ':memory-runtime'  : [':agent-runtime', ':tool-runtime', ':execution-safety', ':llm-runtime'] as Set,
     ':mcp-runtime'     : [':agent-api'] as Set,
     ':capability-runtime': [':agent-api', ':bus', ':llm-runtime', ':memory-runtime'] as Set,
-    ':ops-runtime'     : [':agent-api', ':agent-runtime', ':execution-safety', ':llm-runtime'] as Set,
+    ':ops-runtime'     : [':agent-api', ':agent-runtime', ':tool-runtime', ':execution-safety', ':llm-runtime'] as Set,
     ':bus'             : [] as Set,
     ':behavior'        : [] as Set,
     ':core'            : [
         ':agent-api',
+        ':agent-runtime',
         ':execution-safety',
         ':tool-runtime',
         ':skill-runtime',
         ':workflow-runtime',
         ':llm-runtime',
-        ':agent-runtime',
         ':memory-runtime',
         ':mcp-runtime',
         ':capability-runtime',

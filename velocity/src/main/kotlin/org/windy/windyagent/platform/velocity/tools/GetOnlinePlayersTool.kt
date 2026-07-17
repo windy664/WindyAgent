@@ -1,7 +1,7 @@
 package org.windy.windyagent.platform.velocity.tools
 
 import com.velocitypowered.api.proxy.ProxyServer
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.llm.ToolResult
 
 class GetOnlinePlayersTool(private val server: ProxyServer) : AgentTool {

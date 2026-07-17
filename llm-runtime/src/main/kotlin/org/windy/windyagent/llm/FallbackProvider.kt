@@ -1,7 +1,7 @@
 package org.windy.windyagent.llm
 
 import org.slf4j.LoggerFactory
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 
 /**
  * 多 Provider 自动故障转移：主 Provider 挂了（额度用完/过载/超时）自动切下一个，对话不中断。
@@ -19,7 +19,7 @@ import org.windy.windyagent.agent.AgentTool
  */
 class FallbackProvider(
     private val providers: List<LLMProvider>
-) : LLMProvider, org.windy.windyagent.agent.StreamingProvider {
+) : LLMProvider, org.windy.windyagent.tools.StreamingProvider {
 
     private val log = LoggerFactory.getLogger(FallbackProvider::class.java)
     @Volatile private var activeIndex = 0
@@ -82,7 +82,7 @@ class FallbackProvider(
     override fun chatStream(systemPrompt: String, messages: List<LLMMessage>, tools: List<AgentTool>): ChatStream {
         maybeFailback()
         val provider = providers[activeIndex]
-        (provider as? org.windy.windyagent.agent.StreamingProvider)?.let { return it.chatStream(systemPrompt, messages, tools) }
+        (provider as? org.windy.windyagent.tools.StreamingProvider)?.let { return it.chatStream(systemPrompt, messages, tools) }
         val stream = ChatStream()
         Thread({
             runCatching { provider.chat(systemPrompt, messages, tools).textContent ?: "" }

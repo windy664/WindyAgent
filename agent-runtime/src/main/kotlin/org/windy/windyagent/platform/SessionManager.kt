@@ -44,8 +44,8 @@ class SessionManager(
     fun activeSessions(): Int = synchronized(sessions) { sessions.size }
 
     // 同会话串行化：同一 sessionId 的多个请求（web 与 QQ 共用 im-<openid>、或用户连发）若并发跑
-    // agent.run，会并发读写同一份 history → 破坏 tool_calls/ToolResults 配对(400)/上下文错乱。
-    // 用 per-session 锁把同一会话的 agent 调用串行化；不同会话仍并行。
+    // tools.run，会并发读写同一份 history → 破坏 tool_calls/ToolResults 配对(400)/上下文错乱。
+    // 用 per-session 锁把同一会话的 tools 调用串行化；不同会话仍并行。
     private val sessionLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     /** 在会话独占锁下执行 [block]（同 sessionId 串行，不同 sessionId 并行）。 */

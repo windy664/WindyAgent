@@ -1,7 +1,7 @@
 package org.windy.windyagent.platform.bukkit
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.platform.bukkit.item.ItemService
 

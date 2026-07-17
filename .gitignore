@@ -1,11 +1,13 @@
 # MacOS DS_Store files
 .DS_Store
 
-# Gradle cache folder
-.gradle
 
 # Gradle build folder（所有模块的 build/ 均忽略）
 **/build/
+
+# Gradle cache
+.gradle/
+web/.gradle/
 
 # IntelliJ
 out/

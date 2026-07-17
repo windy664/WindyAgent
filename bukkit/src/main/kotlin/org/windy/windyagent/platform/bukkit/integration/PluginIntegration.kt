@@ -1,6 +1,6 @@
 package org.windy.windyagent.platform.bukkit.integration
 
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.safety.AuditLog
 
 /**

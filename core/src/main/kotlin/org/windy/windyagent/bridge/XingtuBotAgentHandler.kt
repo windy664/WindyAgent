@@ -90,11 +90,11 @@ class XingtuBotAgentHandler(
                 logger.warn("[XingtuBot] Agent 处理失败：${e.message}")
                 "⚠️ 处理失败：${e.message}"
             }
-        // 用 markdown 回复：agent 回复常含 **加粗**/列表等，昕途 reply() 会转义纯文本，replyMarkdown 才渲染。
+        // 用 markdown 回复：tools 回复常含 **加粗**/列表等，昕途 reply() 会转义纯文本，replyMarkdown 才渲染。
         event.replyMarkdown(reply, null)
     }
 
-    override fun name(): String = "windyagent-agent"
+    override fun name(): String = "windyagent-tools"
 
     // 观察者不参与主链优先级排序，给一个稳定值即可
     override fun priority(): Int = 90

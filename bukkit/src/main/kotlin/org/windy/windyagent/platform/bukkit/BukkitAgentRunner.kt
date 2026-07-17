@@ -3,19 +3,19 @@ package org.windy.windyagent.platform.bukkit
 import org.bukkit.plugin.java.JavaPlugin
 import org.windy.windyagent.AgentConfig
 import org.windy.windyagent.Messages
-import org.windy.windyagent.agent.AgentRouter
-import org.windy.windyagent.agent.AgentTool
-import org.windy.windyagent.agent.AgentRuntimeMessages
-import org.windy.windyagent.agent.ContextCompressor
-import org.windy.windyagent.agent.PersonalityLoader
-import org.windy.windyagent.agent.PlanExecuteAgent
-import org.windy.windyagent.agent.ReActAgent
-import org.windy.windyagent.agent.UserProfileManager
-import org.windy.windyagent.agent.RemoteAppraiseTool
-import org.windy.windyagent.agent.RemoteBalanceTool
-import org.windy.windyagent.agent.RemoteCommandTool
-import org.windy.windyagent.agent.RemoteProposePackTool
-import org.windy.windyagent.agent.RemoteRefreshItemsTool
+import org.windy.windyagent.tools.AgentRouter
+import org.windy.windyagent.tools.AgentTool
+import org.windy.windyagent.tools.AgentRuntimeMessages
+import org.windy.windyagent.tools.ContextCompressor
+import org.windy.windyagent.tools.agent.PersonalityLoader
+import org.windy.windyagent.tools.PlanExecuteAgent
+import org.windy.windyagent.tools.ReActAgent
+import org.windy.windyagent.tools.UserProfileManager
+import org.windy.windyagent.tools.agent.RemoteAppraiseTool
+import org.windy.windyagent.tools.agent.RemoteBalanceTool
+import org.windy.windyagent.tools.agent.RemoteCommandTool
+import org.windy.windyagent.tools.agent.RemoteProposePackTool
+import org.windy.windyagent.tools.agent.RemoteRefreshItemsTool
 import org.windy.windyagent.llm.LLMUsageTracker
 import org.windy.windyagent.platform.bukkit.item.ItemService
 import org.windy.windyagent.platform.bukkit.skill.SkillEngine
@@ -52,8 +52,6 @@ import java.io.File
 class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
     // ── shutdown 需要追踪的资源 ──
-    private var aiCommand: org.bukkit.command.PluginCommand? = null
-    private var approvalCommands: List<org.bukkit.command.PluginCommand> = emptyList()
     private var chatListener: BukkitChatListener? = null
     private var logWatcher: org.windy.windyagent.ops.LogWatcher? = null
 
@@ -81,12 +79,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
     /** 关闭 standalone 模式注册的所有组件（命令入口、聊天监听、日志监控）。关服时调用。 */
     fun shutdown() {
-        // 注销 /ai 命令
-        aiCommand?.setExecutor(null)
-        aiCommand = null
-        // 注销审批命令
-        approvalCommands.forEach { it.setExecutor(null) }
-        approvalCommands = emptyList()
+        // 清除 TabooLib 命令的运行时依赖
+        WindyCommands.holder = null
         // 注销聊天监听
         chatListener?.let { org.bukkit.event.HandlerList.unregisterAll(it) }
         chatListener = null
@@ -139,15 +133,15 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             extraTools += RemoteProposePackTool(remoteBus, remoteTimeoutMs)
             extraTools += RemoteRefreshItemsTool(remoteBus, remoteTimeoutMs)
             // hub：也能调其它子服推上来的技能（本机技能则已是本地工具）
-            extraTools += org.windy.windyagent.agent.RemoteSkillTool(remoteBus, remoteTimeoutMs, audit)
+            extraTools += org.windy.windyagent.tools.agent.RemoteSkillTool(remoteBus, remoteTimeoutMs, audit)
             // hub：对其它子服做文件管理 + 配置版本化（默认关，files.enabled 显式开）
             if (cfg.filesEnabled()) {
-                extraTools += org.windy.windyagent.agent.RemoteReadFileTool(remoteBus, remoteTimeoutMs, audit)
-                extraTools += org.windy.windyagent.agent.RemoteListDirTool(remoteBus, remoteTimeoutMs, audit)
-                extraTools += org.windy.windyagent.agent.RemoteWriteFileTool(remoteBus, remoteTimeoutMs, audit)
-                extraTools += org.windy.windyagent.agent.RemoteDeleteFileTool(remoteBus, remoteTimeoutMs, audit, pending)
-                extraTools += org.windy.windyagent.agent.RemoteGitHistoryTool(remoteBus, remoteTimeoutMs)
-                extraTools += org.windy.windyagent.agent.RemoteRollbackTool(remoteBus, remoteTimeoutMs, audit, pending)
+                extraTools += org.windy.windyagent.tools.agent.RemoteReadFileTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.tools.agent.RemoteListDirTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.tools.agent.RemoteWriteFileTool(remoteBus, remoteTimeoutMs, audit)
+                extraTools += org.windy.windyagent.tools.agent.RemoteDeleteFileTool(remoteBus, remoteTimeoutMs, audit, pending)
+                extraTools += org.windy.windyagent.tools.agent.RemoteGitHistoryTool(remoteBus, remoteTimeoutMs)
+                extraTools += org.windy.windyagent.tools.agent.RemoteRollbackTool(remoteBus, remoteTimeoutMs, audit, pending)
             }
             remoteBus.onCatalog { registry.accept(it) }
         }
@@ -159,8 +153,8 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         // 长期记忆（跨会话）：注入 sessionStore 供 recall 搜历史原文
         val memory = if (cfg.memoryEnabled()) FileLongTermMemory(plugin.dataFolder.toPath().resolve("memory"), cfg.memoryMaxEntries(), cfg.memoryRecallMinScore(), sessionStore) else null
         // 核心工具统一装配（knowledge/usage/memory/mcp）——与 Velocity 同源，加一个只改 CoreToolContributors 一处
-        extraTools += org.windy.windyagent.agent.ToolAssembly.assemble(
-            org.windy.windyagent.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
+        extraTools += org.windy.windyagent.tools.ToolAssembly.assemble(
+            org.windy.windyagent.tools.agent.CoreToolContributors.of(knowledge, expander, cfg.ragMinHits(), usageTracker, memory, cfg.mcpServers())
         ) { plugin.logger.info(it) }
         profileRegistry?.let { extraTools += PlayerProfileTool(it) } // 玩家聚合画像工具
         // 服主编写的 Kether 技能：扫 skills/ 目录，每个技能挂成本地工具（与 Agent 同 JVM，直接调）
@@ -177,16 +171,16 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
                 extraTools += SkillTool(def, skillEngine, audit, toolsRef, skills, skillsDir)
             }
             // 对话式技能管理
-            extraTools += org.windy.windyagent.agent.CreateSkillTool(skills, audit, isUpdate = false)
-            extraTools += org.windy.windyagent.agent.CreateSkillTool(skills, audit, isUpdate = true)
-            extraTools += org.windy.windyagent.agent.ListSkillsTool(skills)
-            extraTools += org.windy.windyagent.agent.ReadSkillTool(skills)
+            extraTools += org.windy.windyagent.tools.agent.CreateSkillTool(skills, audit, isUpdate = false)
+            extraTools += org.windy.windyagent.tools.agent.CreateSkillTool(skills, audit, isUpdate = true)
+            extraTools += org.windy.windyagent.tools.agent.ListSkillsTool(skills)
+            extraTools += org.windy.windyagent.tools.agent.ReadSkillTool(skills)
             // 脚本验证：编译检查 + dry-run（bukkit 侧有 SkillEngine）
-            extraTools += org.windy.windyagent.agent.ValidateSkillTool(
+            extraTools += org.windy.windyagent.tools.agent.ValidateSkillTool(
                 compileCheck = { script -> skillEngine.compile(script) },
                 dryRun = { script, args ->
                     val r = skillEngine.dryRun(script, args)
-                    org.windy.windyagent.agent.DryRunSummary(r.success, r.operations, r.error)
+                    org.windy.windyagent.tools.agent.DryRunSummary(r.success, r.operations, r.error)
                 }
             )
             plugin.logger.info("[Skill] 技能已加载 — $n 个（skills/ 目录，其中 ${skills.all().count { it.isWorkflow }} 个工作流）")
@@ -194,7 +188,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         }
         // 日志读取工具 + 日志监控
         val logDir = plugin.server.worldContainer.resolve("logs")
-        extraTools += org.windy.windyagent.agent.ReadLogTool(logDir)
+        extraTools += org.windy.windyagent.tools.agent.ReadLogTool(logDir)
         if (logDir.exists()) {
             val watcher = org.windy.windyagent.ops.LogWatcher(
                 logFiles = listOf(File(logDir, "latest.log")),
@@ -238,7 +232,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // Prompt 版本化：加载自定义 prompt，追加到 personality
         val promptVersioning = if (cfg.promptVersioningEnabled()) {
-            org.windy.windyagent.agent.PromptVersioning(plugin.dataFolder.toPath().resolve("prompts")).also {
+            org.windy.windyagent.tools.PromptVersioning(plugin.dataFolder.toPath().resolve("prompts")).also {
                 val loaded = it.load()
                 if (loaded.isNotBlank()) {
                     platform.personality = if (platform.personality.isNotBlank()) platform.personality + "\n\n" + loaded else loaded
@@ -255,15 +249,15 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // 成本路由
         val costRouterLlm = if (cfg.costRouterEnabled() && fastLlm != null) {
-            org.windy.windyagent.agent.CostRouter(effectiveLlm, fastLlm)
+            org.windy.windyagent.tools.CostRouter(effectiveLlm, fastLlm)
         } else effectiveLlm
 
         // 失败检测 + 工具缓存 + 自检 + 轨迹记录
-        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.agent.FailureDetector() else null
-        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.agent.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
-        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.agent.SelfChecker(fastLlm ?: effectiveLlm) else null
+        val failureDetector = if (cfg.failureDetectEnabled()) org.windy.windyagent.tools.FailureDetector() else null
+        val toolResultCache = if (cfg.toolCacheEnabled()) org.windy.windyagent.tools.ToolResultCache(cfg.toolCacheMaxSize(), cfg.toolCacheTtlSeconds() * 1000) else null
+        val selfChecker = if (cfg.selfCheckEnabled()) org.windy.windyagent.tools.SelfChecker(fastLlm ?: effectiveLlm) else null
         val trajectoryRecorder = if (cfg.trajectoryEnabled()) {
-            org.windy.windyagent.agent.TrajectoryRecorder(plugin.dataFolder.toPath().resolve("trajectories"))
+            org.windy.windyagent.tools.TrajectoryRecorder(plugin.dataFolder.toPath().resolve("trajectories"))
         } else null
         val runtimeMessages = AgentRuntimeMessages { key, args ->
             Messages.t(key, *args.map { it ?: "" }.toTypedArray())
@@ -271,7 +265,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
 
         // 子任务并行编排器
         val subAgent = if (cfg.subAgentEnabled()) {
-            org.windy.windyagent.agent.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
+            org.windy.windyagent.tools.SubAgentOrchestrator(fastLlm ?: effectiveLlm, { platform.tools }, platform.systemPrompt, runtimeMessages)
         } else null
 
         val react = ReActAgent(costRouterLlm, failureDetector = failureDetector, toolResultCache = toolResultCache, selfChecker = selfChecker, trajectoryRecorder = trajectoryRecorder, messagesResolver = runtimeMessages)
@@ -291,14 +285,9 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
         // 嵌入式：本机技能已是本地工具（LLM 直接可见），不重复进可搜索目录，避免"目录有名、无对应工具"。
         CapabilitySync(plugin, actions, selfName, deliver = { cat -> registry.put(cat) }).start()
 
-        // /ai 命令（需在 plugin.yml 声明 commands.ai）
-        aiCommand = plugin.getCommand("ai")
-        aiCommand?.setExecutor(BukkitCommand(plugin, agent, playerQa, platform, sessions, router))
-            ?: plugin.logger.warning("[Command] 未找到 /ai 命令声明，控制台/玩家命令入口不可用（聊天触发仍可用）")
-
-        // 顶层审批命令（薄适配 → router）
-        val approval = BukkitApprovalCommand(router)
-        approvalCommands = listOf("ai-approve", "ai-deny", "ai-pending").mapNotNull { plugin.getCommand(it)?.also { cmd -> cmd.setExecutor(approval) } }
+        // 注入运行时依赖到 TabooLib 注解式命令（/ai + /ai approve|deny|pending）
+        val rateLimiter = if (cfg.rateLimitEnabled()) org.windy.windyagent.safety.RateLimiter(cfg.rateLimitBucketSize(), cfg.rateLimitRefillRate()) else null
+        WindyCommands.holder = WindyCommands.CommandHolder(plugin, agent, playerQa, platform, sessions, router, rateLimiter)
 
         // 聊天触发 <trigger> <消息>
         chatListener = BukkitChatListener(plugin, playerQa, platform, router, cfg.trigger())
@@ -311,7 +300,7 @@ class BukkitAgentRunner(private val plugin: JavaPlugin) {
             // 同会话串行(#1)：防连发并发破坏 history 的 tool 配对/上下文
             sessions.withSessionLock(sid) {
                 router.dispatch(msg, sid, org.windy.windyagent.safety.TrustLevel.TRUSTED) ?: run {
-                    val resp = agent.run(org.windy.windyagent.agent.AgentContext(sid, msg, platform, sessions.getHistory(sid), org.windy.windyagent.safety.TrustLevel.TRUSTED))
+                    val resp = agent.run(org.windy.windyagent.tools.AgentContext(sid, msg, platform, sessions.getHistory(sid), org.windy.windyagent.safety.TrustLevel.TRUSTED))
                     sessions.trimHistory(sid); resp.message ?: "(无回复)"
                 }
             }

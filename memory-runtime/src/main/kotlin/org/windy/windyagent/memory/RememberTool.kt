@@ -1,7 +1,7 @@
 package org.windy.windyagent.memory
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.llm.ToolResult
 import org.windy.windyagent.safety.RequestContext
 import org.windy.windyagent.safety.TrustLevel

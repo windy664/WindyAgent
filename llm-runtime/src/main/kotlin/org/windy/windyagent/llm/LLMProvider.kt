@@ -1,6 +1,6 @@
 package org.windy.windyagent.llm
 
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 
 interface LLMProvider {
     val name: String

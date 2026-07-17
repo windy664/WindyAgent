@@ -5,7 +5,7 @@ import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
 import com.anthropic.models.messages.*
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 import org.windy.windyagent.llm.*
 
 class ClaudeProvider @JvmOverloads constructor(

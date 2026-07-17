@@ -1,7 +1,7 @@
 package org.windy.windyagent.mcp
 
 import org.slf4j.LoggerFactory
-import org.windy.windyagent.agent.AgentTool
+import org.windy.windyagent.tools.AgentTool
 
 /**
  * 按配置接入 MCP server：逐个握手、拉 tools/list、把每个工具包成 [McpToolAdapter]。
